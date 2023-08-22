@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arvi"
+authors = [
+    {name = "João Faria", email = "joao.faria@astro.up.pt"},
+]
+description = "The Automated RV Inspector"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.8"
+keywords = ["RV", "exoplanets"]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "loguru",
+    "mpldatacursor",
+    "tqdm",
+    "pyexoplaneteu",
+    "dace-query",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/j-faria/arvi"
+
+
+[tool.setuptools.dynamic]
+version = {attr = "arvi.__version__"}
+
+# [project.optional-dependencies]
+# kima = ["kima"]
