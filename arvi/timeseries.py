@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
+from typing import Union
 from functools import partial
 from datetime import datetime, timezone
 import numpy as np
 
 from .setup_logger import logger
 from .translations import translate
-from .dace_wrapper import get_observations, get_arrays
+from .dace_wrapper import get_observations, get_arrays, do_download_ccf
 from .simbad_wrapper import simbad
 from .stats import wmean, wrms
 
@@ -29,6 +30,7 @@ class RV:
     N: int = field(init=False, repr=True)
     verbose: bool = field(init=True, repr=False, default=True)
     do_sigma_clip: bool = field(init=True, repr=False, default=True)
+    do_maxerror: Union[bool, float] = field(init=True, repr=False, default=100)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
     #
     _child: bool = field(init=True, repr=False, default=False)
@@ -74,11 +76,16 @@ class RV:
             # all other quantities
             self._build_arrays()
 
-        if self.do_sigma_clip:
-            self.sigmaclip()
+        # do clip_maxerror, sigmaclip, adjust_means
+        if not self._child:
+            if self.do_maxerror:
+                self.clip_maxerror(self.do_maxerror)
 
-        if self.do_adjust_means:
-            self.adjust_means()
+            if self.do_sigma_clip:
+                self.sigmaclip()
+
+            if self.do_adjust_means:
+                self.adjust_means()
 
 
     def reload(self):
@@ -174,6 +181,21 @@ class RV:
                 )
                 setattr(self, q, arr)
 
+
+    def download_ccf(self, instrument=None):
+        directory = f'{self.star}_downloads'
+        if instrument is None:
+            files = [file for file in self.raw_file if file.endswith('.fits')]
+        else:
+            if instrument not in self.instruments:
+                logger.error(f"No data from instrument '{instrument}'")
+                logger.info(f'available: {self.instruments}')
+                return
+            files = getattr(self, instrument).raw_file
+
+        do_download_ccf(files, directory)
+
+
     from .plots import plot, plot_fwhm, plot_bis
     from .plots import gls, gls_fwhm, gls_bis
     from .reports import report
@@ -240,12 +262,19 @@ class RV:
         self.mask[~ind] = False
         self._propagate_mask_changes()
 
-    def sigmaclip_errors(self, maxerror:float, plot=False):
+    def clip_maxerror(self, maxerror:float, plot=False):
         """ Mask out points with RV error larger than `maxerror` """
         if self._child:
             return
         self.maxerror = maxerror
-        self.mask[self.svrad > maxerror] = False
+        above = self.svrad > maxerror
+        n = above.sum()
+        self.mask[above] = False
+
+        if self.verbose and above.sum() > 0:
+            s = 's' if (n == 0 or n > 1) else ''
+            logger.warning(f'clip_maxerror removed {n} point' + s)
+
         self._propagate_mask_changes()
 
     def adjust_means(self, just_rv=False):
@@ -261,13 +290,19 @@ class RV:
                 logger.info(f'subtracted weighted average from {inst:10s}: ({s.rv_mean:.3f} {self.units})')
             if just_rv:
                 continue
-            for other in others:
+            log_msg = 'same for '
+            for i, other in enumerate(others):
                 y, ye = getattr(s, other), getattr(s, other + '_err')
                 m = wmean(y, ye)
                 setattr(s, f'{other}_mean', m)
                 setattr(s, other, getattr(s, other) - m)
-                if self.verbose:
-                    logger.info(f'same for {other}')
+                log_msg += other
+                if i < len(others) - 1:
+                    log_msg += ', '
+            
+            if self.verbose:
+                logger.info(log_msg)
+
         self._build_arrays()
         self._did_adjust_means = True
 
