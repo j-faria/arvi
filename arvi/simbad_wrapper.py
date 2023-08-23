@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 import requests
 
+from astropy.coordinates import SkyCoord
+
 QUERY = """
 SELECT basic.OID,
        RA,
@@ -58,6 +60,7 @@ class simbad:
     Attributes:
         ra (float): right ascension
         dec (float): declination
+        coords (SkyCoord): coordinates as a SkyCoord object
         main_id (str): main identifier
         plx_value (float): parallax
         rvz_radvel (float): radial velocity
@@ -72,21 +75,27 @@ class simbad:
             star (str): The name of the star to query simbad
         """
         self.star = star
-        table1 = run_query(query=QUERY.format(star=star))
-        cols, values = parse_table(table1)
+        try:
+            table1 = run_query(query=QUERY.format(star=star))
+            cols, values = parse_table(table1)
 
-        table2 = run_query(query=BV_QUERY.format(star=star))
-        cols, values = parse_table(table2, cols, values)
+            table2 = run_query(query=BV_QUERY.format(star=star))
+            cols, values = parse_table(table2, cols, values)
 
-        table3 = run_query(query=IDS_QUERY.format(star=star))
-        line = table3.splitlines()[2]
-        self.ids = line.replace('"', '').replace('    ', ' ').split('|')
+            table3 = run_query(query=IDS_QUERY.format(star=star))
+            line = table3.splitlines()[2]
+            self.ids = line.replace('"', '').replace('    ', ' ').split('|')
+        except IndexError:
+            raise ValueError(f'simbad query for {star} failed')
 
         for col, val in zip(cols, values):
             try:
                 setattr(self, col, float(val))
             except ValueError:
                 setattr(self, col, val)
+
+        self.coords = SkyCoord(self.ra, self.dec, unit='deg')
+
 
     def __repr__(self):
         V = self.V
