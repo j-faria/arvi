@@ -37,7 +37,10 @@ class RV:
 
     def __post_init__(self):
         self.__star__ = translate(self.star)
-        self.simbad = simbad(self.__star__)
+        try:
+            self.simbad = simbad(self.__star__)
+        except ValueError as e:
+            logger.error(e.msg)
 
         if not self._child:
             if self.verbose:
