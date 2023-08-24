@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "arvi"
 authors = [
-    {name = "João Faria", email = "joao.faria@astro.up.pt"},
+    {name = "João Faria", email = "joao.faria@unige.ch"},
 ]
 description = "The Automated RV Inspector"
 readme = {file = "README.md", content-type = "text/markdown"}
