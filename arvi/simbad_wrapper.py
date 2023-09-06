@@ -8,6 +8,8 @@ SELECT basic.OID,
        RA,
        DEC,
        main_id,
+       pmra,
+       pmdec,
        plx_value,
        rvz_radvel,
        sp_type
