@@ -4,11 +4,16 @@ from functools import partial
 from datetime import datetime, timezone
 import numpy as np
 
+from astropy import units
+
 from .setup_logger import logger
+from .config import return_self
 from .translations import translate
-from .dace_wrapper import get_observations, get_arrays, do_download_ccf
+from .dace_wrapper import get_observations, get_arrays
+from .dace_wrapper import do_download_ccf, do_download_s1d, do_download_s2d
 from .simbad_wrapper import simbad
 from .stats import wmean, wrms
+
 
 @dataclass
 class RV:
@@ -29,11 +34,13 @@ class RV:
     star: str
     N: int = field(init=False, repr=True)
     verbose: bool = field(init=True, repr=False, default=True)
-    do_sigma_clip: bool = field(init=True, repr=False, default=True)
     do_maxerror: Union[bool, float] = field(init=True, repr=False, default=100)
+    do_secular_acceleration: bool = field(init=True, repr=False, default=True)
+    do_sigma_clip: bool = field(init=True, repr=False, default=True)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
     #
     _child: bool = field(init=True, repr=False, default=False)
+    _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
     _did_sigma_clip: bool = field(init=False, repr=False, default=False)
     _did_adjust_means: bool = field(init=False, repr=False, default=False)
 
@@ -64,7 +71,8 @@ class RV:
 
         # build joint arrays
         if not self._child:
-            self.instruments = list(self.dace_result.keys())
+            #! sorted?
+            self.instruments = sorted(list(self.dace_result.keys()))
             # self.pipelines =
             # "observatory" (or instrument id)
             self.obs = np.concatenate(
@@ -76,10 +84,13 @@ class RV:
             # all other quantities
             self._build_arrays()
 
-        # do clip_maxerror, sigmaclip, adjust_means
+        # do clip_maxerror, secular_acceleration, sigmaclip, adjust_means
         if not self._child:
             if self.do_maxerror:
                 self.clip_maxerror(self.do_maxerror)
+
+            if self.do_secular_acceleration:
+                self.secular_acceleration()
 
             if self.do_sigma_clip:
                 self.sigmaclip()
@@ -99,6 +110,10 @@ class RV:
     def N(self, value):
         if not isinstance(value, property):
             logger.error('Cannot set N directly')
+
+    @property
+    def NN(self):
+        return {inst: getattr(self, inst).N for inst in self.instruments}
 
     @property
     def mtime(self):
@@ -170,12 +185,11 @@ class RV:
             [getattr(self, inst).svrad for inst in self.instruments]
         )
         arrays = get_arrays(self.dace_result)
-        quantities = list(arrays[0][-1].keys())
+        self.quantities = list(arrays[0][-1].keys())
+        self.quantities[self.quantities.index('mask')] = 'ccf_mask'
         # all other quantities
-        for q in quantities:
+        for q in self.quantities:
             if q not in ('rjd', 'rv', 'rv_err'):
-                if q == 'mask':  # change mask -> ccf_mask
-                    q = 'ccf_mask'
                 arr = np.concatenate(
                     [getattr(getattr(self, inst), q) for inst in self.instruments]
                 )
@@ -194,6 +208,32 @@ class RV:
             files = getattr(self, instrument).raw_file
 
         do_download_ccf(files, directory)
+
+    def download_s1d(self, instrument=None):
+        directory = f'{self.star}_downloads'
+        if instrument is None:
+            files = [file for file in self.raw_file if file.endswith('.fits')]
+        else:
+            if instrument not in self.instruments:
+                logger.error(f"No data from instrument '{instrument}'")
+                logger.info(f'available: {self.instruments}')
+                return
+            files = getattr(self, instrument).raw_file
+
+        do_download_s1d(files, directory)
+
+    def download_s2d(self, instrument=None):
+        directory = f'{self.star}_downloads'
+        if instrument is None:
+            files = [file for file in self.raw_file if file.endswith('.fits')]
+        else:
+            if instrument not in self.instruments:
+                logger.error(f"No data from instrument '{instrument}'")
+                logger.info(f'available: {self.instruments}')
+                return
+            files = getattr(self, instrument).raw_file
+
+        do_download_s2d(files, directory)
 
 
     from .plots import plot, plot_fwhm, plot_bis
@@ -217,12 +257,23 @@ class RV:
         self.vrad = np.delete(self.vrad, remove)
         self.svrad = np.delete(self.svrad, remove)
         #
+        self.mask = np.delete(self.mask, remove)
+        #
+        # all other quantities
+        for q in self.quantities:
+            if q not in ('rjd', 'rv', 'rv_err'):
+                new = np.delete(getattr(self, q), remove)
+                setattr(self, q, new)
+        #
         self.instruments.remove(instrument)
         #
         delattr(self, instrument)
 
         if self.verbose:
             logger.info(f"Removed observations from '{instrument}'")
+
+        if return_self:
+            return self
 
     def remove_point(self, index):
         """ Remove individual observations at a given `index` (or indices) """
@@ -239,6 +290,8 @@ class RV:
         # for i, inst in zip(index, instrument):
         #     index_in_instrument = i - (self.obs < instrument_index).sum()
         #     getattr(self, inst).mask[index_in_instrument] = False
+        if return_self:
+            return self
 
     def _propagate_mask_changes(self):
         """ link self.mask with each self.`instrument`.mask """
@@ -247,6 +300,53 @@ class RV:
             inst = self.instruments[self.obs[m] - 1]
             n_before = (self.obs < self.obs[m]).sum()
             getattr(self, inst).mask[m - n_before] = False
+
+    def secular_acceleration(self, epoch=55500, plot=False):
+        """
+        Remove secular acceleration from RVs
+
+        Args:
+            epoch (float):
+                The reference epoch (DACE uses 55500, 31/10/2010)
+            instruments (bool or collection of str):
+                Only remove secular acceleration for some instruments, or for all 
+                if `instruments=True`
+            plot (bool):
+                Show a plot of the RVs with the secular acceleration
+        """
+        if self._did_secular_acceleration:  # don't do it twice
+            return
+
+        as_yr = units.arcsec / units.year
+        mas_yr = units.milliarcsecond / units.year
+        mas = units.milliarcsecond
+
+        π = self.simbad.plx_value * mas
+        d = π.to(units.pc, equivalencies=units.parallax())
+        μα = self.simbad.pmra * mas_yr
+        μδ = self.simbad.pmdec * mas_yr
+        μ = μα**2 + μδ**2
+        sa = (μ * d).to(units.m / units.second / units.year,
+                        equivalencies=units.dimensionless_angles())
+        sa = sa.value
+
+        if self.verbose:
+            logger.info('removing secular acceleration from RVs')
+
+        if self.units == 'km/s':
+            sa /= 1000
+
+        for inst in self.instruments:
+            if 'HIRES' in inst:  # never remove it from HIRES...
+                continue
+
+            s = getattr(self, inst)
+            s.vrad = s.vrad - sa * (s.time - epoch) / 365.25
+        
+        self._build_arrays()
+        self._did_secular_acceleration = True
+        if return_self:
+            return self
 
     def sigmaclip(self, sigma=3):
         """ Sigma-clip RVs """
@@ -261,6 +361,8 @@ class RV:
         ind = (self.vrad > result.lower) & (self.vrad < result.upper)
         self.mask[~ind] = False
         self._propagate_mask_changes()
+        if return_self:
+            return self
 
     def clip_maxerror(self, maxerror:float, plot=False):
         """ Mask out points with RV error larger than `maxerror` """
@@ -273,9 +375,11 @@ class RV:
 
         if self.verbose and above.sum() > 0:
             s = 's' if (n == 0 or n > 1) else ''
-            logger.warning(f'clip_maxerror removed {n} point' + s)
+            logger.warning(f'clip_maxerror ({maxerror} {self.units}) removed {n} point' + s)
 
         self._propagate_mask_changes()
+        if return_self:
+            return self
 
     def adjust_means(self, just_rv=False):
         if self._child or self._did_adjust_means:
@@ -284,28 +388,35 @@ class RV:
         others = ('fwhm', 'bispan', )
         for inst in self.instruments:
             s = getattr(self, inst)
+
+            if s.N == 1:
+                if self.verbose:
+                    logger.warning(f'only 1 observation for {inst}, skipping')
+                continue
+
             s.rv_mean = wmean(s.mvrad, s.msvrad)
             s.vrad -= s.rv_mean
             if self.verbose:
                 logger.info(f'subtracted weighted average from {inst:10s}: ({s.rv_mean:.3f} {self.units})')
             if just_rv:
                 continue
-            log_msg = 'same for '
+            # log_msg = 'same for '
             for i, other in enumerate(others):
                 y, ye = getattr(s, other), getattr(s, other + '_err')
-                m = wmean(y, ye)
+                m = wmean(y[s.mask], ye[s.mask])
                 setattr(s, f'{other}_mean', m)
                 setattr(s, other, getattr(s, other) - m)
-                log_msg += other
-                if i < len(others) - 1:
-                    log_msg += ', '
+                # log_msg += other
+                # if i < len(others) - 1:
+                #     log_msg += ', '
             
-            if self.verbose:
-                logger.info(log_msg)
+            # if self.verbose:
+            #     logger.info(log_msg)
 
         self._build_arrays()
         self._did_adjust_means = True
-
+        if return_self:
+            return self
 
 def fit_sine(t, y, yerr, period='gls', fix_period=False):
     from scipy.optimize import leastsq
