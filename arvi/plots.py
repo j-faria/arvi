@@ -6,16 +6,11 @@ from matplotlib.collections import LineCollection
 from astropy.timeseries import LombScargle
 
 from .setup_logger import logger
+from .config import return_self
 
 
-def plot(self,
-         ax=None,
-         show_masked=False,
-         time_offset=0,
-         remove_50000=False,
-         tooltips=True,
-         N_in_label=False,
-         **kwargs):
+def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False, 
+         tooltips=False, N_in_label=False, **kwargs):
     """ Plot the RVs
 
     Args:
@@ -30,6 +25,7 @@ def plot(self,
         Figure: the figure
         Axes: the axis
     """
+
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
@@ -47,17 +43,20 @@ def plot(self,
         s = self if self._child else getattr(self, inst)
         label = f'{inst:10s} ({s.N})' if N_in_label else inst
         lines, *_ = ax.errorbar(s.mtime - time_offset,
-                                s.mvrad,
-                                s.msvrad,
-                                label=label,
-                                picker=True,
-                                **kwargs)
+                                s.mvrad, s.msvrad, label=label, picker=True, **kwargs)
         all_lines.append(lines)
+
+        if show_masked:
+            ax.errorbar(s.time[~s.mask] - time_offset,
+                        s.vrad[~s.mask],
+                        s.svrad[~s.mask],
+                        **kwargs, color=lines.get_color())
+
     if show_masked:
         ax.errorbar(self.time[~self.mask] - time_offset,
                     self.vrad[~self.mask],
                     self.svrad[~self.mask],
-                    label='masked', fmt='x', color='k')
+                    label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
     ax.legend()
 
@@ -69,6 +68,7 @@ def plot(self,
 
     if tooltips:
         inds = []
+
         def onpick(event):
             if isinstance(event.artist, LineCollection):
                 return
@@ -86,21 +86,18 @@ def plot(self,
 
             if len(inds) > 0:
                 reds = ax.plot(xdata[np.array(inds)], ydata[np.array(inds)],
-                                'ro', ms=10, zorder=-1)
+                               'ro', ms=10, zorder=-1)
             fig.canvas.draw()
         fig.canvas.mpl_connect('pick_event', onpick)
 
-    return fig, ax
+    if return_self:
+        return self
+    else:
+        return fig, ax
 
 
-def plot_quantity(self,
-                  quantity,
-                  ax=None,
-                  time_offset=0,
-                  remove_50000=False,
-                  tooltips=True,
-                  N_in_label=False,
-                  **kwargs):
+def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0, 
+                  remove_50000=False, tooltips=False, N_in_label=False, **kwargs):
 
     if not hasattr(self, quantity):
         logger.error(f"cannot find '{quantity}' attribute")
@@ -123,17 +120,27 @@ def plot_quantity(self,
         s = self if self._child else getattr(self, inst)
         label = f'{inst:10s} ({s.N})' if N_in_label else inst
 
-        y = getattr(s, quantity)[s.mask]
-        ye = getattr(s, quantity + '_err')[s.mask]
+        y = getattr(s, quantity)
+        ye = getattr(s, quantity + '_err')
 
         if np.isnan(y).all() or np.isnan(ye).all():
             lines, *_ = ax.errorbar([], [], [],
                                     label=label, picker=True, **kwargs)
             continue
 
-        lines, *_ = ax.errorbar(s.mtime - time_offset, y, ye,
+        lines, *_ = ax.errorbar(s.mtime - time_offset, y[s.mask], ye[s.mask],
                                 label=label, picker=True, **kwargs)
         all_lines.append(lines)
+
+        if show_masked:
+            ax.errorbar(s.time[~s.mask] - time_offset, y[~s.mask], ye[~s.mask],
+                        **kwargs, color=lines.get_color())
+
+    if show_masked:
+        ax.errorbar(self.time[~self.mask] - time_offset,
+                    getattr(self, quantity)[~self.mask],
+                    getattr(self, quantity + '_err')[~self.mask],
+                    label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
     ax.legend()
 
@@ -151,6 +158,7 @@ def plot_quantity(self,
 
     if tooltips:
         inds = []
+
         def onpick(event):
             if isinstance(event.artist, LineCollection):
                 return
@@ -168,11 +176,14 @@ def plot_quantity(self,
 
             if len(inds) > 0:
                 reds = ax.plot(xdata[np.array(inds)], ydata[np.array(inds)],
-                                'ro', ms=10, zorder=-1)
+                               'ro', ms=10, zorder=-1)
             fig.canvas.draw()
         fig.canvas.mpl_connect('pick_event', onpick)
 
-    return fig, ax
+    if return_self:
+        return self
+    else:
+        return fig, ax
 
 
 plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
@@ -194,7 +205,11 @@ def gls(self, ax=None, fap=True, picker=True):
                    alpha=0.2,
                    zorder=-1)
     ax.set(xlabel='Period [days]', ylabel='Normalized power')
-    return fig, ax
+
+    if return_self:
+        return self
+    else:
+        return fig, ax
 
 
 def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
@@ -228,7 +243,11 @@ def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
                    alpha=0.2,
                    zorder=-1)
     ax.set(xlabel='Period [days]', ylabel='Normalized power')
-    return fig, ax
+
+    if return_self:
+        return self
+    else:
+        return fig, ax
 
 
 gls_fwhm = partialmethod(gls_quantity, quantity='fwhm')
