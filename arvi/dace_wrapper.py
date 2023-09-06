@@ -4,14 +4,15 @@ import numpy as np
 from dace_query import DaceClass
 from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
 from .setup_logger import logger
+from .utils import create_directory
+
 
 def load_spectroscopy():
     if 'DACERC' in os.environ:
-         dace = DaceClass(dace_rc_config_path=os.environ['DACERC'])
-         return SpectroscopyClass(dace_instance=dace)
+        dace = DaceClass(dace_rc_config_path=os.environ['DACERC'])
+        return SpectroscopyClass(dace_instance=dace)
     # elif os.path.exists(os.path.expanduser('~/.dacerc')):
     return default_Spectroscopy
-
 
 def get_arrays(result, latest_pipeline=True):
     arrays = []
@@ -65,24 +66,26 @@ def get_observations(star, save_rdb=False, verbose=True):
     return result
 
 
-def do_download_ccf(raw_files, output_directory, verbose=True):
-    raw_files = np.atleast_1d(raw_files)
-    if not os.path.isdir(output_directory):
-        os.makedirs(output_directory)
-    if verbose:
-        logger.info(f"Downloading {len(raw_files)} CCFs into '{output_directory}'...")
+def check_existing(output_directory, files, type):
+    existing = [
+        f.partition('_')[0] for f in os.listdir(output_directory)
+        if type in f
+    ]
+    missing = []
+    for file in files:
+        if any(other in file for other in existing):
+            continue
+        missing.append(file)
+    return np.array(missing)
 
-    Spectroscopy = load_spectroscopy()
-    
+def download(files, type, output_directory):
     from .utils import all_logging_disabled, stdout_disabled
+    Spectroscopy = load_spectroscopy()
     with stdout_disabled(), all_logging_disabled():
-        Spectroscopy.download_files(raw_files[:2],
-                                    file_type='ccf',
+        Spectroscopy.download_files(files, file_type=type,
                                     output_directory=output_directory)
 
-    if verbose:
-        logger.info('Extracting .fits files')
-    
+def extract_fits(output_directory):
     file = os.path.join(output_directory, 'spectroscopy_download.tar.gz')
     tar = tarfile.open(file, "r")
     for member in tar.getmembers():
@@ -90,3 +93,83 @@ def do_download_ccf(raw_files, output_directory, verbose=True):
             member.name = os.path.basename(member.name)  # remove the path
             tar.extract(member, output_directory)
     os.remove(file)
+
+def do_download_ccf(raw_files, output_directory, clobber=False, verbose=True):
+    raw_files = np.atleast_1d(raw_files)
+
+    create_directory(output_directory)
+
+    # check existing files to avoid re-downloading
+    if not clobber:
+        raw_files = check_existing(output_directory, raw_files, 'CCF')
+
+    # any file left to download?
+    if raw_files.size == 0:
+        if verbose:
+            logger.info('no files to download')
+        return
+
+    if verbose:
+        n = raw_files.size
+        logger.info(f"Downloading {n} CCFs into '{output_directory}'...")
+
+    download(raw_files, 'ccf', output_directory)
+
+    if verbose:
+        logger.info('Extracting .fits files')
+
+    extract_fits(output_directory)
+
+
+def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
+    raw_files = np.atleast_1d(raw_files)
+
+    create_directory(output_directory)
+
+    # check existing files to avoid re-downloading
+    if not clobber:
+        raw_files = check_existing(output_directory, raw_files, 'S1D')
+
+    # any file left to download?
+    if raw_files.size == 0:
+        if verbose:
+            logger.info('no files to download')
+        return
+
+    if verbose:
+        n = raw_files.size
+        logger.info(f"Downloading {n} S1Ds into '{output_directory}'...")
+
+    download(raw_files, 's1d', output_directory)
+
+    if verbose:
+        logger.info('Extracting .fits files')
+
+    extract_fits(output_directory)
+
+
+def do_download_s2d(raw_files, output_directory, clobber=False, verbose=True):
+    raw_files = np.atleast_1d(raw_files)
+
+    create_directory(output_directory)
+
+    # check existing files to avoid re-downloading
+    if not clobber:
+        raw_files = check_existing(output_directory, raw_files, 'S2D')
+
+    # any file left to download?
+    if raw_files.size == 0:
+        if verbose:
+            logger.info('no files to download')
+        return
+
+    if verbose:
+        n = raw_files.size
+        logger.info(f"Downloading {n} S2Ds into '{output_directory}'...")
+
+    download(raw_files, 's2d', output_directory)
+
+    if verbose:
+        logger.info('Extracting .fits files')
+
+    extract_fits(output_directory)
