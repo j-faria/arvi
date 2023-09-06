@@ -4,6 +4,10 @@ from mock import patch
 import logging
 
 
+def create_directory(directory):
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+
 @contextmanager
 def stdout_disabled():
     devnull = open(os.devnull, 'w')
