@@ -20,8 +20,9 @@ def get_arrays(result, latest_pipeline=True):
     for inst in instruments:
         pipelines = list(result[inst].keys())
         if latest_pipeline:
-            pipelines = [pipelines[-1]]
+            pipelines = [pipelines[0]]
         for pipe in pipelines:
+            # print(inst, pipe)
             modes = list(result[inst][pipe].keys())
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
@@ -34,7 +35,6 @@ def get_arrays(result, latest_pipeline=True):
 
     return arrays
 
-
 def get_observations(star, save_rdb=False, verbose=True):
     Spectroscopy = load_spectroscopy()
     result = Spectroscopy.get_timeseries(target=star,
@@ -46,11 +46,13 @@ def get_observations(star, save_rdb=False, verbose=True):
     # (i.e. ensure that 3.0.0 > 3.5)
     class sorter:
         def __call__(self, x):
-            return '0.3.5' if x == '3.5' else x
+            return ('0.3.5', x[1]) if x[0] == '3.5' else x
 
     for inst in instruments:
-        result[inst] = dict(sorted(result[inst].items(), 
+        # print(inst, result[inst].keys())
+        result[inst] = dict(sorted(result[inst].items(),
                                    key=sorter(), reverse=True))
+        # print(inst, result[inst].keys())
 
     if verbose:
         logger.info('RVs available from')
