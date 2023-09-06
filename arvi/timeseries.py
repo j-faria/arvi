@@ -128,6 +128,10 @@ class RV:
         return self.svrad[self.mask]
 
     @property
+    def instrument_array(self):
+        return np.concatenate([[i] * n for i, n in self.NN.items()])
+
+    @property
     def rms(self):
         """ Weighted rms of the (masked) radial velocities """
         if self.mask.sum() == 0:  # only one point
