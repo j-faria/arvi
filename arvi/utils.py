@@ -1,6 +1,13 @@
 import os
 from contextlib import contextmanager
-from mock import patch
+try:
+    from unittest.mock import patch
+except ImportError:
+    try:
+        from mock import patch
+    except ImportError as e:
+        raise e
+
 import logging
 
 
