@@ -17,11 +17,15 @@ classifiers = [
 ]
 dependencies = [
     'mock;python_version<"3.3"',
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "astropy",
+    "dace-query",
     "loguru",
     "mpldatacursor",
     "tqdm",
     "pyexoplaneteu",
-    "dace-query",
 ]
 dynamic = ["version"]
 
