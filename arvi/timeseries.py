@@ -428,6 +428,49 @@ class RV:
         if return_self:
             return self
 
+    #
+    def run_lbl(self, instrument=None, data_dir=None):
+        from .lbl_wrapper import run_lbl
+
+        if instrument not in self.instruments:
+            if any([instrument in i for i in self.instruments]):
+                instrument = [i for i in self.instruments if instrument in i]
+            else:
+                logger.error(f"No data from instrument '{instrument}'")
+                logger.info(f'available: {self.instruments}')
+                return
+        
+        if isinstance(instrument, str):
+            instruments = [instrument]
+        else:
+            instruments = instrument
+
+        for instrument in instruments:
+            if self.verbose:
+                logger.info(f'gathering files for {instrument}')
+            files = getattr(self, instrument).raw_file
+            files = map(os.path.basename, files)
+            files = [file.replace('.fits', '_S2D_A.fits') for file in files]
+
+            if data_dir is None:
+                data_dir = f'{self.star}_downloads'
+
+            files = [os.path.join(data_dir, file) for file in files]
+            exist = [os.path.exists(file) for file in files]
+            if not all(exist):
+                logger.error(f"not all required files exist in {data_dir}")
+                logger.error(f"missing {np.logical_not(exist).sum()} / {len(files)}")
+
+                from distutils.util import strtobool
+                go_on = input('continue? (y/N) ')
+                if go_on == '' or not bool(strtobool(go_on)):
+                    return
+
+                files = list(np.array(files)[exist])
+
+            run_lbl(self, instrument, files)
+
+
 def fit_sine(t, y, yerr, period='gls', fix_period=False):
     from scipy.optimize import leastsq
     if period == 'gls':

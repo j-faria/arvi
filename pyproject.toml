@@ -26,6 +26,7 @@ dependencies = [
     "mpldatacursor",
     "tqdm",
     "pyexoplaneteu",
+    "lbl@git+https://github.com/njcuk9999/lbl",
 ]
 dynamic = ["version"]
 
