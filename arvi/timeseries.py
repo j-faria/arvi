@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, field
 from typing import Union
 from functools import partial
@@ -32,6 +33,7 @@ class RV:
             stored as an attribute (e.g. `self.CORALIE98` or `self.HARPS`)
     """
     star: str
+    instrument: str = field(init=True, repr=False, default=None)
     N: int = field(init=False, repr=True)
     verbose: bool = field(init=True, repr=False, default=True)
     do_maxerror: Union[bool, float] = field(init=True, repr=False, default=100)
@@ -54,7 +56,7 @@ class RV:
         if not self._child:
             if self.verbose:
                 logger.info('querying DACE...')
-            self.dace_result = get_observations(self.__star__,
+            self.dace_result = get_observations(self.__star__, self.instrument,
                                                 verbose=self.verbose)
             # store the date of the last DACE query
             time_stamp = datetime.now(timezone.utc)  #.isoformat().split('.')[0]
@@ -171,6 +173,8 @@ class RV:
         #
         s.instruments = [inst]
         s.pipelines = [pipe]
+        s.modes = [mode]
+
         return s
 
     def _build_arrays(self):
@@ -226,7 +230,7 @@ class RV:
 
         do_download_s1d(files, directory)
 
-    def download_s2d(self, instrument=None):
+    def download_s2d(self, instrument=None, limit=None):
         directory = f'{self.star}_downloads'
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
@@ -237,7 +241,7 @@ class RV:
                 return
             files = getattr(self, instrument).raw_file
 
-        do_download_s2d(files, directory)
+        extracted_files = do_download_s2d(files[:limit], directory)
 
 
     from .plots import plot, plot_fwhm, plot_bis
@@ -342,6 +346,8 @@ class RV:
 
         for inst in self.instruments:
             if 'HIRES' in inst:  # never remove it from HIRES...
+                continue
+            if 'NIRPS' in inst:  # never remove it from NIRPS...
                 continue
 
             s = getattr(self, inst)

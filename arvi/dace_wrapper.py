@@ -35,12 +35,15 @@ def get_arrays(result, latest_pipeline=True):
 
     return arrays
 
-def get_observations(star, save_rdb=False, verbose=True):
+def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     Spectroscopy = load_spectroscopy()
     result = Spectroscopy.get_timeseries(target=star,
                                          sorted_by_instrument=True,
                                          output_format='numpy')
     instruments = list(result.keys())
+    if instrument is not None:
+        # select only the provided instrument (if it's there)
+        instruments = [inst for inst in instruments if instrument in inst]
 
     # sort pipelines, being extra careful with HARPS pipeline names
     # (i.e. ensure that 3.0.0 > 3.5)
@@ -48,24 +51,23 @@ def get_observations(star, save_rdb=False, verbose=True):
         def __call__(self, x):
             return ('0.3.5', x[1]) if x[0] == '3.5' else x
 
+    new_result = {}
     for inst in instruments:
-        # print(inst, result[inst].keys())
-        result[inst] = dict(sorted(result[inst].items(),
-                                   key=sorter(), reverse=True))
-        # print(inst, result[inst].keys())
+        new_result[inst] = dict(sorted(result[inst].items(),
+                                       key=sorter(), reverse=True))
 
     if verbose:
         logger.info('RVs available from')
         with logger.contextualize(indent='   '):
             for inst in instruments:
-                pipelines = list(result[inst].keys())
+                pipelines = list(new_result[inst].keys())
                 for pipe in pipelines:
-                    mode = list(result[inst][pipe].keys())[0]
-                    N = len(result[inst][pipe][mode]['rjd'])
+                    mode = list(new_result[inst][pipe].keys())[0]
+                    N = len(new_result[inst][pipe][mode]['rjd'])
                     # LOG
                     logger.info(f'{inst:12s} {pipe:10s} ({N} observations)')
 
-    return result
+    return new_result
 
 
 def check_existing(output_directory, files, type):
@@ -83,18 +85,22 @@ def check_existing(output_directory, files, type):
 def download(files, type, output_directory):
     from .utils import all_logging_disabled, stdout_disabled
     Spectroscopy = load_spectroscopy()
-    with stdout_disabled(), all_logging_disabled():
-        Spectroscopy.download_files(files, file_type=type,
-                                    output_directory=output_directory)
+    # with stdout_disabled(), all_logging_disabled():
+    Spectroscopy.download_files(files, file_type=type,
+                                output_directory=output_directory)
 
 def extract_fits(output_directory):
     file = os.path.join(output_directory, 'spectroscopy_download.tar.gz')
     tar = tarfile.open(file, "r")
+    files = []
     for member in tar.getmembers():
         if member.isreg():  # skip if the TarInfo is not a file
             member.name = os.path.basename(member.name)  # remove the path
             tar.extract(member, output_directory)
+            files.append(member.name)
     os.remove(file)
+    return files
+
 
 def do_download_ccf(raw_files, output_directory, clobber=False, verbose=True):
     raw_files = np.atleast_1d(raw_files)
@@ -174,4 +180,5 @@ def do_download_s2d(raw_files, output_directory, clobber=False, verbose=True):
     if verbose:
         logger.info('Extracting .fits files')
 
-    extract_fits(output_directory)
+    extracted_files = extract_fits(output_directory)
+    return extracted_files
