@@ -49,7 +49,12 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     # (i.e. ensure that 3.0.0 > 3.5)
     class sorter:
         def __call__(self, x):
-            return ('0.3.5', x[1]) if x[0] == '3.5' else x
+            if x[0] == '3.5':
+                return ('0.3.5', x[1])
+            elif x[0] == '3.5 EGGS':
+                return ('0.3.5 EGGS', x[1])
+            else:
+                return x
 
     new_result = {}
     for inst in instruments:
@@ -58,14 +63,19 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
 
     if verbose:
         logger.info('RVs available from')
-        with logger.contextualize(indent='   '):
+        with logger.contextualize(indent='  '):
+            _inst = ''
             for inst in instruments:
                 pipelines = list(new_result[inst].keys())
                 for pipe in pipelines:
                     mode = list(new_result[inst][pipe].keys())[0]
                     N = len(new_result[inst][pipe][mode]['rjd'])
                     # LOG
-                    logger.info(f'{inst:12s} {pipe:10s} ({N} observations)')
+                    if inst == _inst:
+                        logger.info(f'{" ":>12s} └ {pipe:10s} ({N} observations)')
+                    else:
+                        logger.info(f'{inst:>12s} ├ {pipe:10s} ({N} observations)')
+                    _inst = inst
 
     return new_result
 
