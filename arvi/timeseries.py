@@ -177,6 +177,30 @@ class RV:
 
         return s
 
+    @classmethod
+    def from_arrays(cls, star, time, vrad, svrad, inst, *args, **kwargs):
+        s = cls(star, _child=True)
+        time, vrad, svrad = map(np.atleast_1d, (time, vrad, svrad))
+
+        if time.size != vrad.size:
+            logger.error(f'wrong dimensions: time({time.size}) != vrad({vrad.size})')
+            raise ValueError from None
+        if time.size != svrad.size:
+            logger.error(f'wrong dimensions: time({time.size}) != svrad({svrad.size})')
+            raise ValueError from None
+
+        # time, RVs, uncertainties
+        s.time = time
+        s.vrad = vrad
+        s.svrad = svrad
+        # mask
+        s.mask = kwargs.get('mask', np.full_like(s.time, True, dtype=bool))
+
+        s.instruments = [inst]
+
+        return s
+
+
     def _build_arrays(self):
         if self._child:
             return
@@ -344,16 +368,20 @@ class RV:
         if self.units == 'km/s':
             sa /= 1000
 
-        for inst in self.instruments:
-            if 'HIRES' in inst:  # never remove it from HIRES...
-                continue
-            if 'NIRPS' in inst:  # never remove it from NIRPS...
-                continue
+        if self._child:
+            self.vrad = self.vrad - sa * (self.time - epoch) / 365.25
+        else:
+            for inst in self.instruments:
+                if 'HIRES' in inst:  # never remove it from HIRES...
+                    continue
+                if 'NIRPS' in inst:  # never remove it from NIRPS...
+                    continue
 
-            s = getattr(self, inst)
-            s.vrad = s.vrad - sa * (s.time - epoch) / 365.25
-        
-        self._build_arrays()
+                s = getattr(self, inst)
+                s.vrad = s.vrad - sa * (s.time - epoch) / 365.25
+            
+            self._build_arrays()
+
         self._did_secular_acceleration = True
         if return_self:
             return self
@@ -427,6 +455,26 @@ class RV:
         self._did_adjust_means = True
         if return_self:
             return self
+
+    #
+
+    def save(self, directory=None, instrument=None):
+        for inst in self.instruments:
+            if instrument is not None:
+                if instrument not in inst:
+                    continue
+
+            file = f'{self.star}_{inst}.rdb'
+
+            if directory is not None:
+                os.makedirs(directory, exist_ok=True)
+                file = os.path.join(directory, file)
+
+            _s = getattr(self, inst)
+            d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
+
+            header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
+            np.savetxt(file, d, fmt='%9.5f', header=header, delimiter='\t', comments='')
 
     #
     def run_lbl(self, instrument=None, data_dir=None):
