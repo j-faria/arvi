@@ -190,14 +190,14 @@ plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
 plot_bis = partialmethod(plot_quantity, quantity='bispan')
 
 
-def gls(self, ax=None, fap=True, picker=True):
+def gls(self, ax=None, fap=True, picker=True, **kwargs):
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
         fig = ax.figure
 
     gls = LombScargle(self.mtime, self.mvrad, self.msvrad)
-    freq, power = gls.autopower(maximum_frequency=1.0)
+    freq, power = gls.autopower(maximum_frequency=1.0, samples_per_peak=10)
     ax.semilogx(1/freq, power, picker=picker)
     if fap:
         ax.axhline(gls.false_alarm_level(0.01),
