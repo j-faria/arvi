@@ -480,18 +480,21 @@ class RV:
     def run_lbl(self, instrument=None, data_dir=None):
         from .lbl_wrapper import run_lbl
 
-        if instrument not in self.instruments:
-            if any([instrument in i for i in self.instruments]):
-                instrument = [i for i in self.instruments if instrument in i]
-            else:
-                logger.error(f"No data from instrument '{instrument}'")
-                logger.info(f'available: {self.instruments}')
-                return
-        
-        if isinstance(instrument, str):
-            instruments = [instrument]
+        if instrument is None:
+            instruments = self.instruments
         else:
-            instruments = instrument
+            if instrument not in self.instruments:
+                if any([instrument in i for i in self.instruments]):
+                    instrument = [i for i in self.instruments if instrument in i]
+                else:
+                    logger.error(f"No data from instrument '{instrument}'")
+                    logger.info(f'available: {self.instruments}')
+                    return
+            
+            if isinstance(instrument, str):
+                instruments = [instrument]
+            else:
+                instruments = instrument
 
         for instrument in instruments:
             if self.verbose:
@@ -517,6 +520,14 @@ class RV:
                 files = list(np.array(files)[exist])
 
             run_lbl(self, instrument, files)
+
+    def load_lbl(self):
+        if hasattr(self, '_did_load_lbl'): # don't do it twice
+            return
+        from .lbl_wrapper import load_lbl
+        for inst in self.instruments:
+            load_lbl(self, inst)
+        self._did_load_lbl = True
 
 
 def fit_sine(t, y, yerr, period='gls', fix_period=False):
