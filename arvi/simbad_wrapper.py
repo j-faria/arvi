@@ -54,6 +54,14 @@ def parse_table(table, cols=None, values=None):
     return cols, values
 
 
+effective_temperatures = {
+    'F0': 7350, 'F2': 7050, 'F3': 6850, 'F5': 6700, 'F6': 6550, 'F7': 6400, 'F8': 6300, 
+    'G0': 6050, 'G1': 5930, 'G2': 5800, 'G5': 5660, 'G8': 5440,
+    'K0': 5240, 'K1': 5110, 'K2': 4960, 'K3': 4800, 'K4': 4600, 'K5': 4400, 'K7': 4000,
+    'M0': 3750, 'M1': 3700, 'M2': 3600, 'M3': 3500, 'M4': 3400, 'M5': 3200, 'M6': 3100, 'M7': 2900, 'M8': 2700,
+}
+
+
 class simbad:
     """
     A very simple wrapper around a TAP query to simbad for a given target. This
@@ -98,6 +106,8 @@ class simbad:
 
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
 
+        if self.sp_type[:2] in effective_temperatures:
+            self.teff = effective_temperatures[self.sp_type[:2]]
 
     def __repr__(self):
         V = self.V
