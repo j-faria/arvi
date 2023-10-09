@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 import requests
 
 from astropy.coordinates import SkyCoord
+import pysweetcat
+
 
 QUERY = """
 SELECT basic.OID,
@@ -106,8 +108,24 @@ class simbad:
 
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
 
-        if self.sp_type[:2] in effective_temperatures:
-            self.teff = effective_temperatures[self.sp_type[:2]]
+        try:
+            swc_data = pysweetcat.get_data()
+            data = swc_data.find(star)
+            if data is None:
+                for id in self.ids:
+                    data = swc_data.find(id)
+                    if data is not None:
+                        break
+            if data is None:
+                raise IndexError
+            else:
+                self.teff = data['teff']
+
+        except IndexError:
+            print('exc')
+            if self.sp_type[:2] in effective_temperatures:
+                self.teff = effective_temperatures[self.sp_type[:2]]
+
 
     def __repr__(self):
         V = self.V

@@ -15,6 +15,7 @@ license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
+
 dependencies = [
     'mock;python_version<"3.3"',
     "numpy",
@@ -26,7 +27,8 @@ dependencies = [
     "mpldatacursor",
     "tqdm",
     "pyexoplaneteu",
-    "lbl@git+https://github.com/njcuk9999/lbl",
+    "pySWEETCat",
+    # "lbl@git+https://github.com/njcuk9999/lbl",
 ]
 dynamic = ["version"]
 
