@@ -409,10 +409,23 @@ class RV:
         from scipy.stats import sigmaclip as dosigmaclip
         result = dosigmaclip(self.vrad, low=sigma, high=sigma)
         n = self.vrad.size - result.clipped.size
+
+
         if self.verbose and n > 0:
             s = 's' if (n == 0 or n > 1) else ''
-            logger.warning(f'sigma-clip RVs removed {n} point' + s)
+            logger.warning(f'sigma-clip RVs will remove {n} point' + s)
+
         ind = (self.vrad > result.lower) & (self.vrad < result.upper)
+
+        # check if going to remove all observations from one instrument
+        if n in self.NN.values(): # all observations
+            insts = np.unique(self.instrument_array[~ind])
+            if insts.size == 1: # of the same instrument?
+                if self.verbose:
+                    logger.warning(f'would remove all observations from {insts[0]}, skipping')
+                if return_self:
+                    return self
+
         self.mask[~ind] = False
         self._propagate_mask_changes()
         if return_self:
@@ -507,23 +520,37 @@ class RV:
 
     #
 
-    def save(self, directory=None, instrument=None):
+    def save(self, directory=None, instrument=None, full=False):
+        star_name = self.star.replace(' ', '')
+
         for inst in self.instruments:
             if instrument is not None:
                 if instrument not in inst:
                     continue
 
-            file = f'{self.star}_{inst}.rdb'
+            file = f'{star_name}_{inst}.rdb'
 
             if directory is not None:
                 os.makedirs(directory, exist_ok=True)
                 file = os.path.join(directory, file)
 
             _s = getattr(self, inst)
-            d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
 
-            header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
+            if full:
+                d = np.c_[
+                    _s.mtime, _s.mvrad, _s.msvrad,
+                    _s.fwhm[_s.mask], _s.fwhm_err[_s.mask]
+                ]
+                header =  'bjd\tvrad\tsvrad\tfwhm\tsfwhm\n'
+                header += '---\t----\t-----\t----\t-----'
+            else:
+                d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
+                header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
+            
             np.savetxt(file, d, fmt='%9.5f', header=header, delimiter='\t', comments='')
+
+            if self.verbose:
+                logger.info(f'saving to {file}')
 
     #
     def run_lbl(self, instrument=None, data_dir=None):
