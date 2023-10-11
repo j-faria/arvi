@@ -37,6 +37,10 @@ dynamic = ["version"]
 Repository = "https://github.com/j-faria/arvi"
 
 
+[tool.setuptools]
+packages = ['arvi']
+
+
 [tool.setuptools.dynamic]
 version = {attr = "arvi.__version__"}
 
