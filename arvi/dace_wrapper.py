@@ -14,15 +14,31 @@ def load_spectroscopy():
     # elif os.path.exists(os.path.expanduser('~/.dacerc')):
     return default_Spectroscopy
 
-def get_arrays(result, latest_pipeline=True):
+def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', verbose=True):
     arrays = []
     instruments = list(result.keys())
+
+    # if verbose:
+    #     if latest_pipeline:
+    #         logger.info('selecting latest pipeline version')
+
     for inst in instruments:
         pipelines = list(result[inst].keys())
+
+        if 'ESPRESSO' in inst:
+            if any(ESPRESSO_mode in pipe for pipe in pipelines):
+                # if verbose:
+                #     logger.info(f'selecting mode {ESPRESSO_mode} for ESPRESSO')
+                i = [i for i, pipe in enumerate(pipelines) if ESPRESSO_mode in pipe][0]
+                pipelines = [pipelines[i]]
+            else:
+                if verbose:
+                    logger.warning(f'no observations for requested ESPRESSO mode ({ESPRESSO_mode})')
+
         if latest_pipeline:
             pipelines = [pipelines[0]]
+
         for pipe in pipelines:
-            # print(inst, pipe)
             modes = list(result[inst][pipe].keys())
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
@@ -47,19 +63,24 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
 
     # sort pipelines, being extra careful with HARPS pipeline names
     # (i.e. ensure that 3.0.0 > 3.5)
-    class sorter:
-        def __call__(self, x):
-            if x[0] == '3.5':
-                return ('0.3.5', x[1])
-            elif x[0] == '3.5 EGGS':
-                return ('0.3.5 EGGS', x[1])
-            else:
-                return x
+    def cmp(a, b):
+        if a[0] in ('3.5', '3.5 EGGS') and b[0] == '3.0.0':
+            return -1
+        if b[0] in ('3.5', '3.5 EGGS') and a[0] == '3.0.0':
+            return 1
 
+        if a[0] == b[0]:
+            return 0
+        elif a[0] > b[0]:
+            return 1
+        else:
+            return -1
+
+    from functools import cmp_to_key
     new_result = {}
     for inst in instruments:
         new_result[inst] = dict(sorted(result[inst].items(),
-                                       key=sorter(), reverse=True))
+                                       key=cmp_to_key(cmp), reverse=True))
 
     if verbose:
         logger.info('RVs available from')
