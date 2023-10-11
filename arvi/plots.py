@@ -1,8 +1,11 @@
+import os
 from functools import partial, partialmethod
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+import mplcursors
+
 from astropy.timeseries import LombScargle
 
 from .setup_logger import logger
@@ -10,16 +13,22 @@ from .config import return_self
 
 
 def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False, 
-         tooltips=False, N_in_label=False, **kwargs):
+         tooltips=True, N_in_label=False, **kwargs):
     """ Plot the RVs
 
     Args:
-        ax (Axes, optional): Axis to plot to. Defaults to None.
-        show_masked (bool, optional): Show masked points. Defaults to False.
-        time_offset (int, optional): Value to subtract from time. Defaults to 0.
-        remove_50000 (bool, optional): Whether to subtract 50000 from time. Defaults to False.
-        tooltips (bool, optional): TBD. Defaults to True.
-        N_in_label (bool, optional): Show number of observations in legend. Defaults to False.
+        ax (Axes, optional):
+            Axis to plot to. Defaults to None.
+        show_masked (bool, optional):
+            Show masked points. Defaults to False.
+        time_offset (int, optional):
+            Value to subtract from time. Defaults to 0.
+        remove_50000 (bool, optional):
+            Whether to subtract 50000 from time. Defaults to False.
+        tooltips (bool, optional):
+            Show information upon clicking a point. Defaults to True.
+        N_in_label (bool, optional):
+            Show number of observations in legend. Defaults to False.
 
     Returns:
         Figure: the figure
@@ -38,19 +47,35 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     if remove_50000:
         time_offset = 50000
 
-    all_lines = []
+    cursors = {}
     for inst in self.instruments:
         s = self if self._child else getattr(self, inst)
         label = f'{inst:10s} ({s.N})' if N_in_label else inst
-        lines, *_ = ax.errorbar(s.mtime - time_offset,
+        container = ax.errorbar(s.mtime - time_offset,
                                 s.mvrad, s.msvrad, label=label, picker=True, **kwargs)
-        all_lines.append(lines)
+
+        if tooltips:
+            cursors[inst] = mplcursors.cursor(container, multiple=False)
+            @cursors[inst].connect("add")
+            def _(sel):
+                inst = sel.artist.get_label()
+                _s = getattr(self, inst)
+                vrad, svrad = _s.vrad[sel.index], _s.svrad[sel.index]
+                sel.annotation.get_bbox_patch().set(fc="white")
+                text = f'{inst}\n'
+                text += f'BJD: {sel.target[0]:9.5f}\n'
+                text += f'RV: {vrad:.3f} ± {svrad:.3f}'
+                if fig.canvas.manager.toolmanager.get_tool('infotool').toggled:
+                    text += '\n\n'
+                    text += f'date: {_s.date_night[sel.index]}\n'
+                    text += f'mask: {_s.ccf_mask[sel.index]}'
+                sel.annotation.set_text(text)
 
         if show_masked:
             ax.errorbar(s.time[~s.mask] - time_offset,
                         s.vrad[~s.mask],
                         s.svrad[~s.mask],
-                        **kwargs, color=lines.get_color())
+                        **kwargs, color=container[0].get_color())
 
     if show_masked:
         ax.errorbar(self.time[~self.mask] - time_offset,
@@ -66,29 +91,18 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     else:
         ax.set_xlabel('BJD - 2400000 [days]')
 
-    if tooltips:
-        inds = []
+    from matplotlib.backend_tools import ToolBase, ToolToggleBase
+    tm = fig.canvas.manager.toolmanager
 
-        def onpick(event):
-            if isinstance(event.artist, LineCollection):
-                return
-            xdata, ydata = event.artist.get_data()
-            ind = event.ind
-            if ind in inds:
-                inds.remove(ind)
-            else:
-                inds.append(ind)
+    class InfoTool(ToolToggleBase):
+        description = "Show extra information about each observation"
+        image = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'info.svg'))
+        # def enable(self, *args, **kwargs):
+        #     self.figure.add_axes([1, 0, 0.3, 1])
+        #     self.figure.canvas.draw_idle()
 
-            try:
-                reds.remove()
-            except UnboundLocalError:
-                pass
-
-            if len(inds) > 0:
-                reds = ax.plot(xdata[np.array(inds)], ydata[np.array(inds)],
-                               'ro', ms=10, zorder=-1)
-            fig.canvas.draw()
-        fig.canvas.mpl_connect('pick_event', onpick)
+    tm.add_tool("infotool", InfoTool)
+    fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
 
     if return_self:
         return self

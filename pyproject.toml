@@ -21,6 +21,7 @@ dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
+    "mplcursors",
     "astropy",
     "dace-query",
     "loguru",
