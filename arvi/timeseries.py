@@ -14,6 +14,7 @@ from .dace_wrapper import get_observations, get_arrays
 from .dace_wrapper import do_download_ccf, do_download_s1d, do_download_s2d
 from .simbad_wrapper import simbad
 from .stats import wmean, wrms
+from .binning import binRV
 
 
 @dataclass
@@ -102,6 +103,9 @@ class RV:
 
 
     def reload(self):
+        self._did_secular_acceleration = False
+        self._did_sigma_clip = False
+        self._did_adjust_means = False
         self.__post_init__()
 
     @property
@@ -163,13 +167,16 @@ class RV:
         # mask
         s.mask = np.full_like(s.time, True, dtype=bool)
         # all other quantities
+        s._quantities = []
         for arr in data.keys():
             if arr not in ('rjd', 'rv', 'rv_err'):
                 if arr == 'mask':
                     # change name mask -> ccf_mask
                     setattr(s, 'ccf_mask', data[arr][ind])
+                    s._quantities.append('ccf_mask')
                 else:
                     setattr(s, arr, data[arr][ind])
+                    s._quantities.append(arr)
         #
         s.instruments = [inst]
         s.pipelines = [pipe]
@@ -202,6 +209,7 @@ class RV:
 
 
     def _build_arrays(self):
+        """ build all concatenated arrays of `self` from each of the `.inst`s """
         if self._child:
             return
         # time
@@ -216,11 +224,19 @@ class RV:
         self.svrad = np.concatenate(
             [getattr(self, inst).svrad for inst in self.instruments]
         )
-        arrays = get_arrays(self.dace_result)
-        self.quantities = list(arrays[0][-1].keys())
-        self.quantities[self.quantities.index('mask')] = 'ccf_mask'
+
+        # mask
+        self.mask = np.concatenate(
+            [getattr(self, inst).mask for inst in self.instruments]
+        )
+
         # all other quantities
-        for q in self.quantities:
+        self._quantities = getattr(self, self.instruments[0])._quantities
+        if len(self.instruments) > 1:
+            for inst in self.instruments[1:]:
+                self._quantities = np.intersect1d(self._quantities, getattr(self, inst)._quantities)
+
+        for q in self._quantities:
             if q not in ('rjd', 'rv', 'rv_err'):
                 arr = np.concatenate(
                     [getattr(getattr(self, inst), q) for inst in self.instruments]
@@ -418,6 +434,39 @@ class RV:
         self._propagate_mask_changes()
         if return_self:
             return self
+
+    def bin(self):
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            tb, vb, svb = binRV(s.time, s.vrad, s.svrad)
+            s.vrad = vb
+            s.svrad = svb
+
+            for q in s._quantities:
+                if getattr(s, q).dtype != np.float64:
+                    if self.verbose:
+                        logger.warning(f"{inst}, skipping {q} in binning")
+                    continue
+                if np.isnan(getattr(s, q)).all():
+                    yb = np.full_like(tb, np.nan)
+                    setattr(s, q, yb)
+                elif q + '_err' in s._quantities:
+                    _, yb, eb = binRV(s.time, getattr(s, q), getattr(s, q + '_err'))
+                    setattr(s, q, yb)
+                    setattr(s, q + '_err', eb)
+                elif not q.endswith('_err'):
+                    try:
+                        _, yb = binRV(s.time, getattr(s, q), stat=np.nanmean, tstat=np.nanmean)
+                        setattr(s, q, yb)
+                    except TypeError:
+                        pass
+
+            s.time = tb
+            s.mask = np.full(tb.shape, True)
+        
+        self._build_arrays()
+                
+
 
     def adjust_means(self, just_rv=False):
         if self._child or self._did_adjust_means:
