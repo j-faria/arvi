@@ -1,5 +1,6 @@
 import os
 import tarfile
+import collections
 import numpy as np
 from dace_query import DaceClass
 from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
@@ -56,6 +57,21 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     result = Spectroscopy.get_timeseries(target=star,
                                          sorted_by_instrument=True,
                                          output_format='numpy')
+
+    # defaultdict --> dict
+    if isinstance(result, collections.defaultdict):
+        result = dict(result)
+    for inst in result.keys():
+        for pipe in result[inst].keys():
+            for mode in result[inst][pipe].keys():
+                if isinstance(result[inst][pipe][mode], collections.defaultdict):
+                    result[inst][pipe][mode] = dict(result[inst][pipe][mode])
+            if isinstance(result[inst][pipe], collections.defaultdict):
+                    result[inst][pipe] = dict(result[inst][pipe])
+        if isinstance(result[inst], collections.defaultdict):
+            result[inst] = dict(result[inst])
+    #
+
     instruments = list(result.keys())
     if instrument is not None:
         # select only the provided instrument (if it's there)
