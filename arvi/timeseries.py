@@ -108,6 +108,16 @@ class RV:
         self._did_adjust_means = False
         self.__post_init__()
 
+    def snapshot(self):
+        import pickle
+        from datetime import datetime
+        ts = datetime.now().timestamp()
+        star_name = self.star.replace(' ', '')
+        file = f'{star_name}_{ts}.pkl'
+        pickle.dump(self, open(file, 'wb'), protocol=0)
+        if self.verbose:
+            logger.info(f'Saved snapshot to {file}')
+
     @property
     def N(self):
         return self.time.size
@@ -207,6 +217,15 @@ class RV:
 
         return s
 
+    @classmethod
+    def from_snapshot(cls, file):
+        import pickle
+        from datetime import datetime
+        assert file.endswith('.pkl'), 'expected a .pkl file'
+        star, timestamp = file.replace('.pkl', '').split('_')
+        dt = datetime.fromtimestamp(float(timestamp))
+        logger.info(f'Reading snapshot of {star} from {dt}')
+        return pickle.load(open(file, 'rb'))
 
     def _build_arrays(self):
         """ build all concatenated arrays of `self` from each of the `.inst`s """
@@ -244,7 +263,7 @@ class RV:
                 setattr(self, q, arr)
 
 
-    def download_ccf(self, instrument=None):
+    def download_ccf(self, instrument=None, limit=None):
         directory = f'{self.star}_downloads'
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
@@ -255,9 +274,9 @@ class RV:
                 return
             files = getattr(self, instrument).raw_file
 
-        do_download_ccf(files, directory)
+        do_download_ccf(files[:limit], directory)
 
-    def download_s1d(self, instrument=None):
+    def download_s1d(self, instrument=None, limit=None):
         directory = f'{self.star}_downloads'
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
@@ -268,7 +287,7 @@ class RV:
                 return
             files = getattr(self, instrument).raw_file
 
-        do_download_s1d(files, directory)
+        do_download_s1d(files[:limit], directory)
 
     def download_s2d(self, instrument=None, limit=None):
         directory = f'{self.star}_downloads'
