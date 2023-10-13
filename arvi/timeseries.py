@@ -67,7 +67,7 @@ class RV:
 
         # build children
         if not self._child:
-            arrays = get_arrays(self.dace_result)
+            arrays = get_arrays(self.dace_result, verbose=self.verbose)
             for (inst, pipe, mode), data in arrays:
                 child = RV.from_dace_data(self.star, inst, pipe, mode, data, _child=True)
                 setattr(self, inst, child)
