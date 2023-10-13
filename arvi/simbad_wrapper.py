@@ -122,7 +122,6 @@ class simbad:
                 self.teff = data['teff']
 
         except IndexError:
-            print('exc')
             if self.sp_type[:2] in effective_temperatures:
                 self.teff = effective_temperatures[self.sp_type[:2]]
 

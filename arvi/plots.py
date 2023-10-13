@@ -9,11 +9,12 @@ import mplcursors
 from astropy.timeseries import LombScargle
 
 from .setup_logger import logger
-from .config import return_self
+from . import config
 
 
 def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False, 
-         tooltips=True, N_in_label=False, **kwargs):
+         tooltips=True, label=None, N_in_label=False, versus_n=False, show_histogram=False,
+         **kwargs):
     """ Plot the RVs
 
     Args:
@@ -29,15 +30,26 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
             Show information upon clicking a point. Defaults to True.
         N_in_label (bool, optional):
             Show number of observations in legend. Defaults to False.
+        versus_n (bool, optional):
+            Plot RVs vs observation index instead of time. Defaults to False.
+        show_histogram (bool, optional)
+            Whether to show a panel with the RV histograms (per intrument).
+            Defaults to False.
 
     Returns:
         Figure: the figure
         Axes: the axis
     """
 
+
     if ax is None:
-        fig, ax = plt.subplots(1, 1, constrained_layout=True)
+        if show_histogram:
+            fig, (ax, axh) = plt.subplots(1, 2, constrained_layout=True, gridspec_kw={'width_ratios': [3, 1]})
+        else:
+            fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
+        if show_histogram:
+            ax, axh = ax
         fig = ax.figure
 
     kwargs.setdefault('fmt', 'o')
@@ -50,9 +62,23 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     cursors = {}
     for inst in self.instruments:
         s = self if self._child else getattr(self, inst)
-        label = f'{inst:10s} ({s.N})' if N_in_label else inst
-        container = ax.errorbar(s.mtime - time_offset,
-                                s.mvrad, s.msvrad, label=label, picker=True, **kwargs)
+
+        if label is None:
+            _label = f'{inst:10s} ({s.N})' if N_in_label else inst
+        else:
+            _label = label
+
+        if versus_n:
+            container = ax.errorbar(np.arange(1, s.mtime.size + 1),
+                                    s.mvrad, s.msvrad, label=_label, picker=True, **kwargs)
+        else:
+            container = ax.errorbar(s.mtime - time_offset,
+                                    s.mvrad, s.msvrad, label=_label, picker=True, **kwargs)
+
+        if show_histogram:
+            kw = dict(histtype='step', bins='doane', orientation='horizontal')
+            hlabel = f'{s.mvrad.std():.2f} {self.units}'
+            axh.hist(s.mvrad, **kw, label=hlabel)
 
         if tooltips:
             cursors[inst] = mplcursors.cursor(container, multiple=False)
@@ -72,24 +98,35 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
                 sel.annotation.set_text(text)
 
         if show_masked:
-            ax.errorbar(s.time[~s.mask] - time_offset,
-                        s.vrad[~s.mask],
-                        s.svrad[~s.mask],
-                        **kwargs, color=container[0].get_color())
+            if versus_n:
+                pass
+            else:
+                ax.errorbar(s.time[~s.mask] - time_offset, s.vrad[~s.mask], s.svrad[~s.mask],
+                            **kwargs, color=container[0].get_color())
 
     if show_masked:
-        ax.errorbar(self.time[~self.mask] - time_offset,
-                    self.vrad[~self.mask],
-                    self.svrad[~self.mask],
-                    label='masked', fmt='x', ms=10, color='k', zorder=-2)
+        if versus_n:
+            pass
+            # ax.errorbar(self.time[~self.mask] - time_offset, self.vrad[~self.mask], self.svrad[~self.mask],
+            #             label='masked', fmt='x', ms=10, color='k', zorder=-2)
+        else:
+            ax.errorbar(self.time[~self.mask] - time_offset, self.vrad[~self.mask], self.svrad[~self.mask],
+                        label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
     ax.legend()
+    if show_histogram:
+        axh.legend()
+
+    ax.minorticks_on()
 
     ax.set_ylabel(f'RV [{self.units}]')
-    if remove_50000:
-        ax.set_xlabel('BJD - 2450000 [days]')
+    if versus_n:
+        ax.set_xlabel('observation')
     else:
-        ax.set_xlabel('BJD - 2400000 [days]')
+        if remove_50000:
+            ax.set_xlabel('BJD - 2450000 [days]')
+        else:
+            ax.set_xlabel('BJD - 2400000 [days]')
 
     from matplotlib.backend_tools import ToolBase, ToolToggleBase
     tm = fig.canvas.manager.toolmanager
@@ -104,10 +141,13 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     tm.add_tool("infotool", InfoTool)
     fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
 
-    if return_self:
+    if config.return_self:
         return self
-    else:
-        return fig, ax
+    
+    if show_histogram:
+        return fig, (ax, axh)
+    
+    return fig, ax
 
 
 def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0, 
@@ -194,7 +234,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
             fig.canvas.draw()
         fig.canvas.mpl_connect('pick_event', onpick)
 
-    if return_self:
+    if config.return_self:
         return self
     else:
         return fig, ax
@@ -204,7 +244,7 @@ plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
 plot_bis = partialmethod(plot_quantity, quantity='bispan')
 
 
-def gls(self, ax=None, fap=True, picker=True, **kwargs):
+def gls(self, ax=None, label=None, fap=True, picker=True, **kwargs):
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
@@ -212,7 +252,8 @@ def gls(self, ax=None, fap=True, picker=True, **kwargs):
 
     gls = LombScargle(self.mtime, self.mvrad, self.msvrad)
     freq, power = gls.autopower(maximum_frequency=1.0, samples_per_peak=10)
-    ax.semilogx(1/freq, power, picker=picker)
+    ax.semilogx(1/freq, power, picker=picker, label=label, **kwargs)
+
     if fap:
         ax.axhline(gls.false_alarm_level(0.01),
                    color='k',
@@ -220,7 +261,10 @@ def gls(self, ax=None, fap=True, picker=True, **kwargs):
                    zorder=-1)
     ax.set(xlabel='Period [days]', ylabel='Normalized power')
 
-    if return_self:
+    if label is not None:
+        ax.legend()
+
+    if config.return_self:
         return self
     else:
         return fig, ax
@@ -258,7 +302,7 @@ def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
                    zorder=-1)
     ax.set(xlabel='Period [days]', ylabel='Normalized power')
 
-    if return_self:
+    if config.return_self:
         return self
     else:
         return fig, ax
