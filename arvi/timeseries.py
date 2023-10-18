@@ -240,6 +240,15 @@ class RV:
         logger.info(f'Reading snapshot of {star} from {dt}')
         return pickle.load(open(file, 'rb'))
 
+    def _check_instrument(self, instrument):
+        if instrument is None:
+            return self.instruments
+        if instrument in self.instruments:
+            return [instrument]
+        if any([instrument in inst for inst in self.instruments]):
+            return [inst for inst in self.instruments if instrument in inst]
+        
+
     def _build_arrays(self):
         """ build all concatenated arrays of `self` from each of the `.inst`s """
         if self._child:
@@ -281,11 +290,10 @@ class RV:
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
-            if instrument not in self.instruments:
-                logger.error(f"No data from instrument '{instrument}'")
-                logger.info(f'available: {self.instruments}')
-                return
-            files = getattr(self, instrument).raw_file
+            instrument = self._check_instrument(instrument)
+            files = []
+            for inst in instrument:
+                files += list(getattr(self, inst).raw_file)
 
         do_download_ccf(files[:limit], directory)
 
@@ -294,11 +302,10 @@ class RV:
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
-            if instrument not in self.instruments:
-                logger.error(f"No data from instrument '{instrument}'")
-                logger.info(f'available: {self.instruments}')
-                return
-            files = getattr(self, instrument).raw_file
+            instrument = self._check_instrument(instrument)
+            files = []
+            for inst in instrument:
+                files += list(getattr(self, inst).raw_file)
 
         do_download_s1d(files[:limit], directory)
 
@@ -307,11 +314,10 @@ class RV:
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
-            if instrument not in self.instruments:
-                logger.error(f"No data from instrument '{instrument}'")
-                logger.info(f'available: {self.instruments}')
-                return
-            files = getattr(self, instrument).raw_file
+            instrument = self._check_instrument(instrument)
+            files = []
+            for inst in instrument:
+                files += list(getattr(self, inst).raw_file)
 
         extracted_files = do_download_s2d(files[:limit], directory)
 
@@ -523,7 +529,11 @@ class RV:
 
             if s.N == 1:
                 if self.verbose:
-                    logger.warning(f'only 1 observation for {inst}, skipping')
+                    msg = (f'only 1 observation for {inst}, '
+                           'adjust_means will set it exactly to zero')
+                    logger.warning(msg)
+                s.rv_mean = s.vrad[0]
+                s.vrad = np.zeros_like(s.time)
                 continue
 
             s.rv_mean = wmean(s.mvrad, s.msvrad)
