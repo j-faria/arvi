@@ -595,8 +595,9 @@ class RV:
                 logger.info(f'saving to {file}')
 
     #
-    def run_lbl(self, instrument=None, data_dir=None):
-        from .lbl_wrapper import run_lbl
+    def run_lbl(self, instrument=None, data_dir=None, 
+                skysub=False, tell=False, limit=None, **kwargs):
+        from .lbl_wrapper import run_lbl, NIRPS_create_telluric_corrected_S2D
 
         if instrument is None:
             instruments = self.instruments
@@ -619,7 +620,10 @@ class RV:
                 logger.info(f'gathering files for {instrument}')
             files = getattr(self, instrument).raw_file
             files = map(os.path.basename, files)
-            files = [file.replace('.fits', '_S2D_A.fits') for file in files]
+            if skysub:
+                files = [file.replace('.fits', '_S2D_SKYSUB_A.fits') for file in files]
+            else:
+                files = [file.replace('.fits', '_S2D_A.fits') for file in files]
 
             if data_dir is None:
                 data_dir = f'{self.star}_downloads'
@@ -637,14 +641,38 @@ class RV:
 
                 files = list(np.array(files)[exist])
 
-            run_lbl(self, instrument, files)
+            # deal with NIRPS telluric correction
+            if 'NIRPS' in instrument and tell:
+                if self.verbose:
+                    logger.info('creating telluric-corrected S2D files')
+                files = NIRPS_create_telluric_corrected_S2D(files[:limit])
 
-    def load_lbl(self):
-        if hasattr(self, '_did_load_lbl'): # don't do it twice
+            run_lbl(self, instrument, files[:limit], **kwargs)
+
+    def load_lbl(self, instrument=None, tell=False):
+        if hasattr(self, '_did_load_lbl') and self._did_load_lbl: # don't do it twice
             return
         from .lbl_wrapper import load_lbl
-        for inst in self.instruments:
-            load_lbl(self, inst)
+
+        if instrument is None:
+            instruments = self.instruments
+        else:
+            if instrument not in self.instruments:
+                if any([instrument in i for i in self.instruments]):
+                    instrument = [i for i in self.instruments if instrument in i]
+                else:
+                    logger.error(f"No data from instrument '{instrument}'")
+                    logger.info(f'available: {self.instruments}')
+                    return
+            
+            if isinstance(instrument, str):
+                instruments = [instrument]
+            else:
+                instruments = instrument
+
+        for inst in instruments:
+            load_lbl(self, inst, tell=tell)
+
         self._did_load_lbl = True
 
 
