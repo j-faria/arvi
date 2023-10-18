@@ -37,9 +37,9 @@ class RV:
     instrument: str = field(init=True, repr=False, default=None)
     N: int = field(init=False, repr=True)
     verbose: bool = field(init=True, repr=False, default=True)
-    do_maxerror: Union[bool, float] = field(init=True, repr=False, default=100)
+    do_maxerror: Union[bool, float] = field(init=True, repr=False, default=False)
     do_secular_acceleration: bool = field(init=True, repr=False, default=True)
-    do_sigma_clip: bool = field(init=True, repr=False, default=True)
+    do_sigma_clip: bool = field(init=True, repr=False, default=False)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
     #
     _child: bool = field(init=True, repr=False, default=False)
@@ -57,8 +57,13 @@ class RV:
         if not self._child:
             if self.verbose:
                 logger.info('querying DACE...')
-            self.dace_result = get_observations(self.__star__, self.instrument,
-                                                verbose=self.verbose)
+            try:
+                self.dace_result = get_observations(self.__star__, self.instrument,
+                                                    verbose=self.verbose)
+            except ValueError as e:
+                raise e
+
+
             # store the date of the last DACE query
             time_stamp = datetime.now(timezone.utc)  #.isoformat().split('.')[0]
             self._last_dace_query = time_stamp
@@ -130,6 +135,14 @@ class RV:
     @property
     def NN(self):
         return {inst: getattr(self, inst).N for inst in self.instruments}
+
+    @property
+    def N_nights(self):
+        return binRV(self.mtime, None, None, binning_bins=True).size - 1
+
+    @property
+    def NN_nights(self):
+        return {inst: getattr(self, inst).N_nights for inst in self.instruments}
 
     @property
     def mtime(self):
@@ -327,7 +340,7 @@ class RV:
         self.mask = np.delete(self.mask, remove)
         #
         # all other quantities
-        for q in self.quantities:
+        for q in self._quantities:
             if q not in ('rjd', 'rv', 'rv_err'):
                 new = np.delete(getattr(self, q), remove)
                 setattr(self, q, new)
@@ -429,7 +442,6 @@ class RV:
         result = dosigmaclip(self.vrad, low=sigma, high=sigma)
         n = self.vrad.size - result.clipped.size
 
-
         if self.verbose and n > 0:
             s = 's' if (n == 0 or n > 1) else ''
             logger.warning(f'sigma-clip RVs will remove {n} point' + s)
@@ -454,6 +466,7 @@ class RV:
         """ Mask out points with RV error larger than `maxerror` """
         if self._child:
             return
+
         self.maxerror = maxerror
         above = self.svrad > maxerror
         n = above.sum()

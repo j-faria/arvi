@@ -54,9 +54,16 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', verbose=True)
 
 def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     Spectroscopy = load_spectroscopy()
-    result = Spectroscopy.get_timeseries(target=star,
-                                         sorted_by_instrument=True,
-                                         output_format='numpy')
+    try:
+        result = Spectroscopy.get_timeseries(target=star,
+                                            sorted_by_instrument=True,
+                                            output_format='numpy')
+    except TypeError:
+        if instrument is None:
+            msg = f'no observations for {star}'
+        else:
+            msg = f'no {instrument} observations for {star}'
+        raise ValueError(msg) from None
 
     # defaultdict --> dict
     if isinstance(result, collections.defaultdict):
@@ -76,6 +83,13 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     if instrument is not None:
         # select only the provided instrument (if it's there)
         instruments = [inst for inst in instruments if instrument in inst]
+
+    if len(instruments) == 0:
+        if instrument is None:
+            msg = f'no observations for {star}'
+        else:
+            msg = f'no {instrument} observations for {star}'
+        raise ValueError(msg)
 
     # sort pipelines, being extra careful with HARPS pipeline names
     # (i.e. ensure that 3.0.0 > 3.5)
