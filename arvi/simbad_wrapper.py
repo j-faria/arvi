@@ -96,7 +96,7 @@ class simbad:
 
             table3 = run_query(query=IDS_QUERY.format(star=star))
             line = table3.splitlines()[2]
-            self.ids = line.replace('"', '').replace('    ', ' ').split('|')
+            self.ids = line.replace('"', '').replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').split('|')
         except IndexError:
             raise ValueError(f'simbad query for {star} failed')
 
@@ -130,3 +130,11 @@ class simbad:
         V = self.V
         sp_type = self.sp_type
         return f'{self.star} ({V=}, {sp_type=})'
+
+
+
+def argsort_by_spectral_type(sptypes):
+    STs = [f'{letter}{n}' for letter in ('F', 'G', 'K', 'M') for n in range(10)]
+    order = {st: i for i, st in enumerate(STs)}
+    indices = {i:st for i, st in zip(range(len(sptypes)), sptypes)}
+    return [i[0] for i in sorted(indices.items(), key=lambda item: order[item[1]])]
