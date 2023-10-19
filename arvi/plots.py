@@ -138,8 +138,11 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
         #     self.figure.add_axes([1, 0, 0.3, 1])
         #     self.figure.canvas.draw_idle()
 
-    tm.add_tool("infotool", InfoTool)
-    fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
+    try:
+        tm.add_tool("infotool", InfoTool)
+        fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
+    except AttributeError:
+        pass
 
     if config.return_self:
         return self

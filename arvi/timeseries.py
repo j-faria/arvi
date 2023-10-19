@@ -56,7 +56,7 @@ class RV:
 
         if not self._child:
             if self.verbose:
-                logger.info('querying DACE...')
+                logger.info(f'querying DACE for {self.__star__}...')
             try:
                 self.dace_result = get_observations(self.__star__, self.instrument,
                                                     verbose=self.verbose)
@@ -285,8 +285,10 @@ class RV:
                 setattr(self, q, arr)
 
 
-    def download_ccf(self, instrument=None, limit=None):
-        directory = f'{self.star}_downloads'
+    def download_ccf(self, instrument=None, limit=None, directory=None):
+        if directory is None:
+            directory = f'{self.star}_downloads'
+
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
@@ -297,8 +299,10 @@ class RV:
 
         do_download_ccf(files[:limit], directory)
 
-    def download_s1d(self, instrument=None, limit=None):
-        directory = f'{self.star}_downloads'
+    def download_s1d(self, instrument=None, limit=None, directory=None):
+        if directory is None:
+            directory = f'{self.star}_downloads'
+
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
@@ -309,8 +313,10 @@ class RV:
 
         do_download_s1d(files[:limit], directory)
 
-    def download_s2d(self, instrument=None, limit=None):
-        directory = f'{self.star}_downloads'
+    def download_s2d(self, instrument=None, limit=None, directory=None):
+        if directory is None:
+            directory = f'{self.star}_downloads'
+
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
