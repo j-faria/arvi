@@ -5,7 +5,7 @@ import numpy as np
 from dace_query import DaceClass
 from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
 from .setup_logger import logger
-from .utils import create_directory
+from .utils import create_directory, all_logging_disabled, stdout_disabled
 
 
 def load_spectroscopy():
@@ -55,9 +55,10 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', verbose=True)
 def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     Spectroscopy = load_spectroscopy()
     try:
-        result = Spectroscopy.get_timeseries(target=star,
-                                            sorted_by_instrument=True,
-                                            output_format='numpy')
+        with stdout_disabled(), all_logging_disabled():
+            result = Spectroscopy.get_timeseries(target=star,
+                                                sorted_by_instrument=True,
+                                                output_format='numpy')
     except TypeError:
         if instrument is None:
             msg = f'no observations for {star}'
@@ -144,7 +145,7 @@ def check_existing(output_directory, files, type):
     return np.array(missing)
 
 def download(files, type, output_directory):
-    from .utils import all_logging_disabled, stdout_disabled
+    
     Spectroscopy = load_spectroscopy()
     # with stdout_disabled(), all_logging_disabled():
     Spectroscopy.download_files(files, file_type=type,
