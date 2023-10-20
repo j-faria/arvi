@@ -40,7 +40,10 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
         Figure: the figure
         Axes: the axis
     """
-
+    if self.N == 0:
+        if self.verbose:
+            logger.error('no data to plot')
+        return
 
     if ax is None:
         if show_histogram:
@@ -156,6 +159,10 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
 
 def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0, 
                   remove_50000=False, tooltips=False, N_in_label=False, **kwargs):
+    if self.N == 0:
+        if self.verbose:
+            logger.error('no data to plot')
+        return
 
     if not hasattr(self, quantity):
         logger.error(f"cannot find '{quantity}' attribute")
@@ -223,6 +230,11 @@ plot_bis = partialmethod(plot_quantity, quantity='bispan')
 
 
 def gls(self, ax=None, label=None, fap=True, picker=True, **kwargs):
+    if self.N == 0:
+        if self.verbose:
+            logger.error('no data to compute gls')
+        return
+
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
