@@ -22,16 +22,19 @@ class RV:
     """
     A class holding RV observations
 
+    Examples:
+        >>> s = RV('Proxima')
+
     Attributes:
         star (str):
             The name of the star
         N (int):
             Total number of observations
-        verbose (bool):
-            Log some operations to the terminal
         instruments (list):
             List of instruments for which there are RVs. Each instrument is also
             stored as an attribute (e.g. `self.CORALIE98` or `self.HARPS`)
+        simbad (simbad):
+            Information on the target from Simbad
     """
     star: str
     instrument: str = field(init=True, repr=False, default=None)
@@ -125,6 +128,7 @@ class RV:
 
     @property
     def N(self):
+        """Total number of observations"""
         return self.time.size
 
     @N.setter
@@ -134,10 +138,12 @@ class RV:
 
     @property
     def NN(self):
+        """ Total number of observations per instrument """
         return {inst: getattr(self, inst).N for inst in self.instruments}
 
     @property
     def N_nights(self):
+        """ Number of individual nights """
         return binRV(self.mtime, None, None, binning_bins=True).size - 1
 
     @property
@@ -286,6 +292,13 @@ class RV:
 
 
     def download_ccf(self, instrument=None, limit=None, directory=None):
+        """ Download CCFs from DACE
+
+        Args:
+            instrument (str): Specific instrument for which to download data
+            limit (int): Maximum number of files to download.
+            directory (str): Directory where to store data.
+        """
         if directory is None:
             directory = f'{self.star}_downloads'
 
@@ -300,6 +313,13 @@ class RV:
         do_download_ccf(files[:limit], directory)
 
     def download_s1d(self, instrument=None, limit=None, directory=None):
+        """ Download S1Ds from DACE
+
+        Args:
+            instrument (str): Specific instrument for which to download data
+            limit (int): Maximum number of files to download.
+            directory (str): Directory where to store data.
+        """
         if directory is None:
             directory = f'{self.star}_downloads'
 
@@ -314,6 +334,13 @@ class RV:
         do_download_s1d(files[:limit], directory)
 
     def download_s2d(self, instrument=None, limit=None, directory=None):
+        """ Download S2Ds from DACE
+
+        Args:
+            instrument (str): Specific instrument for which to download data
+            limit (int): Maximum number of files to download.
+            directory (str): Directory where to store data.
+        """
         if directory is None:
             directory = f'{self.star}_downloads'
 
@@ -336,7 +363,28 @@ class RV:
 
 
     def remove_instrument(self, instrument):
-        """ Remove all observations from `instrument` """
+        """ Remove all observations from one instrument
+        
+        Args:
+            instrument (str): The instrument for which to remove observations.
+        
+        Note:
+            A common name can be used to remove observations for several subsets
+            of a given instrument. For example
+
+            ```py
+            s.remove_instrument('HARPS')
+            ```
+
+            will remove observations from `HARPS03` and `HARPS15`, if they
+            exist. But
+
+            ```py
+            s.remove_instrument('HARPS03')
+            ```
+
+            will remove observations from the specific subset.
+        """
         if instrument not in self.instruments:
             logger.error(f"No data from instrument '{instrument}'")
             logger.info(f'available: {self.instruments}')
@@ -370,7 +418,12 @@ class RV:
             return self
 
     def remove_point(self, index):
-        """ Remove individual observations at a given `index` (or indices) """
+        """ Remove individual observations at a given index (or indices)
+        
+        Args:
+            index (int, list, ndarray):
+                Single index, list, or array of indices to remove.
+        """
         index = np.atleast_1d(index)
         try:
             instrument_index = self.obs[index]
@@ -477,7 +530,12 @@ class RV:
             return self
 
     def clip_maxerror(self, maxerror:float, plot=False):
-        """ Mask out points with RV error larger than `maxerror` """
+        """ Mask out points with RV error larger than a given value
+        
+        Args:
+            maxerror (float): Maximum error to keep.
+            plot (bool): Whether to plot the masked points.
+        """
         if self._child:
             return
 
@@ -495,6 +553,7 @@ class RV:
             return self
 
     def bin(self):
+        """ Nightly bin the observations """
         for inst in self.instruments:
             s = getattr(self, inst)
             tb, vb, svb = binRV(s.time, s.vrad, s.svrad)
@@ -569,6 +628,16 @@ class RV:
     #
 
     def save(self, directory=None, instrument=None, full=False):
+        """ Save the observations in .rdb files.
+
+        Args:
+            directory (str, optional):
+                Directory where to save the .rdb files.
+            instrument (str, optional):
+                Instrument for which to save observations.
+            full (bool, optional): 
+                Whether to save just RVs and errors (False) or more indicators (True).
+        """
         star_name = self.star.replace(' ', '')
 
         for inst in self.instruments:
