@@ -3,6 +3,7 @@
 </p>
 
 
+
 ## Goals
 
 - _Fast_:
@@ -14,3 +15,9 @@
 - _Accurate_:
   `arvi` must always provide the **correct result**
 
+
+#### Actions
+
+[![Deploy docs](https://github.com/j-faria/arvi/actions/workflows/docs-gh-pages.yml/badge.svg)](https://github.com/j-faria/arvi/actions/workflows/docs-gh-pages.yml)
+[![Install-Test](https://github.com/j-faria/arvi/actions/workflows/install.yml/badge.svg)](https://github.com/j-faria/arvi/actions/workflows/install.yml)
+[![Upload Python Package](https://github.com/j-faria/arvi/actions/workflows/python-publish.yml/badge.svg)](https://github.com/j-faria/arvi/actions/workflows/python-publish.yml)
