@@ -1,0 +1,30 @@
+# https://plone.unige.ch/espresso/Science/observations/instrumental-issues/your-eso-runs-106-21m2-001-002-006-007-and-1104-c-0350-a-update-on-technical-problems
+#
+# Between the 28th of April and the 2nd of May 2021, a malfunction on the nitrogen
+# feed of ESPRESSO's blue cryostat introduced a temperature oscillation that
+# propagated down to the detector. While the instrument is usually closely
+# monitored and the issues timely corrected for, the very low staffing of the
+# mountain allowed this problem to pass unnoticed. As a consequence, the blue
+# cryostat internal RV stability, that is usually within 2-3 m/s, degraded to
+# approximately 10 m/s.
+#
+# We advise special caution on the interpretation of RVs derived using blue
+# cryostat spectra. The drift methodology was not devised to correct drift values
+# much larger than 1 m/s, and for drifts of ~10 m/s the error on the blue RVs,
+# after correction, can still be of the order of 1 m/s. You may check the drift
+# calculated on the blue detector by looking at the blue detector drift value
+# HIERARCH ESO QC DRIFT DET0 MEAN = 0.00218304501626747 / mean drift [pxl] for det
+# and multiplying this by 480 m/s (the size of a pixel in RV). If this value is
+# larger than 2-3 m/s, or you see any kind of effect on the calculated RV, the
+# data is affected beyond the typical cryostat instability issue.
+#
+# The OB ids affected during this time interval for your run are:
+# 106.21M2.006: 
+3020002     r.ESPRE.2021-05-01T03:17:26.348
+3020253     r.ESPRE.2021-05-01T04:42:22.724
+# 106.21M2.007: 
+3012785     r.ESPRE.2021-04-28T23:35:03.008
+3012428     r.ESPRE.2021-04-29T00:19:05.003
+3012935     r.ESPRE.2021-05-01T05:02:05.679
+3012434     r.ESPRE.2021-05-01T23:22:34.350
+3012710     r.ESPRE.2021-05-02T23:57:31.821

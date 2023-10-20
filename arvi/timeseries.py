@@ -332,6 +332,8 @@ class RV:
     from .plots import gls, gls_fwhm, gls_bis
     from .reports import report
 
+    from .instrument_specific import known_issues
+
 
     def remove_instrument(self, instrument):
         """ Remove all observations from `instrument` """
@@ -522,8 +524,6 @@ class RV:
             s.mask = np.full(tb.shape, True)
         
         self._build_arrays()
-                
-
 
     def adjust_means(self, just_rv=False):
         if self._child or self._did_adjust_means:

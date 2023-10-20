@@ -9,6 +9,8 @@ except ImportError:
         raise e
 
 import logging
+from glob import glob
+from numpy import array
 
 
 def create_directory(directory):
@@ -20,7 +22,6 @@ def stdout_disabled():
     devnull = open(os.devnull, 'w')
     with patch('sys.stdout', devnull):
         yield
-
 
 @contextmanager
 def all_logging_disabled():
@@ -41,3 +42,31 @@ def all_logging_disabled():
         yield
     finally:
         logging.disable(previous_level)
+
+def find_data_file(file):
+    here = os.path.dirname(os.path.abspath(__file__))
+    data_file = os.path.join(here, '..', 'data', file)
+
+    if '*' in data_file:
+        files = sorted(glob(data_file))
+        if len(files) > 0:
+            return files
+
+    if not os.path.exists(data_file):
+        data_file = os.path.join(here, 'data', file)
+        if '*' in data_file:
+            data_file = sorted(glob(data_file))
+
+    return data_file
+
+def ESPRESSO_ADC_issues():
+    adc_file = find_data_file('obs_affected_ADC_issues.dat')
+    lines = [line.strip() for line in open(adc_file).readlines()]
+    file_roots = [line.split()[1] for line in lines if not line.startswith('#')]
+    return array(file_roots)
+
+def ESPRESSO_cryostat_issues():
+    cryostat_file = find_data_file('obs_affected_blue_cryostat_issues.dat')
+    lines = [line.strip() for line in open(cryostat_file).readlines()]
+    file_roots = [line.split()[1] for line in lines if not line.startswith('#')]
+    return array(file_roots)
