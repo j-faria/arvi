@@ -81,8 +81,9 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
             axh.hist(s.mvrad, **kw, label=hlabel)
 
         if tooltips:
-            cursors[inst] = mplcursors.cursor(container, multiple=False)
-            @cursors[inst].connect("add")
+            cursors[inst] = crsr = mplcursors.cursor(container, multiple=False)
+
+            @crsr.connect("add")
             def _(sel):
                 inst = sel.artist.get_label()
                 _s = getattr(self, inst)
@@ -172,7 +173,6 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
     if remove_50000:
         time_offset = 50000
 
-    all_lines = []
     for inst in self.instruments:
         s = self if self._child else getattr(self, inst)
         label = f'{inst:10s} ({s.N})' if N_in_label else inst
@@ -187,7 +187,6 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
 
         lines, *_ = ax.errorbar(s.mtime - time_offset, y[s.mask], ye[s.mask],
                                 label=label, picker=True, **kwargs)
-        all_lines.append(lines)
 
         if show_masked:
             ax.errorbar(s.time[~s.mask] - time_offset, y[~s.mask], ye[~s.mask],
@@ -212,30 +211,6 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
         ax.set_xlabel('BJD - 2450000 [days]')
     else:
         ax.set_xlabel('BJD - 2400000 [days]')
-
-    if tooltips:
-        inds = []
-
-        def onpick(event):
-            if isinstance(event.artist, LineCollection):
-                return
-            xdata, ydata = event.artist.get_data()
-            ind = event.ind
-            if ind in inds:
-                inds.remove(ind)
-            else:
-                inds.append(ind)
-
-            try:
-                reds.remove()
-            except UnboundLocalError:
-                pass
-
-            if len(inds) > 0:
-                reds = ax.plot(xdata[np.array(inds)], ydata[np.array(inds)],
-                               'ro', ms=10, zorder=-1)
-            fig.canvas.draw()
-        fig.canvas.mpl_connect('pick_event', onpick)
 
     if config.return_self:
         return self
