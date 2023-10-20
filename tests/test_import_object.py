@@ -1,3 +1,4 @@
+import pytest
 
 def test_import():
     import arvi
@@ -5,5 +6,8 @@ def test_import():
 
 
 def test_import_object():
-    from arvi import HD10180
+    from arvi import _51Peg
+
+    with pytest.raises(ValueError):
+        from arvi import HD10180
 
