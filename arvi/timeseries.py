@@ -49,6 +49,10 @@ class RV:
     _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
     _did_sigma_clip: bool = field(init=False, repr=False, default=False)
     _did_adjust_means: bool = field(init=False, repr=False, default=False)
+    _raise_on_error: bool = field(init=True, repr=False, default=True)
+
+    def __repr__(self):
+        return f"RV(star='{self.star}', N={self.N})"
 
     def __post_init__(self):
         self.__star__ = translate(self.star)
@@ -64,7 +68,13 @@ class RV:
                 self.dace_result = get_observations(self.__star__, self.instrument,
                                                     verbose=self.verbose)
             except ValueError as e:
-                raise e
+                if self._raise_on_error:
+                    raise e
+                else:
+                    self.time = np.array([])
+                    self.instruments = []
+                    self.units = ''
+                    return
 
 
             # store the date of the last DACE query
