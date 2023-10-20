@@ -1,5 +1,7 @@
 site_name: arvi
 
+site_dir: _site
+
 theme:
   name: "material"
   logo: logo/detective.png
