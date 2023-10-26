@@ -142,11 +142,16 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
         #     self.figure.add_axes([1, 0, 0.3, 1])
         #     self.figure.canvas.draw_idle()
 
+    from PIL import UnidentifiedImageError
     try:
         tm.add_tool("infotool", InfoTool)
         fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
+        raise UnidentifiedImageError
     except AttributeError:
         pass
+    except UnidentifiedImageError:
+        pass
+
 
     if config.return_self:
         return self
@@ -206,6 +211,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
                     label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
     ax.legend()
+    ax.minorticks_on()
 
     if quantity == 'fwhm':
         ax.set_ylabel(f'FWHM [{self.units}]')
@@ -227,6 +233,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
 
 plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
 plot_bis = partialmethod(plot_quantity, quantity='bispan')
+plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 
 
 def gls(self, ax=None, label=None, fap=True, picker=True, **kwargs):
@@ -246,13 +253,14 @@ def gls(self, ax=None, label=None, fap=True, picker=True, **kwargs):
 
     if fap:
         ax.axhline(gls.false_alarm_level(0.01),
-                   color='k',
-                   alpha=0.2,
-                   zorder=-1)
-    ax.set(xlabel='Period [days]', ylabel='Normalized power')
+                   color='k', alpha=0.2, zorder=-1)
+
+    ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
+    ax.minorticks_on()
 
     if label is not None:
         ax.legend()
+
 
     if config.return_self:
         return self
@@ -285,12 +293,13 @@ def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
     gls = LombScargle(t, y, ye)
     freq, power = gls.autopower(maximum_frequency=1.0)
     ax.semilogx(1/freq, power, picker=picker)
+
     if fap:
         ax.axhline(gls.false_alarm_level(0.01),
-                   color='k',
-                   alpha=0.2,
-                   zorder=-1)
-    ax.set(xlabel='Period [days]', ylabel='Normalized power')
+                   color='k', alpha=0.2, zorder=-1)
+
+    ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
+    ax.minorticks_on()
 
     if config.return_self:
         return self
@@ -300,3 +309,4 @@ def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
 
 gls_fwhm = partialmethod(gls_quantity, quantity='fwhm')
 gls_bis = partialmethod(gls_quantity, quantity='bispan')
+gls_rhk = partialmethod(gls_quantity, quantity='rhk')

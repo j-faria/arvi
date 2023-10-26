@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Union
 from functools import partial
+from glob import glob
 from datetime import datetime, timezone
 import numpy as np
 
@@ -52,16 +53,21 @@ class RV:
     _raise_on_error: bool = field(init=True, repr=False, default=True)
 
     def __repr__(self):
-        return f"RV(star='{self.star}', N={self.N})"
+        if self.time.size == self.mtime.size:
+            return f"RV(star='{self.star}', N={self.N})"
+        else:
+            nmasked = self.N - self.mtime.size
+            return f"RV(star='{self.star}', N={self.N}, masked={nmasked})"
 
     def __post_init__(self):
         self.__star__ = translate(self.star)
-        try:
-            self.simbad = simbad(self.__star__)
-        except ValueError as e:
-            logger.error(e.msg)
 
         if not self._child:
+            try:
+                self.simbad = simbad(self.__star__)
+            except ValueError as e:
+                logger.error(e)
+
             if self.verbose:
                 logger.info(f'querying DACE for {self.__star__}...')
             try:
@@ -205,6 +211,7 @@ class RV:
         s.svrad = data['rv_err'][ind]
         # mask
         s.mask = np.full_like(s.time, True, dtype=bool)
+        s.mask[np.isnan(s.svrad)] = False
         # all other quantities
         s._quantities = []
         for arr in data.keys():
@@ -365,8 +372,8 @@ class RV:
         extracted_files = do_download_s2d(files[:limit], directory)
 
 
-    from .plots import plot, plot_fwhm, plot_bis
-    from .plots import gls, gls_fwhm, gls_bis
+    from .plots import plot, plot_fwhm, plot_bis, plot_rhk
+    from .plots import gls, gls_fwhm, gls_bis, gls_rhk
     from .reports import report
 
     from .instrument_specific import known_issues
@@ -472,6 +479,13 @@ class RV:
                 Show a plot of the RVs with the secular acceleration
         """
         if self._did_secular_acceleration:  # don't do it twice
+            return
+        
+        try:
+            self.simbad
+        except AttributeError:
+            if self.verbose:
+                logger.error('no information from simbad, cannot remove secular acceleration')
             return
 
         as_yr = units.arcsec / units.year
@@ -650,12 +664,15 @@ class RV:
         """
         star_name = self.star.replace(' ', '')
 
+        files = []
+
         for inst in self.instruments:
             if instrument is not None:
                 if instrument not in inst:
                     continue
 
             file = f'{star_name}_{inst}.rdb'
+            files.append(file)
 
             if directory is not None:
                 os.makedirs(directory, exist_ok=True)
@@ -678,6 +695,8 @@ class RV:
 
             if self.verbose:
                 logger.info(f'saving to {file}')
+        
+        return files
 
     #
     def run_lbl(self, instrument=None, data_dir=None, 

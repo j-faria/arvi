@@ -67,6 +67,11 @@ def blue_cryostat_issues(self, plot=True):
 
 
 def known_issues(self, plot=False, **kwargs):
+    """ Identify and mask known instrumental issues (ADC and blue cryostat for ESPRESSO)
+
+    Args:
+        plot (bool, optional): Whether to plot the masked points.
+    """
     adc = ADC_issues(self, plot, **kwargs)
     cryostat = blue_cryostat_issues(self, plot)
     return adc | cryostat
