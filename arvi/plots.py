@@ -218,7 +218,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
     elif quantity == 'bispan':
         ax.set_ylabel(f'BIS [{self.units}]')
     elif quantity == 'rhk':
-        ax.set_ylabel("$\log$ R'$_{HK}")
+        ax.set_ylabel("$\log$ R'$_{HK}$")
 
     if remove_50000:
         ax.set_xlabel('BJD - 2450000 [days]')
