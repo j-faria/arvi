@@ -15,7 +15,7 @@ def load_spectroscopy():
     # elif os.path.exists(os.path.expanduser('~/.dacerc')):
     return default_Spectroscopy
 
-def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', verbose=True):
+def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
     arrays = []
     instruments = list(result.keys())
 
@@ -26,10 +26,11 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', verbose=True)
     for inst in instruments:
         pipelines = list(result[inst].keys())
 
+        # select ESPRESSO mode, which is defined at the level of the pipeline
         if 'ESPRESSO' in inst:
             if any(ESPRESSO_mode in pipe for pipe in pipelines):
-                # if verbose:
-                #     logger.info(f'selecting mode {ESPRESSO_mode} for ESPRESSO')
+                if verbose:
+                    logger.info(f'selecting mode {ESPRESSO_mode} for ESPRESSO')
                 i = [i for i, pipe in enumerate(pipelines) if ESPRESSO_mode in pipe][0]
                 pipelines = [pipelines[i]]
             else:
@@ -41,6 +42,18 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', verbose=True)
 
         for pipe in pipelines:
             modes = list(result[inst][pipe].keys())
+
+            # select NIRPS mode, which is defined at the level of the mode
+            if 'NIRPS' in inst:
+                if NIRPS_mode in modes:
+                    if verbose:
+                        logger.info(f'selecting mode {NIRPS_mode} for NIRPS')
+                i = modes.index(NIRPS_mode)
+                modes = [modes[i]]
+            else:
+                if verbose:
+                    logger.warning(f'no observations for requested NIRPS mode ({NIRPS_mode})')
+
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
                     logger.error(f"No 'rjd' key for {inst} - {pipe}")
@@ -81,6 +94,7 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
     #
 
     instruments = list(result.keys())
+
     if instrument is not None:
         # select only the provided instrument (if it's there)
         instruments = [inst for inst in instruments if instrument in inst]
@@ -120,14 +134,15 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
             for inst in instruments:
                 pipelines = list(new_result[inst].keys())
                 for pipe in pipelines:
-                    mode = list(new_result[inst][pipe].keys())[0]
-                    N = len(new_result[inst][pipe][mode]['rjd'])
-                    # LOG
-                    if inst == _inst:
-                        logger.info(f'{" ":>12s} └ {pipe:10s} ({N} observations)')
-                    else:
-                        logger.info(f'{inst:>12s} ├ {pipe:10s} ({N} observations)')
-                    _inst = inst
+                    modes = list(new_result[inst][pipe].keys())
+                    for mode in modes:
+                        N = len(new_result[inst][pipe][mode]['rjd'])
+                        # LOG
+                        if inst == _inst:
+                            logger.info(f'{" ":>12s} └ {pipe} - {mode} ({N} observations)')
+                        else:
+                            logger.info(f'{inst:>12s} ├ {pipe} - {mode} ({N} observations)')
+                        _inst = inst
 
     return new_result
 

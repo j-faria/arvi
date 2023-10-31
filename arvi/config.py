@@ -1,1 +1,1 @@
-return_self = True
+return_self = False
