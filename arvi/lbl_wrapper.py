@@ -23,7 +23,12 @@ def NIRPS_create_telluric_corrected_S2D(files):
     for file in files:
         telluric_file = file.replace('_S2D_A', '_S2D_TELL_A')
         telluric_corrected_file = file.replace('_S2D_A', '_S2D_TELL_CORR_A')
-        telluric_model = fits.open(telluric_file)[6].data
+        
+        if os.path.exists(telluric_file):
+            telluric_model = fits.open(telluric_file)[6].data
+        else:
+            telluric_file = telluric_file.replace('_S2D_TELL_A', '_TELL_SPECTRUM_A')
+            telluric_model = fits.open(telluric_file)[1].data
 
         HDU = fits.open(file)
         with np.errstate(over='ignore'):
@@ -35,7 +40,7 @@ def NIRPS_create_telluric_corrected_S2D(files):
     return new_files
 
 
-def run_lbl(self, instrument, files,
+def run_lbl(self, instrument, files, id=None,
             RUN_LBL_TEMPLATE=False, RUN_LBL_MASK=False, RUN_LBL_COMPUTE=False, RUN_LBL_COMPILE=False,
             SKIP_LBL_TEMPLATE=False, SKIP_LBL_MASK=False, SKIP_LBL_COMPUTE=False, SKIP_LBL_COMPILE=False):
 
@@ -72,6 +77,9 @@ def run_lbl(self, instrument, files,
 
     science_dir = os.path.join(
         lbl_run_dir, 'science', f'{self.star}_{instrument}')
+    
+    if id is not None:
+        science_dir = f'{science_dir}_{id}'
 
     os.makedirs(science_dir, exist_ok=True)
     
@@ -116,9 +124,17 @@ def run_lbl(self, instrument, files,
     rparams['OBJECT_SCIENCE'] = [f'{self.star}_{instrument}']
     # This is the template that will be used or created
     rparams['OBJECT_TEMPLATE'] = [f'{self.star}_{instrument}']
+
+    if id is not None:
+        rparams['OBJECT_SCIENCE'][0] = rparams['OBJECT_SCIENCE'][0] + f'_{id}'
+        rparams['OBJECT_TEMPLATE'][0] = rparams['OBJECT_TEMPLATE'][0] + f'_{id}'
+
     # This is the object temperature in K - used for getting a stellar model
     #   for the masks it only has to be good to a few 100 K
-    rparams['OBJECT_TEFF'] = [self.simbad.teff]
+    try:
+        rparams['OBJECT_TEFF'] = [self.simbad.teff]
+    except AttributeError:
+        rparams['OBJECT_TEFF'] = [int(input('teff: '))]
 
     # run the telluric cleaning process
     rparams['RUN_LBL_TELLUCLEAN'] = False
