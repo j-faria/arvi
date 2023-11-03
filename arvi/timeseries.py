@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import Union
 from functools import partial
 from glob import glob
+import warnings
+from copy import deepcopy
 from datetime import datetime, timezone
 import numpy as np
 
@@ -224,6 +226,8 @@ class RV:
                     setattr(s, arr, data[arr][ind])
                     s._quantities.append(arr)
         #
+        s._quantities = np.array(s._quantities)
+
         s.instruments = [inst]
         s.pipelines = [pipe]
         s.modes = [mode]
@@ -577,36 +581,75 @@ class RV:
             return self
 
     def bin(self):
-        """ Nightly bin the observations """
-        for inst in self.instruments:
-            s = getattr(self, inst)
-            tb, vb, svb = binRV(s.time, s.vrad, s.svrad)
+        """
+        Nightly bin the observations.
+
+        WARNING: This creates and returns a new object and does not modify self.
+        """
+        
+        # create copy of self to be returned
+        snew = deepcopy(self)
+        
+        all_bad_quantities = []
+
+        for inst in snew.instruments:
+            s = getattr(snew, inst)
+            tb, vb, svb = binRV(s.mtime, s.mvrad, s.msvrad)
             s.vrad = vb
             s.svrad = svb
 
+            bad_quantities = []
+
             for q in s._quantities:
-                if getattr(s, q).dtype != np.float64:
-                    if self.verbose:
-                        logger.warning(f"{inst}, skipping {q} in binning")
+                # treat date_night specially, basically doing a group-by
+                if q == 'date_night':
+                    inds = binRV(s.mtime, None, None, binning_indices=True)
+                    setattr(s, q, getattr(s, q)[s.mask][inds])
                     continue
+
+                if getattr(s, q).dtype != np.float64:
+                    bad_quantities.append(q)
+                    all_bad_quantities.append(q)
+                    continue
+
                 if np.isnan(getattr(s, q)).all():
                     yb = np.full_like(tb, np.nan)
                     setattr(s, q, yb)
                 elif q + '_err' in s._quantities:
-                    _, yb, eb = binRV(s.time, getattr(s, q), getattr(s, q + '_err'))
+                    _, yb, eb = binRV(s.mtime, 
+                                      getattr(s, q)[s.mask], 
+                                      getattr(s, q + '_err')[s.mask])
                     setattr(s, q, yb)
                     setattr(s, q + '_err', eb)
                 elif not q.endswith('_err'):
-                    try:
-                        _, yb = binRV(s.time, getattr(s, q), stat=np.nanmean, tstat=np.nanmean)
-                        setattr(s, q, yb)
-                    except TypeError:
-                        pass
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings('ignore', category=RuntimeWarning)
+                        try:
+                            _, yb = binRV(s.mtime, getattr(s, q)[s.mask], 
+                                        stat=np.nanmean, tstat=np.nanmean)
+                            setattr(s, q, yb)
+                        except TypeError:
+                            pass
+
+            if snew.verbose and len(bad_quantities) > 0:
+                logger.warning(f"{inst}, skipping non-float quantities in binning:")
+                logger.warning(' ' + str(bad_quantities))
+                for bq in bad_quantities:
+                    s._quantities = np.delete(s._quantities, s._quantities==bq)
+                    delattr(s, bq)  #! careful here
 
             s.time = tb
             s.mask = np.full(tb.shape, True)
         
-        self._build_arrays()
+        if snew.verbose:
+            logger.warning('\nnew object will not have these non-float quantities')
+
+        for q in np.unique(all_bad_quantities):
+            delattr(snew, q)
+
+        snew._did_bin = True
+        snew._build_arrays()
+        return snew
 
     def adjust_means(self, just_rv=False):
         if self._child or self._did_adjust_means:
