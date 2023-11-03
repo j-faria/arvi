@@ -7,7 +7,12 @@ from .setup_logger import logger
 # ESPRESSO ADC issues
 from .utils import ESPRESSO_ADC_issues
 
-def ADC_issues(self, plot=True, check_keywords=True):
+def ADC_issues(self, plot=True):
+    """ Identify and mask points affected by ADC issues (ESPRESSO).
+
+    Args:
+        plot (bool, optional): Whether to plot the masked points.
+    """
     instruments = self._check_instrument('ESPRESSO')
     
     if len(instruments) < 1:
@@ -39,6 +44,11 @@ def ADC_issues(self, plot=True, check_keywords=True):
 from .utils import ESPRESSO_cryostat_issues
 
 def blue_cryostat_issues(self, plot=True):
+    """ Identify and mask points affected by blue cryostat issues (ESPRESSO).
+
+    Args:
+        plot (bool, optional): Whether to plot the masked points.
+    """
     instruments = self._check_instrument('ESPRESSO')
     
     if len(instruments) < 1:
@@ -72,6 +82,19 @@ def known_issues(self, plot=False, **kwargs):
     Args:
         plot (bool, optional): Whether to plot the masked points.
     """
-    adc = ADC_issues(self, plot, **kwargs)
-    cryostat = blue_cryostat_issues(self, plot)
-    return adc | cryostat
+    try:
+        adc = ADC_issues(self, plot, **kwargs)
+    except IndexError as e:
+        # logger.error(e)
+        logger.error('are the data binned? cannot proceed to mask these points...')
+
+    try:
+        cryostat = blue_cryostat_issues(self, plot)
+    except IndexError as e:
+        # logger.error(e)
+        logger.error('are the data binned? cannot proceed to mask these points...')
+
+    try:
+        return adc | cryostat
+    except UnboundLocalError:
+        return
