@@ -71,7 +71,7 @@ class RV:
             if self.verbose:
                 logger.info(f'querying DACE for {self.__star__}...')
             try:
-                self.dace_result = get_observations(self.__star__, self.instrument,
+                self.dace_result = get_observations(self.__star__, self.instrument, 
                                                     verbose=self.verbose)
             except ValueError as e:
                 if self._raise_on_error:
@@ -262,6 +262,56 @@ class RV:
         dt = datetime.fromtimestamp(float(timestamp))
         logger.info(f'Reading snapshot of {star} from {dt}')
         return pickle.load(open(file, 'rb'))
+
+    @classmethod
+    def from_rdb(cls, files, star=None, units='ms', **kwargs):
+        if star is None:
+            star_ = np.unique([f.split('_')[0] for f in files])
+            if star_.size == 1:
+                logger.info(f'assuming star is {star_[0]}')
+                star = star_[0]
+        
+        instruments = np.unique([f.split('_')[1] for f in files])
+        logger.info(f'assuming instruments: {instruments}')
+
+        factor = 1e3 if units == 'kms' else 1.0
+
+        s = cls(star, _child=True, **kwargs)
+
+        for f in files:
+            instrument = f.split('_')[1]
+            data = np.loadtxt(f, skiprows=2, usecols=range(3), unpack=True)
+            _s = cls(star, _child=True, **kwargs)
+            time = data[0]
+            _s.time = time
+            _s.vrad = data[1] * factor
+            _s.svrad = data[2] * factor
+
+            #! hack
+            try:
+                data = np.loadtxt(f, skiprows=2, usecols=(3, 4), unpack=True)
+                _s.fwhm = data[0]
+                _s.fwhm_err = data[1]
+            except ValueError:
+                _s.fwhm = np.zeros_like(time)
+                _s.fwhm_err = np.full_like(time, np.nan)
+            _s.bispan = np.zeros_like(time)
+            _s.bispan_err = np.full_like(time, np.nan)
+            #! end hack
+
+            _s.mask = np.ones_like(time, dtype=bool)
+            _s.instruments = [instrument]
+            _s._quantities = np.array([])
+            setattr(s, instrument, _s)
+
+        s._child = False
+        s.instruments = list(instruments)
+        s._build_arrays()
+
+        if kwargs.get('do_adjust_means', False):
+            s.adjust_means()
+
+        return s
 
     def _check_instrument(self, instrument):
         if instrument is None:
@@ -753,9 +803,10 @@ class RV:
 
             run_lbl(self, instrument, files[:limit], **kwargs)
 
-    def load_lbl(self, instrument=None, tell=False):
+    def load_lbl(self, instrument=None, tell=False, id=None):
         if hasattr(self, '_did_load_lbl') and self._did_load_lbl: # don't do it twice
             return
+
         from .lbl_wrapper import load_lbl
 
         if instrument is None:
@@ -775,8 +826,13 @@ class RV:
                 instruments = instrument
 
         for inst in instruments:
-            load_lbl(self, inst, tell=tell)
+            if self.verbose:
+                logger.info(f'loading LBL data for {inst}')
 
+            load_lbl(self, inst, tell=tell, id=id)
+            # self.instruments.append(f'{inst}_LBL')
+
+        # self._build_arrays()
         self._did_load_lbl = True
 
 
