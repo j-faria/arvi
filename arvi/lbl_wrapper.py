@@ -64,6 +64,9 @@ def run_lbl(self, instrument, files, id=None,
         if mode == 'HA':
             rparams['INSTRUMENT'] = 'NIRPS_HA'
             rparams['DATA_SOURCE'] = 'ESO'
+    elif 'CARMENES' in instrument:
+        rparams['INSTRUMENT'] = 'CARMENES'
+        rparams['DATA_SOURCE'] = None
 
     #       SPIROU: APERO or CADC
     #       NIRPS_HA: APERO or ESO
@@ -165,25 +168,133 @@ def run_lbl(self, instrument, files, id=None,
     lbl_wrap(rparams)
 
 
-def load_lbl(self, instrument=None, filename=None, tell=False):
-    lbl_run_dir = 'LBL_run_dir'
-    print(tell)
-    if tell:
-        fits_file = os.path.join(lbl_run_dir, 'lblrdb',
-                                f'lbl_{self.star}_{instrument}_{self.star}_{instrument}_TELL.fits')
-    else:
-        fits_file = os.path.join(lbl_run_dir, 'lblrdb',
-                                f'lbl_{self.star}_{instrument}_{self.star}_{instrument}.fits')
+def get_lbl_apero(self):
+    main_url = 'http://apero.exoplanets.ca/ari/nirps/nirps_he_online/objects/'
 
-    print(fits_file)
-    if not os.path.exists(fits_file):
-        if instrument is None:
-            logger.error(
-                f'File "{fits_file}" does not exist, and instrument not provided')
-            return
+    translate = {
+        'LP804-27': 'LP_804M27', 'HIP79431': 'LP_804M27',
+    }
+
+    if self.star in translate:
+        star = translate[self.star]
+    else:
+        star = self.star
+
+    # special case
+    if star == 'Proxima':
+        star = star.upper()
+
+
+    got_rdb = False
+    url = main_url + f'{star}.html'
+    password = input('password: ')
+    resp = requests.get(url, auth=HTTPBasicAuth('nirps', password))
+    rdb = re.findall('href="([\w.\/]+lbl_\w+_\w+.rdb)', resp.text)
+    if len(rdb) != 0:
+        got_rdb = True
+
+    if not got_rdb:
+        url = main_url + f'{star.replace("GJ", "GL")}.html'
+        resp = requests.get(url, auth=HTTPBasicAuth('nirps', password))
+        rdb = re.findall('href="([\w.\/]+lbl_\w+_\w+.rdb)', resp.text)
+        if len(rdb) != 0:
+            got_rdb = True
+
+    if not got_rdb:
+        logger.error(f'Cannot find APERO rdb file for {star}')
+        raise ValueError
+
+    # (arbitrarily) choose first file
+    rdb = rdb[0]
+    print(main_url + rdb)
+    resp = requests.get(main_url + rdb, auth=HTTPBasicAuth('nirps', password))
+    with open(os.path.basename(rdb), 'w') as f:
+        f.write(resp.text)
+
+    with io.StringIO(resp.text) as f:
+        RDB = np.genfromtxt(f, delimiter='\t', names=True, invalid_raise=False,
+                            comments='N\tN', dtype=None, encoding=None)
+
+    s = RV.from_arrays(self.star, RDB['rjd'], RDB['vrad'], RDB['svrad'], 
+                       'NIRPS_LBL')#, mask=self.NIRPS.mask)
+
+    s._quantities = []
+
+    s.fwhm = RDB['fwhm']
+    s.fwhm_err = RDB['sig_fwhm']
+    s._quantities.append('fwhm')
+    s._quantities.append('fwhm_err')
+
+    # s.secular_acceleration()
+
+    if self._did_adjust_means:
+        s.vrad -= wmean(s.vrad, s.svrad)
+        s.fwhm -= wmean(s.fwhm, s.fwhm_err)
+
+    # store other columns
+    columns = (
+        'dW', 'sdW',
+        'contrast', 'sig_contrast>contrast_err',
+        'vrad_achromatic', 'svrad_achromatic',
+        'vrad_chromatic_slope', 'svrad_chromatic_slope',
+        # 'vrad_g', 'svrad_g',
+        # 'vrad_r', 'svrad_r',
+        # 'vrad_457nm', 'svrad_457nm',
+        # 'vrad_473nm', 'svrad_473nm',
+        # 'vrad_490nm', 'svrad_490nm',
+        # 'vrad_507nm', 'svrad_507nm',
+        # 'vrad_524nm', 'svrad_524nm',
+        # 'vrad_542nm', 'svrad_542nm',
+        # 'vrad_561nm', 'svrad_561nm',
+        # 'vrad_581nm', 'svrad_581nm',
+        # 'vrad_601nm', 'svrad_601nm',
+        # 'vrad_621nm', 'svrad_621nm',
+        # 'vrad_643nm', 'svrad_643nm',
+        # 'vrad_665nm', 'svrad_665nm',
+        # 'vrad_688nm', 'svrad_688nm',
+        # 'vrad_712nm', 'svrad_712nm',
+        # 'vrad_737nm', 'svrad_737nm'
+    )
+    for col in columns:
+        if '>' in col:  # store with a different name
+            setattr(s, col.split('>')[1], RDB[col.split('>')[0]])
+            s._quantities.append(col.split('>')[1])
         else:
-            fits_file = os.path.join(lbl_run_dir, 'lblrdb',
-                                     f'lbl_{self.star}_{instrument}_{self.star}_{instrument}.fits')
+            setattr(s, col, RDB[col])
+            s._quantities.append(col)
+
+    setattr(self, 'NIRPS_LBL', s)
+    self.instruments.append('NIRPS_LBL')
+
+
+def load_lbl(self, instrument=None, filename=None, tell=False, id=None):
+    lbl_run_dir = 'LBL_run_dir'
+
+    if id is None:
+        slug = f'{self.star}_{instrument}_{self.star}_{instrument}'
+    else:
+        slug = f'{self.star}_{instrument}_{id}_{self.star}_{instrument}_{id}'
+
+    f = f'lbl_{slug}'
+
+    if tell:
+        f = f + f'_TELL'
+
+    f = f + '.fits'
+
+    fits_file = os.path.join(lbl_run_dir, 'lblrdb', f)
+
+    # print(fits_file, os.path.exists(fits_file))
+
+    if not os.path.exists(fits_file):
+        raise FileNotFoundError(fits_file)
+        # if instrument is None:
+        #     logger.error(
+        #         f'File "{fits_file}" does not exist, and instrument not provided')
+        #     return
+        # else:
+        #     fits_file = os.path.join(lbl_run_dir, 'lblrdb',
+        #                              f'lbl_{self.star}_{instrument}_{self.star}_{instrument}.fits')
 
     hdu = fits.open(fits_file)
     RDB = hdu[9].data
@@ -194,7 +305,7 @@ def load_lbl(self, instrument=None, filename=None, tell=False):
     s.fwhm = RDB['fwhm']
     s.fwhm_err = RDB['sig_fwhm']
 
-    s.secular_acceleration()
+    # s.secular_acceleration()
 
     if self._did_adjust_means:
         s.vrad -= wmean(s.vrad, s.svrad)
@@ -223,7 +334,9 @@ def load_lbl(self, instrument=None, filename=None, tell=False):
         'vrad_665nm', 'svrad_665nm',
         'vrad_688nm', 'svrad_688nm',
         'vrad_712nm', 'svrad_712nm',
-        'vrad_737nm', 'svrad_737nm'
+        'vrad_737nm', 'svrad_737nm',
+        # 
+        'HIERARCH ESO QC BERV>berv'
     )
     for col in columns:
         try:
