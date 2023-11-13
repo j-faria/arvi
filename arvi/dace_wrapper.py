@@ -38,6 +38,9 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                     logger.warning(f'no observations for requested ESPRESSO mode ({ESPRESSO_mode})')
 
         if latest_pipeline:
+            if verbose and len(pipelines) > 1:
+                logger.info(f'selecting latest pipeline ({pipelines[0]}) for {inst}')
+
             pipelines = [pipelines[0]]
 
         for pipe in pipelines:
@@ -48,11 +51,11 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                 if NIRPS_mode in modes:
                     if verbose:
                         logger.info(f'selecting mode {NIRPS_mode} for NIRPS')
-                i = modes.index(NIRPS_mode)
-                modes = [modes[i]]
-            else:
-                if verbose:
-                    logger.warning(f'no observations for requested NIRPS mode ({NIRPS_mode})')
+                    i = modes.index(NIRPS_mode)
+                    modes = [modes[i]]
+                else:
+                    if verbose:
+                        logger.warning(f'no observations for requested NIRPS mode ({NIRPS_mode})')
 
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
