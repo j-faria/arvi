@@ -236,7 +236,7 @@ plot_bis = partialmethod(plot_quantity, quantity='bispan')
 plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 
 
-def gls(self, ax=None, label=None, fap=True, picker=True, **kwargs):
+def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwargs):
     if self.N == 0:
         if self.verbose:
             logger.error('no data to compute gls')
@@ -247,7 +247,21 @@ def gls(self, ax=None, label=None, fap=True, picker=True, **kwargs):
     else:
         fig = ax.figure
 
-    gls = LombScargle(self.mtime, self.mvrad, self.msvrad)
+    if instrument is not None:
+        instrument = self._check_instrument(instrument)
+        if instrument is not None:
+            instrument_mask = np.isin(self.instrument_array, instrument)
+            t = self.time[instrument_mask & self.mask]
+            y = self.vrad[instrument_mask & self.mask]
+            e = self.svrad[instrument_mask & self.mask]
+            if self.verbose:
+                logger.info(f'calculating periodogram for instrument {instrument}')
+    else:
+        t = self.time[self.mask]
+        y = self.vrad[self.mask]
+        e = self.svrad[self.mask]
+
+    gls = LombScargle(t, y, e)
     freq, power = gls.autopower(maximum_frequency=1.0, samples_per_peak=10)
     ax.semilogx(1/freq, power, picker=picker, label=label, **kwargs)
 
