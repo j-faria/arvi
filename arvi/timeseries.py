@@ -701,6 +701,12 @@ class RV:
         snew._build_arrays()
         return snew
 
+    def nth_day_mean(self, n=1.0):
+        mask = np.abs(self.mtime[:, None] - self.mtime[None, :]) < n
+        z = np.full((self.mtime.size, self.mtime.size), np.nan)
+        z[mask] = np.repeat(self.mvrad[:, None], self.mtime.size, axis=1)[mask]
+        return np.nanmean(z, axis=0)
+
     def adjust_means(self, just_rv=False):
         if self._child or self._did_adjust_means:
             return
