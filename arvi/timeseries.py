@@ -96,12 +96,16 @@ class RV:
             arrays = get_arrays(self.dace_result, verbose=self.verbose)
             for (inst, pipe, mode), data in arrays:
                 child = RV.from_dace_data(self.star, inst, pipe, mode, data, _child=True)
+                inst = inst.replace('-', '_')
                 setattr(self, inst, child)
 
         # build joint arrays
         if not self._child:
             #! sorted?
-            self.instruments = sorted(list(self.dace_result.keys()))
+            self.instruments = [
+                inst.replace('-', '_') 
+                for inst in sorted(list(self.dace_result.keys()))
+            ]
             # self.pipelines =
             # "observatory" (or instrument id)
             self.obs = np.concatenate(
