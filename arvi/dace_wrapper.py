@@ -171,13 +171,15 @@ def download(files, type, output_directory):
 
 def extract_fits(output_directory):
     file = os.path.join(output_directory, 'spectroscopy_download.tar.gz')
-    tar = tarfile.open(file, "r")
-    files = []
-    for member in tar.getmembers():
-        if member.isreg():  # skip if the TarInfo is not a file
-            member.name = os.path.basename(member.name)  # remove the path
-            tar.extract(member, output_directory)
-            files.append(member.name)
+    with tarfile.open(file, "r") as tar:
+        files = []
+        for member in tar.getmembers():
+            if member.isreg():  # skip if the TarInfo is not a file
+                member.name = os.path.basename(member.name)  # remove the path
+                if os.name == 'nt':  # on Windows, be careful with ':' in filename
+                    member.name = member.name.replace(':', '_')
+                tar.extract(member, output_directory)
+                files.append(member.name)
     os.remove(file)
     return files
 
