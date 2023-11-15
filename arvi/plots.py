@@ -65,6 +65,8 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     cursors = {}
     for inst in self.instruments:
         s = self if self._child else getattr(self, inst)
+        if s.mask.sum() == 0:
+            continue
 
         if label is None:
             _label = f'{inst:10s} ({s.N})' if N_in_label else inst
@@ -218,7 +220,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
     elif quantity == 'bispan':
         ax.set_ylabel(f'BIS [{self.units}]')
     elif quantity == 'rhk':
-        ax.set_ylabel("$\log$ R'$_{HK}$")
+        ax.set_ylabel(r"$\log$ R'$_{HK}$")
 
     if remove_50000:
         ax.set_xlabel('BJD - 2450000 [days]')
