@@ -520,6 +520,14 @@ class RV:
         if return_self:
             return self
 
+    def remove_non_public(self):
+        if self.verbose:
+            n = (~self.public).sum()
+            logger.info(f'masking non-public observations ({n})')
+        self.mask = self.mask & self.public
+        self._propagate_mask_changes()
+
+
     def _propagate_mask_changes(self):
         """ link self.mask with each self.`instrument`.mask """
         masked = np.where(~self.mask)[0]
@@ -791,10 +799,11 @@ class RV:
             if full:
                 d = np.c_[
                     _s.mtime, _s.mvrad, _s.msvrad,
-                    _s.fwhm[_s.mask], _s.fwhm_err[_s.mask]
+                    _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
+                    _s.rhk[_s.mask], _s.rhk_err[_s.mask],
                 ]
-                header =  'bjd\tvrad\tsvrad\tfwhm\tsfwhm\n'
-                header += '---\t----\t-----\t----\t-----'
+                header =  'bjd\tvrad\tsvrad\tfwhm\tsfwhm\trhk\tsrhk\n'
+                header += '---\t----\t-----\t----\t-----\t---\t----'
             else:
                 d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
                 header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
