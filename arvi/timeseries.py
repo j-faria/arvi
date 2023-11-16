@@ -596,31 +596,38 @@ class RV:
         if return_self:
             return self
 
-    def sigmaclip(self, sigma=3):
-        """ Sigma-clip RVs """
+    def sigmaclip(self, sigma=5):
+        """ Sigma-clip RVs (per instrument!) """
+        from scipy.stats import sigmaclip as dosigmaclip
+
         if self._child or self._did_sigma_clip:
             return
-        from scipy.stats import sigmaclip as dosigmaclip
-        result = dosigmaclip(self.vrad, low=sigma, high=sigma)
-        n = self.vrad.size - result.clipped.size
 
-        if self.verbose and n > 0:
-            s = 's' if (n == 0 or n > 1) else ''
-            logger.warning(f'sigma-clip RVs will remove {n} point' + s)
+        for inst in self.instruments:
+            m = self.instrument_array == inst
+            result = dosigmaclip(self.vrad[m], low=sigma, high=sigma)
+            n = self.vrad[m].size - result.clipped.size
 
-        ind = (self.vrad > result.lower) & (self.vrad < result.upper)
+            ind = m & ((self.vrad < result.lower) | (self.vrad > result.upper))
 
-        # check if going to remove all observations from one instrument
-        if n in self.NN.values(): # all observations
-            insts = np.unique(self.instrument_array[~ind])
-            if insts.size == 1: # of the same instrument?
-                if self.verbose:
-                    logger.warning(f'would remove all observations from {insts[0]}, skipping')
-                if return_self:
-                    return self
+            if self.verbose and n > 0:
+                s = 's' if (n == 0 or n > 1) else ''
+                logger.warning(f'sigma-clip RVs will remove {n} point{s} for {inst}')
 
-        self.mask[~ind] = False
+            # # check if going to remove all observations from one instrument
+            # if n in self.NN.values(): # all observations
+            #     # insts = np.unique(self.instrument_array[~ind])
+            #     # if insts.size == 1: # of the same instrument?
+            #     if self.verbose:
+            #         logger.warning(f'would remove all observations from {insts[0]}, skipping')
+            #     if return_self:
+            #         return self
+            #     continue
+
+            self.mask[ind] = False
+
         self._propagate_mask_changes()
+
         if return_self:
             return self
 
