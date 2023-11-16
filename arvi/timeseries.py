@@ -822,6 +822,16 @@ class RV:
         
         return files
 
+    def checksum(self, write_to=None):
+        from hashlib import md5
+        d = np.r_[self.time, self.vrad, self.svrad]
+        H = md5(d.data.tobytes()).hexdigest()
+        if write_to is not None:
+            with open(write_to, 'w') as f:
+                f.write(H)
+        return H
+
+
     #
     def run_lbl(self, instrument=None, data_dir=None, 
                 skysub=False, tell=False, limit=None, **kwargs):
