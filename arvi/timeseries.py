@@ -206,6 +206,10 @@ class RV:
 
     error = sigma  # alias!
 
+    @property
+    def _time_sorter(self):
+        return np.argsort(self.time)
+
     @classmethod
     def from_dace_data(cls, star, inst, pipe, mode, data, **kwargs):
         s = cls(star, **kwargs)
@@ -918,6 +922,15 @@ class RV:
 
         # self._build_arrays()
         self._did_load_lbl = True
+
+
+    #
+    @property
+    def planets(self):
+        from .nasaexo_wrapper import Planets
+        if not hasattr(self, '_planets'):
+            self._planets = Planets(self)
+        return self._planets
 
 
 def fit_sine(t, y, yerr, period='gls', fix_period=False):

@@ -27,8 +27,8 @@ dependencies = [
     "loguru",
     "mpldatacursor",
     "tqdm",
-    "pyexoplaneteu",
     "pySWEETCat",
+    "kepmodel",
     # "lbl@git+https://github.com/njcuk9999/lbl",
 ]
 dynamic = ["version"]
