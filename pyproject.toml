@@ -29,6 +29,7 @@ dependencies = [
     "tqdm",
     "pySWEETCat",
     #"kepmodel",
+    "kepderiv@git+https://gitlab.unige.ch/Joao.Faria1/kepderiv",
     "kepmodel@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
     # "lbl@git+https://github.com/njcuk9999/lbl",
 ]
