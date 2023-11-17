@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "setuptools-scm", "numpy"]
+requires = ["setuptools", "setuptools-scm"]
 
 [project]
 name = "arvi"
@@ -18,7 +18,7 @@ classifiers = [
 
 dependencies = [
     'mock;python_version<"3.3"',
-    # "numpy",
+    "numpy",
     "scipy",
     "matplotlib",
     "mplcursors",
