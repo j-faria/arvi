@@ -28,6 +28,7 @@ dependencies = [
     "mpldatacursor",
     "tqdm",
     "pySWEETCat",
+    "kepderiv",
     #"kepmodel",
     #"kepderiv@git+https://gitlab.unige.ch/Joao.Faria1/kepderiv",
     #"kepmodel@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
