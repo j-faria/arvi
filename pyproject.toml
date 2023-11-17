@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "setuptools-scm", "numpy"]
+requires = ["setuptools", "setuptools-scm"]
 
 [project]
 name = "arvi"
@@ -28,7 +28,7 @@ dependencies = [
     "mpldatacursor",
     "tqdm",
     "pySWEETCat",
-    "kepmodel",
+    #"kepmodel",
     #"kepderiv@git+https://gitlab.unige.ch/Joao.Faria1/kepderiv",
     #"kepmodel@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
     # "lbl@git+https://github.com/njcuk9999/lbl",
