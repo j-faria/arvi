@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools", "wheel", "setuptools-scm", "numpy"]
 
 [project]
 name = "arvi"
