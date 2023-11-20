@@ -55,6 +55,8 @@ class RV:
     _raise_on_error: bool = field(init=True, repr=False, default=True)
 
     def __repr__(self):
+        if self.N == 0:
+            return f"RV(star='{self.star}', N=0)"
         if self.time.size == self.mtime.size:
             return f"RV(star='{self.star}', N={self.N})"
         else:
@@ -219,9 +221,13 @@ class RV:
         s.time = data['rjd'][ind]
         s.vrad = data['rv'][ind]
         s.svrad = data['rv_err'][ind]
+
         # mask
         s.mask = np.full_like(s.time, True, dtype=bool)
         s.mask[np.isnan(s.svrad)] = False
+        ## be careful with bogus values
+        s.mask[s.svrad < 0] = False
+
         # all other quantities
         s._quantities = []
         for arr in data.keys():
