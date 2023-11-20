@@ -20,16 +20,23 @@ WHERE id = '{star}';
 """
 
 BV_QUERY = """
-SELECT B, V from allfluxes
+SELECT B, V FROM allfluxes
 JOIN ident USING(oidref)
 WHERE id = '{star}';
 """
 
 IDS_QUERY = """
-SELECT ids from ids
+SELECT ids FROM ids
 JOIN ident USING(oidref)
 WHERE id = '{star}';
 """
+
+OID_QUERY = """
+SELECT basic.OID FROM basic 
+JOIN ident ON oidref = oid 
+WHERE id = '{star}';
+"""
+
 
 def run_query(query):
     url = 'http://simbad.u-strasbg.fr/simbad/sim-tap/sync'
@@ -87,6 +94,10 @@ class simbad:
             star (str): The name of the star to query simbad
         """
         self.star = star
+
+        # oid = run_query(query=OID_QUERY.format(star=star))
+        # self.oid = str(oid.split()[-1])
+
         try:
             table1 = run_query(query=QUERY.format(star=star))
             cols, values = parse_table(table1)
@@ -101,6 +112,9 @@ class simbad:
             raise ValueError(f'simbad query for {star} failed')
 
         for col, val in zip(cols, values):
+            if col == 'oid':
+                setattr(self, col, str(val))
+                continue
             try:
                 setattr(self, col, float(val))
             except ValueError:
@@ -124,7 +138,6 @@ class simbad:
         except IndexError:
             if self.sp_type[:2] in effective_temperatures:
                 self.teff = effective_temperatures[self.sp_type[:2]]
-
 
     def __repr__(self):
         V = self.V
