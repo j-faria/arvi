@@ -28,8 +28,8 @@ dependencies = [
     "mpldatacursor",
     "tqdm",
     "pySWEETCat",
-    "kepmodel",
-    # kepmodel@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
+    # "kepmodel",
+    "kepmodel@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
     # "lbl@git+https://github.com/njcuk9999/lbl",
 ]
 dynamic = ["version"]
