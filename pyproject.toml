@@ -1,5 +1,6 @@
 [build-system]
-build-backend = "setuptools.build_meta"
+[user]
+key = apiKey:c4c4032f-6e29-4fc9-a092-dae5b08305ebbuild-backend = "setuptools.build_meta"
 requires = ["setuptools", "wheel", "setuptools-scm", "numpy"]
 
 [project]
@@ -28,7 +29,7 @@ dependencies = [
     "mpldatacursor",
     "tqdm",
     "pySWEETCat",
-    "kepmodel@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
+    "kepmodel", #@git+https://gitlab.unige.ch/Joao.Faria1/kepmodel",
     # "lbl@git+https://github.com/njcuk9999/lbl",
 ]
 dynamic = ["version"]
