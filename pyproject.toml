@@ -1,6 +1,5 @@
 [build-system]
-[user]
-key = apiKey:c4c4032f-6e29-4fc9-a092-dae5b08305ebbuild-backend = "setuptools.build_meta"
+build-backend = "setuptools.build_meta"
 requires = ["setuptools", "wheel", "setuptools-scm", "numpy"]
 
 [project]
