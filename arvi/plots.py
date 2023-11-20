@@ -12,9 +12,9 @@ from .setup_logger import logger
 from . import config
 
 
-def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False, 
-         tooltips=True, label=None, N_in_label=False, versus_n=False, show_histogram=False,
-         **kwargs):
+def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
+         remove_50000=False, tooltips=True, label=None, N_in_label=False,
+         versus_n=False, show_histogram=False, **kwargs):
     """ Plot the RVs
 
     Args:
@@ -22,6 +22,8 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
             Axis to plot to. Defaults to None.
         show_masked (bool, optional):
             Show masked points. Defaults to False.
+        instrument (str, optional):
+            Which instrument to plot. Defaults to None, or plot all instruments.
         time_offset (int, optional):
             Value to subtract from time. Defaults to 0.
         remove_50000 (bool, optional):
@@ -62,8 +64,10 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     if remove_50000:
         time_offset = 50000
 
+    instruments = self._check_instrument(instrument)
+
     cursors = {}
-    for inst in self.instruments:
+    for inst in instruments:
         s = self if self._child else getattr(self, inst)
         if s.mask.sum() == 0:
             continue
@@ -164,8 +168,9 @@ def plot(self, ax=None, show_masked=False, time_offset=0, remove_50000=False,
     return fig, ax
 
 
-def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0, 
-                  remove_50000=False, tooltips=False, N_in_label=False, **kwargs):
+def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
+                  time_offset=0, remove_50000=False, tooltips=False,
+                  N_in_label=False, **kwargs):
     if self.N == 0:
         if self.verbose:
             logger.error('no data to plot')
@@ -187,7 +192,9 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, time_offset=0,
     if remove_50000:
         time_offset = 50000
 
-    for inst in self.instruments:
+    instruments = self._check_instrument(instrument)
+
+    for inst in instruments:
         s = self if self._child else getattr(self, inst)
         label = f'{inst:10s} ({s.N})' if N_in_label else inst
 
