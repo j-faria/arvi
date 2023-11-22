@@ -212,6 +212,14 @@ class RV:
     def _time_sorter(self):
         return np.argsort(self.time)
 
+    @property
+    def _mtime_sorter(self):
+        return np.argsort(self.mtime)
+
+    @property
+    def _tt(self):
+        return np.linspace(self.mtime.min(), self.mtime.max(), 20*self.N)
+
     @classmethod
     def from_dace_data(cls, star, inst, pipe, mode, data, **kwargs):
         s = cls(star, **kwargs)
@@ -277,11 +285,19 @@ class RV:
         return s
 
     @classmethod
-    def from_snapshot(cls, file):
+    def from_snapshot(cls, file=None, star=None):
         import pickle
         from datetime import datetime
-        assert file.endswith('.pkl'), 'expected a .pkl file'
-        star, timestamp = file.replace('.pkl', '').split('_')
+        if star is None:
+            assert file.endswith('.pkl'), 'expected a .pkl file'
+            star, timestamp = file.replace('.pkl', '').split('_')
+        else:
+            try:
+                file = sorted(glob(f'{star}*.pkl'))[-1]
+            except IndexError:
+                raise ValueError(f'cannot find any file matching {star}*.pkl')
+            star, timestamp = file.replace('.pkl', '').split('_')
+
         dt = datetime.fromtimestamp(float(timestamp))
         logger.info(f'Reading snapshot of {star} from {dt}')
         return pickle.load(open(file, 'rb'))
@@ -336,13 +352,25 @@ class RV:
 
         return s
 
-    def _check_instrument(self, instrument):
+    def _check_instrument(self, instrument, strict=False):
+        """
+        Check if there are observations from `instrument`.
+
+        Args:
+            instrument (str, None): Instrument name to check
+            strict (bool): Whether to match `instrument` exactly
+        Returns:
+            instruments (list):
+                List of instruments matching `instrument`, or None if there
+                are no matches.
+        """
         if instrument is None:
             return self.instruments
+        if not strict:
+            if any([instrument in inst for inst in self.instruments]):
+                return [inst for inst in self.instruments if instrument in inst]
         if instrument in self.instruments:
             return [instrument]
-        if any([instrument in inst for inst in self.instruments]):
-            return [inst for inst in self.instruments if instrument in inst]
         
 
     def _build_arrays(self):
@@ -536,6 +564,13 @@ class RV:
             logger.info(f'masking non-public observations ({n})')
         self.mask = self.mask & self.public
         self._propagate_mask_changes()
+
+    def remove_single_observations(self):
+        """ Remove instruments for which there is a single observation """
+        instruments = deepcopy(self.instruments)
+        for inst in instruments:
+            if getattr(self, inst).mtime.size == 1:
+                self.remove_instrument(inst)
 
 
     def _propagate_mask_changes(self):
