@@ -92,11 +92,15 @@ def report(self, save=None):
         if save is True:
             save = f'report_{"".join(self.star.split())}.pdf'
 
-        with PdfPages(save) as pdf:
-            pdf.attach_note('hello', positionRect=[5, 15, 20, 30])
+        if save.endswith('.png'):
+            fig.savefig(save)
+        else:
+            with PdfPages(save) as pdf:
+                #pdf.attach_note('hello', positionRect=[5, 15, 20, 30])
 
-            if self.verbose:
-                logger.info(f'saving to {save}')
-            pdf.savefig(fig)
-        plt.close('all')
-        # os.system(f'evince {save} &')
+                if self.verbose:
+                    logger.info(f'saving to {save}')
+                pdf.savefig(fig)
+            # os.system(f'evince {save} &')
+
+    return fig
