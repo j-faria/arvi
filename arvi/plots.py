@@ -57,7 +57,8 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             ax, axh = ax
         fig = ax.figure
 
-    kwargs.setdefault('fmt', 'o')
+    kwargs.setdefault('marker', 'o')
+    kwargs.setdefault('ls', '')
     kwargs.setdefault('capsize', 0)
     kwargs.setdefault('ms', 4)
 
@@ -185,7 +186,8 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
     else:
         fig = ax.figure
 
-    kwargs.setdefault('fmt', 'o')
+    kwargs.setdefault('marker', 'o')
+    kwargs.setdefault('ls', '')
     kwargs.setdefault('capsize', 0)
     kwargs.setdefault('ms', 4)
 
