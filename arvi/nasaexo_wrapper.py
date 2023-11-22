@@ -20,9 +20,6 @@ STAR_QUERY = [
     "hostname like '{star}'"
 ]
 
-#query=select+*+from+ps+where +default_flag+=+1+and+disc_facility+LIKE
-#+'Kepler'+order+by+pl_name+asc+&format=votable
-
 
 def run_query(query):
     link = f'{url}query={query}&format=csv'
@@ -36,7 +33,7 @@ class Planets:
         self.s = system
         self.verbose = system.verbose
 
-        self.star = system.star.replace('GJ', 'GJ ')
+        self.star = system.star.replace('GJ', 'GJ ').replace('HD', 'HD ')
 
         query = ' '.join(STAR_QUERY).replace(' ', '+')
         query = query.format(star=self.star)
@@ -46,6 +43,30 @@ class Planets:
 
         self.response, self.data = run_query(query)
         self.np = self.data.size
+
+        # try again with other ids
+        if self.np == 0:
+            hdname = [i for i in self.s.simbad.ids if 'HD' in i]
+            if len(hdname) != 0:
+                hdname = hdname[0]
+                if self.verbose:
+                    logger.info(f"trying with the HD name '{hdname}'...")
+                STAR_QUERY_HD = STAR_QUERY[:-1]
+                STAR_QUERY_HD.append(f"hd_name like '{hdname}'")
+                query = ' '.join(STAR_QUERY_HD).replace(' ', '+')
+                self.response, self.data = run_query(query)
+                self.np = self.data.size
+            
+            hipname = [i for i in self.s.simbad.ids if 'HIP' in i]
+            if len(hipname) != 0:
+                hipname = hipname[0]
+                if self.verbose:
+                    logger.info(f"trying with the HIP name '{hipname}'...")
+                STAR_QUERY_HIP = STAR_QUERY[:-1]
+                STAR_QUERY_HIP.append(f"hip_name like '{hipname}'")
+                query = ' '.join(STAR_QUERY_HIP).replace(' ', '+')
+                self.response, self.data = run_query(query)
+                self.np = self.data.size
 
         if self.verbose:
             logger.info(f'found {self.np} planets')
