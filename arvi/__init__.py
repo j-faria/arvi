@@ -1,5 +1,4 @@
-__version__ = '0.1.4'
-__all__ = []
+__all__ = [RV]
 
 from .timeseries import RV
 
