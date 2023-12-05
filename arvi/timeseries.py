@@ -250,6 +250,12 @@ class RV:
 
         s._quantities = np.array(s._quantities)
 
+        # mask out drs_qc = False
+        if not s.drs_qc.all():
+            n = (~s.drs_qc).sum()
+            logger.warning(f'masking {n} points where DRS QC failed for {inst}')
+            s.mask &= s.drs_qc
+
         s.instruments = [inst]
         s.pipelines = [pipe]
         s.modes = [mode]
