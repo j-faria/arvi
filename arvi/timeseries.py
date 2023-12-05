@@ -867,6 +867,37 @@ class RV:
         if return_self:
             return self
 
+    def put_at_systemic_velocity(self):
+        """
+        For instruments in which mean(RV) < ptp(RV), "move" RVs to the systemic
+        velocity from simbad. This is useful if some instruments are centered
+        at zero while others are not, and instead of calling `.adjust_means()`,
+        but it only works when the systemic velocity is smaller than ptp(RV).
+        """
+        changed = False
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            if np.abs(s.mvrad.mean()) < s.mvrad.ptp():
+                s.vrad += self.simbad.rvz_radvel * 1e3
+                changed = True
+        if changed:
+            self._build_arrays()
+
+    def sort_instruments(self, by_first_observation=True, by_last_observation=False):
+        if by_last_observation:
+            by_first_observation = False
+        # if by_first_observation and by_last_observation:
+        #     logger.error("'by_first_observation' and 'by_last_observation' can't both be true")
+        #     return
+        if by_first_observation:
+            fun = lambda i: getattr(self, i).time.min()
+            self.instruments = sorted(self.instruments, key=fun)
+            self._build_arrays()
+        if by_last_observation:
+            fun = lambda i: getattr(self, i).time.max()
+            self.instruments = sorted(self.instruments, key=fun)
+            self._build_arrays()
+
     #
 
     def save(self, directory=None, instrument=None, full=False):
