@@ -643,7 +643,8 @@ class RV:
 
     def sigmaclip(self, sigma=5):
         """ Sigma-clip RVs (per instrument!) """
-        from scipy.stats import sigmaclip as dosigmaclip
+        #from scipy.stats import sigmaclip as dosigmaclip
+        from .stats import sigmaclip_median as dosigmaclip
 
         if self._child or self._did_sigma_clip:
             return
@@ -672,6 +673,10 @@ class RV:
             self.mask[ind] = False
 
         self._propagate_mask_changes()
+
+        if self._did_adjust_means:
+            self._did_adjust_means = False
+            self.adjust_means()
 
         if return_self:
             return self
@@ -775,6 +780,13 @@ class RV:
         z = np.full((self.mtime.size, self.mtime.size), np.nan)
         z[mask] = np.repeat(self.mvrad[:, None], self.mtime.size, axis=1)[mask]
         return np.nanmean(z, axis=0)
+
+    def subtract_mean(self):
+        meanRV = self.mvrad.mean()
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            s.vrad -= meanRV
+        self._build_arrays()
 
     def adjust_means(self, just_rv=False):
         if self._child or self._did_adjust_means:
