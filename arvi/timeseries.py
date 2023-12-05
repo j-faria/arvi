@@ -109,13 +109,7 @@ class RV:
                 for inst in sorted(list(self.dace_result.keys()))
             ]
             # self.pipelines =
-            # "observatory" (or instrument id)
-            self.obs = np.concatenate(
-                [np.full(getattr(self, inst).N, i+1) for i, inst in enumerate(self.instruments)],
-                dtype=int
-            )
-            # mask
-            self.mask = np.full_like(self.obs, True, dtype=bool)
+
             # all other quantities
             self._build_arrays()
 
@@ -236,6 +230,7 @@ class RV:
         ## be careful with bogus values
         s.mask[s.svrad < 0] = False
 
+
         # all other quantities
         s._quantities = []
         for arr in data.keys():
@@ -304,21 +299,26 @@ class RV:
 
     @classmethod
     def from_rdb(cls, files, star=None, units='ms', **kwargs):
+        if isinstance(files, str):
+            files = [files]
+
         if star is None:
-            star_ = np.unique([f.split('_')[0] for f in files])
+            star_ = np.unique([os.path.splitext(f)[0].split('_')[0] for f in files])
             if star_.size == 1:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
         
-        instruments = np.unique([f.split('_')[1] for f in files])
+        instruments = np.unique([os.path.splitext(f)[0].split('_')[1] for f in files])
         logger.info(f'assuming instruments: {instruments}')
+
+        if instruments.size == 1 and len(files) > 1:
+            instruments = np.repeat(instruments, len(files))
 
         factor = 1e3 if units == 'kms' else 1.0
 
         s = cls(star, _child=True, **kwargs)
 
-        for f in files:
-            instrument = f.split('_')[1]
+        for i, (f, instrument) in enumerate(zip(files, instruments)):
             data = np.loadtxt(f, skiprows=2, usecols=range(3), unpack=True)
             _s = cls(star, _child=True, **kwargs)
             time = data[0]
@@ -326,21 +326,43 @@ class RV:
             _s.vrad = data[1] * factor
             _s.svrad = data[2] * factor
 
+            _quantities = []
             #! hack
-            try:
-                data = np.loadtxt(f, skiprows=2, usecols=(3, 4), unpack=True)
-                _s.fwhm = data[0]
-                _s.fwhm_err = data[1]
-            except ValueError:
+            data = np.genfromtxt(f, names=True, dtype=None, comments='--', encoding=None)
+
+            if 'fwhm' in data.dtype.fields:
+                _s.fwhm = data['fwhm']
+                if 'sfwhm' in data.dtype.fields:
+                    _s.fwhm_err = data['sfwhm']
+                else:
+                    _s.fwhm_err = 2 * _s.svrad
+            else:
                 _s.fwhm = np.zeros_like(time)
                 _s.fwhm_err = np.full_like(time, np.nan)
+
+            _quantities.append('fwhm')
+            _quantities.append('fwhm_err')
+
+            if 'rhk' in data.dtype.fields:
+                _s.rhk = data['rhk']
+                if 'srhk' in data.dtype.fields:
+                    _s.rhk_err = data['srhk']
+            else:
+                _s.rhk = np.zeros_like(time)
+                _s.rhk_err = np.full_like(time, np.nan)
+
+            _quantities.append('rhk')
+            _quantities.append('rhk_err')
+
             _s.bispan = np.zeros_like(time)
             _s.bispan_err = np.full_like(time, np.nan)
             #! end hack
 
             _s.mask = np.ones_like(time, dtype=bool)
+            _s.obs = np.full_like(time, i + 1)
+
             _s.instruments = [instrument]
-            _s._quantities = np.array([])
+            _s._quantities = np.array(_quantities)
             setattr(s, instrument, _s)
 
         s._child = False
@@ -394,6 +416,13 @@ class RV:
         self.mask = np.concatenate(
             [getattr(self, inst).mask for inst in self.instruments]
         )
+
+        # "observatory" (or instrument id)
+        self.obs = np.concatenate(
+            [np.full(getattr(self, inst).N, i+1) for i, inst in enumerate(self.instruments)],
+            dtype=int
+        )
+
 
         # all other quantities
         self._quantities = getattr(self, self.instruments[0])._quantities
@@ -549,6 +578,9 @@ class RV:
         except IndexError:
             logger.errors(f'index {index} is out of bounds for N={self.N}')
             return
+
+        if self.verbose:
+            logger.info(f'removing points {index}')
 
         self.mask[index] = False
         self._propagate_mask_changes()
