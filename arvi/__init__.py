@@ -1,4 +1,4 @@
-__all__ = [RV]
+__all__ = ['RV']
 
 from .timeseries import RV
 
