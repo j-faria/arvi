@@ -4,18 +4,6 @@
 
 
 
-## Goals
-
-- _Fast_:
-  all `arvi` operations must be completed in under **1 second**
-
-- _Reproducible_:
-  **everyone** must be able to use `arvi`
-
-- _Accurate_:
-  `arvi` must always provide the **correct result**
-
-
 #### Actions
 
 [![Deploy docs](https://github.com/j-faria/arvi/actions/workflows/docs-gh-pages.yml/badge.svg)](https://github.com/j-faria/arvi/actions/workflows/docs-gh-pages.yml)
