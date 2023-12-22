@@ -314,7 +314,7 @@ class RV:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
         
-        instruments = np.unique([os.path.splitext(f)[0].split('_')[1] for f in files])
+        instruments = np.array([os.path.splitext(f)[0].split('_')[1] for f in files])
         logger.info(f'assuming instruments: {instruments}')
 
         if instruments.size == 1 and len(files) > 1:
@@ -515,11 +515,12 @@ class RV:
     from .instrument_specific import known_issues
 
 
-    def remove_instrument(self, instrument):
+    def remove_instrument(self, instrument, strict=False):
         """ Remove all observations from one instrument
         
         Args:
             instrument (str): The instrument for which to remove observations.
+            strict (bool): Whether to match `instrument` exactly
         
         Note:
             A common name can be used to remove observations for several subsets
@@ -538,34 +539,37 @@ class RV:
 
             will remove observations from the specific subset.
         """
-        if instrument not in self.instruments:
+        instruments = self._check_instrument(instrument, strict)
+
+        if instruments is None:
             logger.error(f"No data from instrument '{instrument}'")
             logger.info(f'available: {self.instruments}')
             return
 
-        ind = self.instruments.index(instrument) + 1
-        remove = np.where(self.obs == ind)
-        self.obs = np.delete(self.obs, remove)
-        self.obs[self.obs > ind] -= 1
-        #
-        self.time = np.delete(self.time, remove)
-        self.vrad = np.delete(self.vrad, remove)
-        self.svrad = np.delete(self.svrad, remove)
-        #
-        self.mask = np.delete(self.mask, remove)
-        #
-        # all other quantities
-        for q in self._quantities:
-            if q not in ('rjd', 'rv', 'rv_err'):
-                new = np.delete(getattr(self, q), remove)
-                setattr(self, q, new)
-        #
-        self.instruments.remove(instrument)
-        #
-        delattr(self, instrument)
+        for instrument in instruments:
+            ind = self.instruments.index(instrument) + 1
+            remove = np.where(self.obs == ind)
+            self.obs = np.delete(self.obs, remove)
+            self.obs[self.obs > ind] -= 1
+            #
+            self.time = np.delete(self.time, remove)
+            self.vrad = np.delete(self.vrad, remove)
+            self.svrad = np.delete(self.svrad, remove)
+            #
+            self.mask = np.delete(self.mask, remove)
+            #
+            # all other quantities
+            for q in self._quantities:
+                if q not in ('rjd', 'rv', 'rv_err'):
+                    new = np.delete(getattr(self, q), remove)
+                    setattr(self, q, new)
+            #
+            self.instruments.remove(instrument)
+            #
+            delattr(self, instrument)
 
-        if self.verbose:
-            logger.info(f"Removed observations from '{instrument}'")
+            if self.verbose:
+                logger.info(f"Removed observations from '{instrument}'")
 
         if return_self:
             return self
@@ -609,6 +613,30 @@ class RV:
         for inst in instruments:
             if getattr(self, inst).mtime.size == 1:
                 self.remove_instrument(inst)
+
+    def remove_prog_id(self, prog_id):
+        from glob import has_magic
+        if has_magic(prog_id):
+            from fnmatch import filter
+            matching = np.unique(filter(self.prog_id, prog_id))
+            mask = np.full_like(self.time, False, dtype=bool)
+            for m in matching:
+                mask |= np.isin(self.prog_id, m)
+            ind = np.where(mask)[0]
+            self.remove_point(ind)
+        else:
+            if prog_id in self.prog_id:
+                ind = np.where(self.prog_id == prog_id)[0]
+                self.remove_point(ind)
+            else:
+                if self.verbose:
+                    logger.warning(f'no observations for prog_id "{prog_id}"')
+
+
+    def remove_after_bjd(self, bjd):
+        if (self.time > bjd).any():
+            ind = np.where(self.time > bjd)[0]
+            self.remove_point(ind)
 
 
     def _propagate_mask_changes(self):
@@ -820,13 +848,26 @@ class RV:
         return np.nanmean(z, axis=0)
 
     def subtract_mean(self):
-        meanRV = self.mvrad.mean()
+        """ Subtract (single) mean RV from all instruments """
+        self._meanRV = meanRV = self.mvrad.mean()
         for inst in self.instruments:
             s = getattr(self, inst)
             s.vrad -= meanRV
         self._build_arrays()
 
+    def _add_back_mean(self):
+        """ Add the (single) mean RV removed by self.subtract_mean() """
+        if not hasattr(self, '_meanRV'):
+            logger.warning("no mean RV stored, run 'self.subtract_mean()'")
+            return
+
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            s.vrad += self._meanRV
+        self._build_arrays()
+
     def adjust_means(self, just_rv=False):
+        """ Subtract individual mean RVs from each instrument """
         if self._child or self._did_adjust_means:
             return
 
@@ -877,9 +918,14 @@ class RV:
         changed = False
         for inst in self.instruments:
             s = getattr(self, inst)
-            if np.abs(s.mvrad.mean()) < s.mvrad.ptp():
-                s.vrad += self.simbad.rvz_radvel * 1e3
-                changed = True
+            if s.mask.any():
+                if np.abs(s.mvrad.mean()) < s.mvrad.ptp():
+                    s.vrad += self.simbad.rvz_radvel * 1e3
+                    changed = True
+            else:  # all observations are masked, use non-masked arrays
+                if np.abs(s.vrad.mean()) < s.vrad.ptp():
+                    s.vrad += self.simbad.rvz_radvel * 1e3
+                    changed = True
         if changed:
             self._build_arrays()
 
@@ -913,6 +959,11 @@ class RV:
         """
         star_name = self.star.replace(' ', '')
 
+        if directory is None:
+            directory = '.'
+        else:
+            os.makedirs(directory, exist_ok=True)
+
         files = []
 
         for inst in self.instruments:
@@ -920,14 +971,10 @@ class RV:
                 if instrument not in inst:
                     continue
 
-            file = f'{star_name}_{inst}.rdb'
-            files.append(file)
-
-            if directory is not None:
-                os.makedirs(directory, exist_ok=True)
-                file = os.path.join(directory, file)
-
             _s = getattr(self, inst)
+
+            if not _s.mask.any():  # all observations are masked, don't save
+                continue
 
             if full:
                 d = np.c_[
@@ -941,6 +988,10 @@ class RV:
                 d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
                 header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
             
+            file = f'{star_name}_{inst}.rdb'
+            files.append(file)
+            file = os.path.join(directory, file)
+
             np.savetxt(file, d, fmt='%9.5f', header=header, delimiter='\t', comments='')
 
             if self.verbose:
