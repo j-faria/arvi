@@ -294,9 +294,9 @@ class RV:
             star, timestamp = file.replace('.pkl', '').split('_')
         else:
             try:
-                file = sorted(glob(f'{star}*.pkl'))[-1]
+                file = sorted(glob(f'{star}_*.pkl'))[-1]
             except IndexError:
-                raise ValueError(f'cannot find any file matching {star}*.pkl')
+                raise ValueError(f'cannot find any file matching {star}_*.pkl')
             star, timestamp = file.replace('.pkl', '').split('_')
 
         dt = datetime.fromtimestamp(float(timestamp))
