@@ -791,31 +791,38 @@ class RV:
             bad_quantities = []
 
             for q in s._quantities:
+                Q = getattr(s, q)
+
                 # treat date_night specially, basically doing a group-by
                 if q == 'date_night':
                     inds = binRV(s.mtime, None, None, binning_indices=True)
-                    setattr(s, q, getattr(s, q)[s.mask][inds])
+                    setattr(s, q, Q[s.mask][inds])
                     continue
 
-                if getattr(s, q).dtype != np.float64:
+                if Q.dtype != np.float64:
                     bad_quantities.append(q)
                     all_bad_quantities.append(q)
                     continue
 
-                if np.isnan(getattr(s, q)).all():
+                if np.isnan(Q).all():
                     yb = np.full_like(tb, np.nan)
                     setattr(s, q, yb)
+
                 elif q + '_err' in s._quantities:
-                    _, yb, eb = binRV(s.mtime, 
-                                      getattr(s, q)[s.mask], 
-                                      getattr(s, q + '_err')[s.mask])
+                    Qerr = getattr(s, q + '_err')
+                    if (Qerr == 0.0).all():
+                        _, yb = binRV(s.mtime, Q[s.mask], stat='mean', tstat='mean')
+                    else:
+                        _, yb, eb = binRV(s.mtime, Q[s.mask], Qerr[s.mask])
+                        setattr(s, q + '_err', eb)
+
                     setattr(s, q, yb)
-                    setattr(s, q + '_err', eb)
+
                 elif not q.endswith('_err'):
                     with warnings.catch_warnings():
                         warnings.filterwarnings('ignore', category=RuntimeWarning)
                         try:
-                            _, yb = binRV(s.mtime, getattr(s, q)[s.mask], 
+                            _, yb = binRV(s.mtime, Q[s.mask], 
                                         stat=np.nanmean, tstat=np.nanmean)
                             setattr(s, q, yb)
                         except TypeError:
