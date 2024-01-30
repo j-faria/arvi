@@ -152,14 +152,22 @@ def get_observations(star, instrument=None, save_rdb=False, verbose=True):
 
 def check_existing(output_directory, files, type):
     existing = [
-        f.partition('_')[0] for f in os.listdir(output_directory)
+        f.partition('.fits')[0] for f in os.listdir(output_directory)
         if type in f
     ]
+    if os.name == 'nt':  # on Windows, be careful with ':' in filename
+        import re
+        existing = [re.sub(r'T(\d+)_(\d+)_(\d+)', r'T\1:\2:\3', f) for f in existing]
+    
+    # remove type of file (e.g. _CCF_A)
+    existing = [f.partition('_')[0] for f in existing]
+    
     missing = []
     for file in files:
         if any(other in file for other in existing):
             continue
         missing.append(file)
+
     return np.array(missing)
 
 def download(files, type, output_directory):
