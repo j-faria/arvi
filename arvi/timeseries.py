@@ -508,7 +508,7 @@ class RV:
         extracted_files = do_download_s2d(files[:limit], directory)
 
 
-    from .plots import plot, plot_fwhm, plot_bis, plot_rhk
+    from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_quantity
     from .plots import gls, gls_fwhm, gls_bis, gls_rhk
     from .reports import report
 
