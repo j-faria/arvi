@@ -68,7 +68,7 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
     return arrays
 
-def get_observations(star, instrument=None, save_rdb=False, verbose=True):
+def get_observations(star, instrument=None, verbose=True):
     Spectroscopy = load_spectroscopy()
     try:
         with stdout_disabled(), all_logging_disabled():
