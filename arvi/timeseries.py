@@ -784,6 +784,11 @@ class RV:
 
         for inst in snew.instruments:
             s = getattr(snew, inst)
+
+            # only one observation?
+            if s.N == 1:
+                continue
+
             tb, vb, svb = binRV(s.mtime, s.mvrad, s.msvrad)
             s.vrad = vb
             s.svrad = svb
@@ -813,10 +818,11 @@ class RV:
                     if (Qerr == 0.0).all():
                         _, yb = binRV(s.mtime, Q[s.mask], stat='mean', tstat='mean')
                     else:
-                        _, yb, eb = binRV(s.mtime, Q[s.mask], Qerr[s.mask])
+                        _, yb, eb = binRV(s.mtime, Q[s.mask], Qerr[s.mask],
+                                          remove_nans=False)
                         setattr(s, q + '_err', eb)
-
                     setattr(s, q, yb)
+
 
                 elif not q.endswith('_err'):
                     with warnings.catch_warnings():
@@ -838,7 +844,7 @@ class RV:
             s.time = tb
             s.mask = np.full(tb.shape, True)
         
-        if snew.verbose:
+        if snew.verbose and len(all_bad_quantities) > 0:
             logger.warning('\nnew object will not have these non-float quantities')
 
         for q in np.unique(all_bad_quantities):
@@ -953,7 +959,8 @@ class RV:
 
     #
 
-    def save(self, directory=None, instrument=None, full=False):
+    def save(self, directory=None, instrument=None, full=False,
+             save_nans=True):
         """ Save the observations in .rdb files.
 
         Args:
@@ -962,7 +969,11 @@ class RV:
             instrument (str, optional):
                 Instrument for which to save observations.
             full (bool, optional): 
-                Whether to save just RVs and errors (False) or more indicators (True).
+                Whether to save just RVs and errors (False) or more indicators
+                (True).
+            save_nans (bool, optional)
+                Whether to save NaN values in the indicators, if they exist. If
+                False, the full observation is not saved.
         """
         star_name = self.star.replace(' ', '')
 
@@ -989,6 +1000,14 @@ class RV:
                     _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
                     _s.rhk[_s.mask], _s.rhk_err[_s.mask],
                 ]
+                if not save_nans:
+                    if np.isnan(d).any():
+                        # remove observations where any of the indicators are # NaN
+                        nan_mask = np.isnan(d[:, 3:]).any(axis=1)
+                        d = d[~nan_mask]
+                        if self.verbose:
+                            logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
+
                 header =  'bjd\tvrad\tsvrad\tfwhm\tsfwhm\trhk\tsrhk\n'
                 header += '---\t----\t-----\t----\t-----\t---\t----'
             else:
