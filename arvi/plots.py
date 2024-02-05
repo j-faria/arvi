@@ -75,6 +75,10 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
 
         if label is None:
             _label = f'{inst:10s} ({s.N})' if N_in_label else inst
+            if not self.only_latest_pipeline:
+                i, p = _label.split('_', 1)
+                p = p.replace('_', '.')
+                _label = f'{i}-{p}'
         else:
             _label = label
 
@@ -199,6 +203,10 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
     for inst in instruments:
         s = self if self._child else getattr(self, inst)
         label = f'{inst:10s} ({s.N})' if N_in_label else inst
+        if not self.only_latest_pipeline:
+            i, p = label.split('_', 1)
+            p = p.replace('_', '.')
+            label = f'{i}-{p}'
 
         y = getattr(s, quantity)
         ye = getattr(s, quantity + '_err')
