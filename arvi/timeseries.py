@@ -47,6 +47,7 @@ class RV:
     do_secular_acceleration: bool = field(init=True, repr=False, default=True)
     do_sigma_clip: bool = field(init=True, repr=False, default=False)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
+    only_latest_pipeline: bool = field(init=True, repr=False, default=True)
     #
     _child: bool = field(init=True, repr=False, default=False)
     _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
@@ -95,19 +96,34 @@ class RV:
 
         # build children
         if not self._child:
-            arrays = get_arrays(self.dace_result, verbose=self.verbose)
+            arrays = get_arrays(self.dace_result,
+                                latest_pipeline=self.only_latest_pipeline,
+                                verbose=self.verbose)
+
             for (inst, pipe, mode), data in arrays:
                 child = RV.from_dace_data(self.star, inst, pipe, mode, data, _child=True)
                 inst = inst.replace('-', '_')
-                setattr(self, inst, child)
+                pipe = pipe.replace('.', '_').replace('__', '_')
+                if self.only_latest_pipeline:
+                    # save as self.INST
+                    setattr(self, inst, child)
+                else:
+                    # save as self.INST_PIPE
+                    setattr(self, f'{inst}_{pipe}', child)
 
         # build joint arrays
         if not self._child:
             #! sorted?
-            self.instruments = [
-                inst.replace('-', '_') 
-                for inst in sorted(list(self.dace_result.keys()))
-            ]
+            if self.only_latest_pipeline:
+                self.instruments = [
+                    inst.replace('-', '_')
+                    for (inst, _, _), _ in arrays
+                ]
+            else:
+                self.instruments = [
+                    inst.replace('-', '_') + '_' + pipe.replace('.', '_').replace('__', '_')
+                    for (inst, pipe, _), _ in arrays
+                ]
             # self.pipelines =
 
             # all other quantities
@@ -304,7 +320,7 @@ class RV:
         return pickle.load(open(file, 'rb'))
 
     @classmethod
-    def from_rdb(cls, files, star=None, units='ms', **kwargs):
+    def from_rdb(cls, files, star=None, instrument=None, units='ms', **kwargs):
         if isinstance(files, str):
             files = [files]
 
@@ -314,8 +330,12 @@ class RV:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
         
-        instruments = np.array([os.path.splitext(f)[0].split('_')[1] for f in files])
-        logger.info(f'assuming instruments: {instruments}')
+        
+        if instrument is None:
+            instruments = np.array([os.path.splitext(f)[0].split('_')[1] for f in files])
+            logger.info(f'assuming instruments: {instruments}')
+        else:
+            instruments = np.atleast_1d(instrument)
 
         if instruments.size == 1 and len(files) > 1:
             instruments = np.repeat(instruments, len(files))
@@ -670,7 +690,7 @@ class RV:
                 logger.error('no information from simbad, cannot remove secular acceleration')
             return
 
-        as_yr = units.arcsec / units.year
+        #as_yr = units.arcsec / units.year
         mas_yr = units.milliarcsecond / units.year
         mas = units.milliarcsecond
 
