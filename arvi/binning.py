@@ -221,8 +221,8 @@ binned_statistic_dd.__doc__ = doc2
 
 
 def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
-          binning_indices=False, binning_bins=False, n_consecutive=None,
-          consecutive_step=None, seed=None):
+          remove_nans=True, binning_indices=False, binning_bins=False,
+          n_consecutive=None, consecutive_step=None, seed=None):
     """ Bin a dataset of radial-velocity observations.
 
     Parameters
@@ -248,6 +248,8 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
         The statistic to compute for the errors. The default is to add them
         quadratically and divide by the number. See other available statistics
         on the `binned_statistic` function.
+    remove_nans : bool (optional, default True)
+        Whether NaN values in the binned times should be removed
     binning_indices : bool (optional, default False)
         If True, don't actually do any binning, just return the indices that
         will nightly bin the `time` array.
@@ -343,7 +345,6 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
 
     times = binned_statistic(time, time, statistic=tstat, bins=bins,
                              range=None, weights=err)
-
     # if there are errors, bin them too
     if err is not None:
         if estat == 'addquad':
@@ -362,15 +363,18 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
     btime, brv, berr = times[0], brv[0], errors[0]
 
     # statistic can return nan in some cases
-    n = np.isnan(btime)
-    btime = btime[~n]
-    brv = brv[~n]
+    if remove_nans:
+        n = np.isnan(btime)
+        btime = btime[~n]
+        brv = brv[~n]
+        if err is not None:
+            berr = berr[~n]
 
     if err is not None:
-        berr = berr[~n]
         if n_consecutive and consecutive_step:
             return btime, brv, berr, random_choices
         return btime, brv, berr
+
     else:
         if n_consecutive and consecutive_step:
             return btime, brv, random_choices
