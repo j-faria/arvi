@@ -18,6 +18,16 @@ def create_directory(directory):
         os.makedirs(directory)
 
 @contextmanager
+def chdir(dir):
+    """ A simple context manager to switch directories temporarily """
+    curdir = os.getcwd()
+    try:
+        os.chdir(dir)
+        yield
+    finally:
+        os.chdir(curdir)
+
+@contextmanager
 def stdout_disabled():
     devnull = open(os.devnull, 'w')
     with patch('sys.stdout', devnull):
