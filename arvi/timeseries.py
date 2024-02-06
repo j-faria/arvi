@@ -808,6 +808,10 @@ class RV:
             # only one observation?
             if s.N == 1:
                 continue
+        
+            # are all observations masked?
+            if s.mtime.size == 0:
+                continue
 
             tb, vb, svb = binRV(s.mtime, s.mvrad, s.msvrad)
             s.vrad = vb
@@ -835,14 +839,16 @@ class RV:
 
                 elif q + '_err' in s._quantities:
                     Qerr = getattr(s, q + '_err')
-                    if (Qerr == 0.0).all():
+                    if (Qerr == 0.0).all(): # if all errors are NaN, don't use them
                         _, yb = binRV(s.mtime, Q[s.mask], stat='mean', tstat='mean')
                     else:
-                        _, yb, eb = binRV(s.mtime, Q[s.mask], Qerr[s.mask],
-                                          remove_nans=False)
-                        setattr(s, q + '_err', eb)
-                    setattr(s, q, yb)
+                        if (Qerr <= 0.0).any(): # if any error is <= 0, set it to NaN
+                            Qerr[Qerr <= 0.0] = np.nan
 
+                        _, yb, eb = binRV(s.mtime, Q[s.mask], Qerr[s.mask], remove_nans=False)
+                        setattr(s, q + '_err', eb)
+
+                    setattr(s, q, yb)
 
                 elif not q.endswith('_err'):
                     with warnings.catch_warnings():
