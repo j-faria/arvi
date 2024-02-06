@@ -281,7 +281,11 @@ def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwa
         e = self.svrad[self.mask]
 
     self._gls = gls = LombScargle(t, y, e)
-    freq, power = gls.autopower(maximum_frequency=1.0, samples_per_peak=10)
+    maximum_frequency = kwargs.pop('maximum_frequency', 1.0)
+    minimum_frequency = kwargs.pop('minimum_frequency', None)
+    freq, power = gls.autopower(maximum_frequency=maximum_frequency,
+                                minimum_frequency=minimum_frequency,
+                                samples_per_peak=10)
     ax.semilogx(1/freq, power, picker=picker, label=label, **kwargs)
 
     if fap:
