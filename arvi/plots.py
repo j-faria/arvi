@@ -347,3 +347,30 @@ def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
 gls_fwhm = partialmethod(gls_quantity, quantity='fwhm')
 gls_bis = partialmethod(gls_quantity, quantity='bispan')
 gls_rhk = partialmethod(gls_quantity, quantity='rhk')
+
+
+def histogram_svrad(self, ax=None, instrument=None, label=None):
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, constrained_layout=True)
+    else:
+        fig = ax.figure
+
+    instruments = self._check_instrument(instrument)
+
+    for inst in instruments:
+        s = self if self._child else getattr(self, inst)
+
+        if label is None:
+            _label = inst
+            if not self.only_latest_pipeline:
+                i, p = _label.split('_', 1)
+                p = p.replace('_', '.')
+                _label = f'{i}-{p}'
+        else:
+            _label = label
+
+        kw = dict(bins=40, histtype='step', density=False, lw=2)
+        ax.hist(s.msvrad, label=_label, **kw)
+    ax.legend()
+    ax.set(xlabel=f'RV uncertainty [m/s]', ylabel='Number')
+
