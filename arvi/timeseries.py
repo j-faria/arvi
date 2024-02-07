@@ -675,11 +675,36 @@ class RV:
                 if self.verbose:
                     logger.warning(f'no observations for prog_id "{prog_id}"')
 
-
     def remove_after_bjd(self, bjd):
         if (self.time > bjd).any():
             ind = np.where(self.time > bjd)[0]
             self.remove_point(ind)
+
+    def choose_n_points(self, n, seed=None, instrument=None):
+        """ Randomly choose `n` observations and mask out the remaining ones
+
+        Args:
+            n (int):
+                Number of observations to keep.
+            instrument (str or list, optional):
+                For which instrument to choose points (default is all).
+        """
+        instruments = self._check_instrument(instrument)
+        rng = np.random.default_rng(seed=seed)
+        for inst in instruments:
+            s = getattr(self, inst)
+            mask_for_this_inst = self.obs == self.instruments.index(inst) + 1
+            # only choose if there are more than n points
+            if self.mask[mask_for_this_inst].sum() > n:
+                if self.verbose:
+                    logger.info(f'selecting {n} points from {inst}')
+                # indices of points for this instrument which are not masked already
+                available = np.where(self.mask & mask_for_this_inst)[0]
+                # choose n randomly
+                i = rng.choice(available, size=n, replace=False)
+                # mask the others out
+                self.mask[np.setdiff1d(available, i)] = False
+        self._propagate_mask_changes()
 
 
     def _propagate_mask_changes(self):
