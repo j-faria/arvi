@@ -422,12 +422,25 @@ class RV:
         """
         if instrument is None:
             return self.instruments
-        if not strict:
-            if any([instrument in inst for inst in self.instruments]):
-                return [inst for inst in self.instruments if instrument in inst]
-        if instrument in self.instruments:
-            return [instrument]
-        
+
+        if isinstance(instrument, list):
+            if strict:
+                return [inst for inst in instrument if inst in self.instruments]
+            else:
+                r = []
+                for i in instrument:
+                    if any([i in inst for inst in self.instruments]):
+                        r += [inst for inst in self.instruments if i in inst]
+                return r
+
+        else:
+            if strict:
+                if instrument in self.instruments:
+                    return [instrument]
+            else:
+                if any([instrument in inst for inst in self.instruments]):
+                    return [inst for inst in self.instruments if instrument in inst]
+
 
     def _build_arrays(self):
         """ build all concatenated arrays of `self` from each of the `.inst`s """
@@ -547,8 +560,10 @@ class RV:
         """ Remove all observations from one instrument
         
         Args:
-            instrument (str): The instrument for which to remove observations.
-            strict (bool): Whether to match `instrument` exactly
+            instrument (str or list):
+                The instrument(s) for which to remove observations.
+            strict (bool):
+                Whether to match (each) `instrument` exactly
         
         Note:
             A common name can be used to remove observations for several subsets
