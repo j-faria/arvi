@@ -185,6 +185,14 @@ class RV:
         return {inst: getattr(self, inst).N_nights for inst in self.instruments}
 
     @property
+    def _NN_as_table(self):
+        table = ''
+        table += ' | '.join(self.instruments) + '\n'
+        table += ' | '.join([i*'-' for i in map(len, self.instruments)]) + '\n'
+        table += ' | '.join(map(str, self.NN.values())) + '\n'
+        return table
+
+    @property
     def mtime(self):
         return self.time[self.mask]
 
