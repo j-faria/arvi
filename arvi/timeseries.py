@@ -16,6 +16,7 @@ from .translations import translate
 from .dace_wrapper import get_observations, get_arrays
 from .dace_wrapper import do_download_ccf, do_download_s1d, do_download_s2d
 from .simbad_wrapper import simbad
+from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .utils import strtobool
@@ -42,13 +43,13 @@ class RV:
     """
     star: str
     instrument: str = field(init=True, repr=False, default=None)
-    N: int = field(init=False, repr=True)
     verbose: bool = field(init=True, repr=False, default=True)
     do_maxerror: Union[bool, float] = field(init=True, repr=False, default=False)
     do_secular_acceleration: bool = field(init=True, repr=False, default=True)
     do_sigma_clip: bool = field(init=True, repr=False, default=False)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
     only_latest_pipeline: bool = field(init=True, repr=False, default=True)
+    load_extra_data: Union[bool, str] = field(init=True, repr=False, default=True)
     #
     _child: bool = field(init=True, repr=False, default=False)
     _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
@@ -127,6 +128,19 @@ class RV:
                 ]
             # self.pipelines =
 
+
+            if self.load_extra_data:
+                if isinstance(self.load_extra_data, str):
+                    path = self.load_extra_data
+                else:
+                    path = None
+                try:
+                    self.__add__(get_extra_data(self.star, path=path),
+                                 inplace=True)
+
+                except FileNotFoundError:
+                    pass
+
             # all other quantities
             self._build_arrays()
 
@@ -143,6 +157,29 @@ class RV:
 
             if self.do_adjust_means:
                 self.adjust_means()
+
+    def __add__(self, other, inplace=False):
+        # if not isinstance(other, self.__class__):
+        #     raise TypeError('unsupported operand type(s) for +: '
+        #                     f"'{self.__class__.__name__}' and '{other.__class__.__name__}'")
+
+        if np.isin(self.instruments, other.instruments).any():
+            logger.error('the two objects share instrument(s), cannot add them')
+            return
+
+        if inplace:
+            #? could it be as simple as this?
+            for i in other.instruments:
+                self.instruments.append(i)
+                setattr(self, i, getattr(other, i))
+        else:
+            # make a copy of ourselves
+            new_self = deepcopy(self)
+            #? could it be as simple as this?
+            for i in other.instruments:
+                new_self.instruments.append(i)
+                setattr(new_self, i, getattr(other, i))
+            return new_self
 
 
     def reload(self):
@@ -877,6 +914,11 @@ class RV:
                 if q == 'date_night':
                     inds = binRV(s.mtime, None, None, binning_indices=True)
                     setattr(s, q, Q[s.mask][inds])
+                    continue
+
+                # treat ccf_mask specially, doing a 'unique' bin
+                if q == 'ccf_mask':
+                    setattr(s, q, bin_ccf_mask(s.mtime, getattr(s, q)))
                     continue
 
                 if Q.dtype != np.float64:
