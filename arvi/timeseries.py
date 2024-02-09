@@ -17,7 +17,8 @@ from .dace_wrapper import get_observations, get_arrays
 from .dace_wrapper import do_download_ccf, do_download_s1d, do_download_s2d
 from .simbad_wrapper import simbad
 from .stats import wmean, wrms
-from .binning import binRV
+from .binning import bin_ccf_mask, binRV
+from .utils import strtobool
 
 
 @dataclass
@@ -775,7 +776,7 @@ class RV:
         if return_self:
             return self
 
-    def sigmaclip(self, sigma=5):
+    def sigmaclip(self, sigma=5, instrument=None, strict=True):
         """ Sigma-clip RVs (per instrument!) """
         #from scipy.stats import sigmaclip as dosigmaclip
         from .stats import sigmaclip_median as dosigmaclip
@@ -783,7 +784,9 @@ class RV:
         if self._child or self._did_sigma_clip:
             return
 
-        for inst in self.instruments:
+        instruments = self._check_instrument(instrument, strict)
+
+        for inst in instruments:
             m = self.instrument_array == inst
             result = dosigmaclip(self.vrad[m], low=sigma, high=sigma)
             n = self.vrad[m].size - result.clipped.size
@@ -1149,7 +1152,6 @@ class RV:
                 logger.error(f"not all required files exist in {data_dir}")
                 logger.error(f"missing {np.logical_not(exist).sum()} / {len(files)}")
 
-                from distutils.util import strtobool
                 go_on = input('continue? (y/N) ')
                 if go_on == '' or not bool(strtobool(go_on)):
                     return
