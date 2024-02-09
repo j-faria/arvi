@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.testing import suppress_warnings
 
+from .setup_logger import logger
+
 ###############################################################################
 # the following is mostly a copy of the scipy implementation of
 # binned_statistic and binned_statistic_dd
@@ -379,3 +381,18 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
         if n_consecutive and consecutive_step:
             return btime, brv, random_choices
         return btime, brv
+
+
+def bin_ccf_mask(time, ccf_mask):
+    indices = binRV(time, None, binning_indices=True)
+    indices = np.r_[indices, time.size]
+    bmask = []
+    for i1, i2 in zip(indices, indices[1:]):
+        um = np.unique(ccf_mask[i1:i2]).squeeze()
+        if um.size > 1:
+            logger.error(f'Non-unique CCF mask within one night (t={time[i1]:.1f}). '
+                         'Setting to NaN, but RV should be discarded')
+            bmask.append('nan')
+        else:
+            bmask.append(um)
+    return np.array(bmask)
