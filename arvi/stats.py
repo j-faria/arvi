@@ -38,6 +38,16 @@ def sigmaclip_median(a, low=4.0, high=4.0):
     """
     Same as scipy.stats.sigmaclip but using the median and median absolute
     deviation instead of the mean and standard deviation.
+
+    Args:
+        a (array): Array containing data
+        low (float): Number of MAD to use for the lower clipping limit
+        high (float): Number of MAD to use for the upper clipping limit
+    Returns:
+        SigmaclipResult: Object with the following attributes:
+            - `clipped`: Masked array of data
+            - `lower`: Lower clipping limit
+            - `upper`: Upper clipping limit
     """
     c = np.asarray(a).ravel()
     delta = 1
