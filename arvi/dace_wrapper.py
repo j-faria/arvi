@@ -8,7 +8,7 @@ from .setup_logger import logger
 from .utils import create_directory, all_logging_disabled, stdout_disabled
 
 
-def load_spectroscopy():
+def load_spectroscopy() -> SpectroscopyClass:
     if 'DACERC' in os.environ:
         dace = DaceClass(dace_rc_config_path=os.environ['DACERC'])
         return SpectroscopyClass(dace_instance=dace)
@@ -151,6 +151,7 @@ def get_observations(star, instrument=None, verbose=True):
 
 
 def check_existing(output_directory, files, type):
+    """ Check how many of `files` exist in `output_directory` """
     existing = [
         f.partition('.fits')[0] for f in os.listdir(output_directory)
         if type in f
@@ -171,13 +172,14 @@ def check_existing(output_directory, files, type):
     return np.array(missing)
 
 def download(files, type, output_directory):
-    
+    """ Download files from DACE """
     Spectroscopy = load_spectroscopy()
     # with stdout_disabled(), all_logging_disabled():
     Spectroscopy.download_files(files, file_type=type,
                                 output_directory=output_directory)
 
 def extract_fits(output_directory):
+    """ Extract fits files from tar.gz file """
     file = os.path.join(output_directory, 'spectroscopy_download.tar.gz')
     with tarfile.open(file, "r") as tar:
         files = []
@@ -193,6 +195,7 @@ def extract_fits(output_directory):
 
 
 def do_download_ccf(raw_files, output_directory, clobber=False, verbose=True):
+    """ Download CCFs from DACE """
     raw_files = np.atleast_1d(raw_files)
 
     create_directory(output_directory)
@@ -220,6 +223,7 @@ def do_download_ccf(raw_files, output_directory, clobber=False, verbose=True):
 
 
 def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
+    """ Download S1Ds from DACE """
     raw_files = np.atleast_1d(raw_files)
 
     create_directory(output_directory)
@@ -247,6 +251,7 @@ def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
 
 
 def do_download_s2d(raw_files, output_directory, clobber=False, verbose=True):
+    """ Download S2Ds from DACE """
     raw_files = np.atleast_1d(raw_files)
 
     create_directory(output_directory)
