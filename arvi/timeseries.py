@@ -128,6 +128,9 @@ class RV:
                 ]
             # self.pipelines =
 
+            # all other quantities
+            self._build_arrays()
+
 
             if self.load_extra_data:
                 if isinstance(self.load_extra_data, str):
@@ -141,8 +144,8 @@ class RV:
                 except FileNotFoundError:
                     pass
 
-            # all other quantities
-            self._build_arrays()
+                # all other quantities
+                self._build_arrays()
 
         # do clip_maxerror, secular_acceleration, sigmaclip, adjust_means
         if not self._child:
@@ -367,6 +370,21 @@ class RV:
 
     @classmethod
     def from_rdb(cls, files, star=None, instrument=None, units='ms', **kwargs):
+        """ Create an RV object from an rdb file or a list of rdb files
+
+        Args:
+            files (str, list):
+                File name or list of file names
+            star (str, optional):
+                Name of the star. If None, try to infer it from file name
+            instrument (str, list, optional):
+                Name of the instrument(s). If None, try to infer it from file name
+            units (str, optional):
+                Units of the radial velocities. Defaults to 'ms'.
+
+        Examples:
+            s = RV.from_rdb('star_HARPS.rdb')
+        """
         if isinstance(files, str):
             files = [files]
 
@@ -375,7 +393,6 @@ class RV:
             if star_.size == 1:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
-        
         
         if instrument is None:
             instruments = np.array([os.path.splitext(f)[0].split('_')[1] for f in files])
@@ -428,6 +445,23 @@ class RV:
 
             _s.bispan = np.zeros_like(time)
             _s.bispan_err = np.full_like(time, np.nan)
+
+            # other quantities, but all NaNs
+            for q in ['bispan', 'caindex', 'ccf_asym', 'contrast', 'haindex', 'naindex', 'sindex']:
+                setattr(_s, q, np.full_like(time, np.nan))
+                setattr(_s, q + '_err', np.full_like(time, np.nan))
+                _quantities.append(q)
+                _quantities.append(q + '_err')
+            for q in ['berv', 'texp']:
+                setattr(_s, q, np.full_like(time, np.nan))
+                _quantities.append(q)
+            for q in ['ccf_mask', 'date_night', 'prog_id', 'raw_file']:
+                setattr(_s, q, np.full(time.size, ''))
+                _quantities.append(q)
+            for q in ['drs_qc']:
+                setattr(_s, q, np.full(time.size, True))
+                _quantities.append(q)
+            
             #! end hack
 
             _s.mask = np.ones_like(time, dtype=bool)
