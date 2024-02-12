@@ -202,31 +202,26 @@ class RV:
             logger.info(f'Saved snapshot to {file}')
 
     @property
-    def N(self):
+    def N(self) -> int:
         """Total number of observations"""
         return self.time.size
 
-    @N.setter
-    def N(self, value):
-        if not isinstance(value, property):
-            logger.error('Cannot set N directly')
-
     @property
-    def NN(self):
+    def NN(self) -> dict[str, int]:
         """ Total number of observations per instrument """
         return {inst: getattr(self, inst).N for inst in self.instruments}
 
     @property
-    def N_nights(self):
+    def N_nights(self) -> int:
         """ Number of individual nights """
         return binRV(self.mtime, None, None, binning_bins=True).size - 1
 
     @property
-    def NN_nights(self):
+    def NN_nights(self) -> dict[str, int]:
         return {inst: getattr(self, inst).N_nights for inst in self.instruments}
 
     @property
-    def _NN_as_table(self):
+    def _NN_as_table(self) -> str:
         table = ''
         table += ' | '.join(self.instruments) + '\n'
         table += ' | '.join([i*'-' for i in map(len, self.instruments)]) + '\n'
@@ -234,15 +229,18 @@ class RV:
         return table
 
     @property
-    def mtime(self):
+    def mtime(self) -> np.ndarray:
+        """ Masked array of times """
         return self.time[self.mask]
 
-    @property
-    def mvrad(self):
+    @property  
+    def mvrad(self) -> np.ndarray:
+        """ Masked array of radial velocities """
         return self.vrad[self.mask]
 
     @property
-    def msvrad(self):
+    def msvrad(self) -> np.ndarray:
+        """ Masked array of radial velocity uncertainties """
         return self.svrad[self.mask]
 
     @property
@@ -250,7 +248,7 @@ class RV:
         return np.concatenate([[i] * n for i, n in self.NN.items()])
 
     @property
-    def rms(self):
+    def rms(self) -> float:
         """ Weighted rms of the (masked) radial velocities """
         if self.mask.sum() == 0:  # only one point
             return np.nan
@@ -259,7 +257,7 @@ class RV:
 
     @property
     def sigma(self):
-        """ Average error bar """
+        """ Average radial velocity uncertainty """
         if self.mask.sum() == 0:  # only one point
             return np.nan
         else:
@@ -276,7 +274,7 @@ class RV:
         return np.argsort(self.mtime)
 
     @property
-    def _tt(self):
+    def _tt(self) -> np.ndarray:
         return np.linspace(self.mtime.min(), self.mtime.max(), 20*self.N)
 
     @classmethod
@@ -480,7 +478,7 @@ class RV:
 
         return s
 
-    def _check_instrument(self, instrument, strict=False):
+    def _check_instrument(self, instrument, strict=False):# -> list | None:
         """
         Check if there are observations from `instrument`.
 
@@ -652,7 +650,7 @@ class RV:
             s.remove_instrument('HARPS03')
             ```
 
-            will remove observations from the specific subset.
+            will only remove observations from the specific subset.
         """
         instruments = self._check_instrument(instrument, strict)
 
@@ -716,6 +714,7 @@ class RV:
             return self
 
     def remove_non_public(self):
+        """ Remove non-public observations """
         if self.verbose:
             n = (~self.public).sum()
             logger.info(f'masking non-public observations ({n})')
@@ -730,6 +729,7 @@ class RV:
                 self.remove_instrument(inst)
 
     def remove_prog_id(self, prog_id):
+        """ Remove observations from a given program ID """
         from glob import has_magic
         if has_magic(prog_id):
             from fnmatch import filter
@@ -748,8 +748,15 @@ class RV:
                     logger.warning(f'no observations for prog_id "{prog_id}"')
 
     def remove_after_bjd(self, bjd):
+        """ Remove observations after a given BJD """
         if (self.time > bjd).any():
             ind = np.where(self.time > bjd)[0]
+            self.remove_point(ind)
+
+    def remove_before_bjd(self, bjd):
+        """ Remove observations before a given BJD """
+        if (self.time < bjd).any():
+            ind = np.where(self.time < bjd)[0]
             self.remove_point(ind)
 
     def choose_n_points(self, n, seed=None, instrument=None):
@@ -758,6 +765,8 @@ class RV:
         Args:
             n (int):
                 Number of observations to keep.
+            seed (int, optional):
+                Random seed for reproducibility.
             instrument (str or list, optional):
                 For which instrument to choose points (default is all).
         """
@@ -889,12 +898,11 @@ class RV:
         if return_self:
             return self
 
-    def clip_maxerror(self, maxerror:float, plot=False):
+    def clip_maxerror(self, maxerror:float):
         """ Mask out points with RV error larger than a given value
         
         Args:
             maxerror (float): Maximum error to keep.
-            plot (bool): Whether to plot the masked points.
         """
         if self._child:
             return
@@ -1008,6 +1016,7 @@ class RV:
         return snew
 
     def nth_day_mean(self, n=1.0):
+        """ Calculate the n-th day rolling mean of the radial velocities """
         mask = np.abs(self.mtime[:, None] - self.mtime[None, :]) < n
         z = np.full((self.mtime.size, self.mtime.size), np.nan)
         z[mask] = np.repeat(self.mvrad[:, None], self.mtime.size, axis=1)[mask]
@@ -1096,11 +1105,16 @@ class RV:
             self._build_arrays()
 
     def sort_instruments(self, by_first_observation=True, by_last_observation=False):
+        """ Sort instruments by first or last observation date.
+
+        Args:
+            by_first_observation (bool, optional):
+                Sort by first observation date.
+            by_last_observation (bool, optional):
+                Sort by last observation data.
+        """
         if by_last_observation:
             by_first_observation = False
-        # if by_first_observation and by_last_observation:
-        #     logger.error("'by_first_observation' and 'by_last_observation' can't both be true")
-        #     return
         if by_first_observation:
             fun = lambda i: getattr(self, i).time.min()
             self.instruments = sorted(self.instruments, key=fun)
@@ -1110,10 +1124,8 @@ class RV:
             self.instruments = sorted(self.instruments, key=fun)
             self._build_arrays()
 
-    #
 
-    def save(self, directory=None, instrument=None, full=False,
-             save_nans=True):
+    def save(self, directory=None, instrument=None, full=False, save_nans=True):
         """ Save the observations in .rdb files.
 
         Args:
@@ -1179,6 +1191,7 @@ class RV:
         return files
 
     def checksum(self, write_to=None):
+        """ Calculate a hash based on the data """
         from hashlib import md5
         d = np.r_[self.time, self.vrad, self.svrad]
         H = md5(d.data.tobytes()).hexdigest()
@@ -1278,6 +1291,7 @@ class RV:
     #
     @property
     def planets(self):
+        """ Query the NASA Exoplanet Archive for any known planets """
         from .nasaexo_wrapper import Planets
         if not hasattr(self, '_planets'):
             self._planets = Planets(self)
