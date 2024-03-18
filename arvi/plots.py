@@ -2,6 +2,7 @@ import os
 from functools import partial, partialmethod
 
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import mplcursors
@@ -13,7 +14,7 @@ from . import config
 
 
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
-         remove_50000=False, tooltips=True, label=None, N_in_label=False,
+         remove_50000=False, tooltips=False, label=None, N_in_label=False,
          versus_n=False, show_histogram=False, **kwargs):
     """ Plot the RVs
 
@@ -106,10 +107,10 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
                 text = f'{inst}\n'
                 text += f'BJD: {sel.target[0]:9.5f}\n'
                 text += f'RV: {vrad:.3f} ± {svrad:.3f}'
-                if fig.canvas.manager.toolmanager.get_tool('infotool').toggled:
-                    text += '\n\n'
-                    text += f'date: {_s.date_night[sel.index]}\n'
-                    text += f'mask: {_s.ccf_mask[sel.index]}'
+                # if fig.canvas.manager.toolmanager.get_tool('infotool').toggled:
+                #     text += '\n\n'
+                #     text += f'date: {_s.date_night[sel.index]}\n'
+                #     text += f'mask: {_s.ccf_mask[sel.index]}'
                 sel.annotation.set_text(text)
 
         if show_masked:
@@ -128,7 +129,28 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             ax.errorbar(self.time[~self.mask] - time_offset, self.vrad[~self.mask], self.svrad[~self.mask],
                         label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
-    ax.legend()
+    leg = ax.legend()
+    handles, labels = ax.get_legend_handles_labels()
+    for text in leg.get_texts():
+        text.set_picker(True)
+
+    def on_pick_legend(event):
+        artist = event.artist
+        if isinstance(artist, matplotlib.text.Text):
+            try:
+                h = handles[labels.index(artist.get_text())]
+                alpha_text = {None:0.2, 1.0: 0.2, 0.2:1.0}[artist.get_alpha()]
+                alpha_point = {None: 0.0, 1.0: 0.0, 0.2: 1.0}[artist.get_alpha()]
+                h[0].set_alpha(alpha_point)
+                h[2][0].set_alpha(alpha_point)
+                artist.set_alpha(alpha_text)
+                fig.canvas.draw()
+            except ValueError:
+                pass
+
+    plt.connect('pick_event', on_pick_legend)
+
+
     if show_histogram:
         axh.legend()
 
@@ -209,7 +231,11 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
             label = f'{i}-{p}'
 
         y = getattr(s, quantity)
-        ye = getattr(s, quantity + '_err')
+        try:
+            ye = getattr(s, quantity + '_err')
+        except AttributeError:
+            ye = np.zeros_like(y)
+
 
         if np.isnan(y).all() or np.isnan(ye).all():
             lines, *_ = ax.errorbar([], [], [],
@@ -256,6 +282,21 @@ plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 
 
 def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwargs):
+    """
+    Calculate and plot the Generalised Lomb-Scargle periodogram of the radial
+    velocities.
+
+    Args:
+        ax (matplotlib.axes.Axes):
+            The matplotlib axes to plot on. If None, a new figure will be
+            created.
+        label (str):
+            The label to use for the plot.
+        fap (bool):
+            Whether to show the false alarm probability.
+        instrument (str or list):
+            Which instruments' data to include in the periodogram.
+    """
     if self.N == 0:
         if self.verbose:
             logger.error('no data to compute gls')
@@ -267,7 +308,8 @@ def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwa
         fig = ax.figure
 
     if instrument is not None:
-        instrument = self._check_instrument(instrument)
+        strict = kwargs.pop('strict', False)
+        instrument = self._check_instrument(instrument, strict=strict)
         if instrument is not None:
             instrument_mask = np.isin(self.instrument_array, instrument)
             t = self.time[instrument_mask & self.mask]
@@ -350,6 +392,17 @@ gls_rhk = partialmethod(gls_quantity, quantity='rhk')
 
 
 def histogram_svrad(self, ax=None, instrument=None, label=None):
+    """ Plot an histogram of the radial velocity uncertainties. 
+    
+    Args:
+        ax (matplotlib.axes.Axes):
+            The matplotlib axes to plot on. If None, a new figure will be
+            created.
+        instrument (str or list):
+            Which instruments' data to include in the histogram.
+        label (str):
+            The label to use for the plot.
+    """
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
