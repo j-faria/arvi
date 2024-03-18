@@ -8,12 +8,14 @@ except ImportError:
     except ImportError as e:
         raise e
 
+import subprocess
 import logging
 from glob import glob
-from numpy import array
+import numpy as np
 
 
 def create_directory(directory):
+    """ Create a directory if it does not exist """
     if not os.path.isdir(directory):
         os.makedirs(directory)
 
@@ -89,10 +91,28 @@ def ESPRESSO_ADC_issues():
     adc_file = find_data_file('obs_affected_ADC_issues.dat')
     lines = [line.strip() for line in open(adc_file).readlines()]
     file_roots = [line.split()[1] for line in lines if not line.startswith('#')]
-    return array(file_roots)
+    return np.array(file_roots)
 
 def ESPRESSO_cryostat_issues():
     cryostat_file = find_data_file('obs_affected_blue_cryostat_issues.dat')
     lines = [line.strip() for line in open(cryostat_file).readlines()]
     file_roots = [line.split()[1] for line in lines if not line.startswith('#')]
-    return array(file_roots)
+    return np.array(file_roots)
+
+
+def get_max_berv_span(self, n=None):
+    """
+    Return the indices of the n observations which maximize the BERV span.
+    If n is None, return all indices sorted by BERV span.    
+    """
+    berv_argsort = np.argsort(self.berv)
+
+    # if n is None:
+    #     n = self.N // 2
+    inds = []
+    for b1, b2 in zip(berv_argsort[:self.N // 2], berv_argsort[::-1]):
+        inds.append(b1)
+        inds.append(b2)
+    return np.array(inds[:n])
+
+
