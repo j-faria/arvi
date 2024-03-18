@@ -11,6 +11,12 @@ def wmean(a, e):
         a (array): Array containing data
         e (array): Uncertainties on `a`
     """
+    if (e == 0).any():
+        raise ZeroDivisionError
+    if (e < 0).any():
+        raise ValueError
+    if (a.shape != e.shape):
+        raise ValueError
     return np.average(a, weights=1 / e**2)
 
 def rms(a):
