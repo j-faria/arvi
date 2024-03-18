@@ -219,7 +219,7 @@ class RV:
         return self.time.size
 
     @property
-    def NN(self) -> dict[str, int]:
+    def NN(self):
         """ Total number of observations per instrument """
         return {inst: getattr(self, inst).N for inst in self.instruments}
 
@@ -229,7 +229,7 @@ class RV:
         return binRV(self.mtime, None, None, binning_bins=True).size - 1
 
     @property
-    def NN_nights(self) -> dict[str, int]:
+    def NN_nights(self):
         return {inst: getattr(self, inst).N_nights for inst in self.instruments}
 
     @property
