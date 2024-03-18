@@ -19,6 +19,7 @@ from .simbad_wrapper import simbad
 from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
+from .HZ import getHZ_period
 from .utils import strtobool
 
 
@@ -70,17 +71,26 @@ class RV:
         self.__star__ = translate(self.star)
 
         if not self._child:
-            try:
-                self.simbad = simbad(self.__star__)
-            except ValueError as e:
-                logger.error(e)
+            # complicated way to query Simbad with self.__star__ or, if that
+            # fails, try after removing a trailing 'A'
+            for target in (self.__star__, self.__star__.replace('A', '')):
+                try:
+                    self.simbad = simbad(target)
+                    break
+                except ValueError:
+                    continue
+            else:
+                if self.verbose:
+                    logger.error(f'simbad query for {self.__star__} failed')
 
+            # query DACE
             if self.verbose:
                 logger.info(f'querying DACE for {self.__star__}...')
             try:
                 self.dace_result = get_observations(self.__star__, self.instrument, 
                                                     verbose=self.verbose)
             except ValueError as e:
+                # querying DACE failed, should we raise an error?
                 if self._raise_on_error:
                     raise e
                 else:
@@ -88,7 +98,6 @@ class RV:
                     self.instruments = []
                     self.units = ''
                     return
-
 
             # store the date of the last DACE query
             time_stamp = datetime.now(timezone.utc)  #.isoformat().split('.')[0]
@@ -103,7 +112,8 @@ class RV:
                                 verbose=self.verbose)
 
             for (inst, pipe, mode), data in arrays:
-                child = RV.from_dace_data(self.star, inst, pipe, mode, data, _child=True)
+                child = RV.from_dace_data(self.star, inst, pipe, mode, data, _child=True,
+                                          verbose=self.verbose)
                 inst = inst.replace('-', '_')
                 pipe = pipe.replace('.', '_').replace('__', '_')
                 if self.only_latest_pipeline:
@@ -138,7 +148,7 @@ class RV:
                 else:
                     path = None
                 try:
-                    self.__add__(get_extra_data(self.star, path=path),
+                    self.__add__(get_extra_data(self.star, instrument=self.instrument, path=path),
                                  inplace=True)
 
                 except FileNotFoundError:
@@ -175,6 +185,7 @@ class RV:
             for i in other.instruments:
                 self.instruments.append(i)
                 setattr(self, i, getattr(other, i))
+            self._build_arrays()
         else:
             # make a copy of ourselves
             new_self = deepcopy(self)
@@ -182,6 +193,7 @@ class RV:
             for i in other.instruments:
                 new_self.instruments.append(i)
                 setattr(new_self, i, getattr(other, i))
+            new_self._build_arrays()
             return new_self
 
 
@@ -279,6 +291,7 @@ class RV:
 
     @classmethod
     def from_dace_data(cls, star, inst, pipe, mode, data, **kwargs):
+        verbose = kwargs.pop('verbose', False)
         s = cls(star, **kwargs)
         #
         ind = np.argsort(data['rjd'])
@@ -316,7 +329,8 @@ class RV:
         # mask out drs_qc = False
         if not s.drs_qc.all():
             n = (~s.drs_qc).sum()
-            logger.warning(f'masking {n} points where DRS QC failed for {inst}')
+            if verbose:
+                logger.warning(f'masking {n} points where DRS QC failed for {inst}')
             s.mask &= s.drs_qc
 
         s.instruments = [inst]
@@ -349,7 +363,7 @@ class RV:
         return s
 
     @classmethod
-    def from_snapshot(cls, file=None, star=None):
+    def from_snapshot(cls, file=None, star=None, verbose=True):
         import pickle
         from datetime import datetime
         if star is None:
@@ -363,7 +377,8 @@ class RV:
             star, timestamp = file.replace('.pkl', '').split('_')
 
         dt = datetime.fromtimestamp(float(timestamp))
-        logger.info(f'Reading snapshot of {star} from {dt}')
+        if verbose:
+            logger.info(f'Reading snapshot of {star} from {dt}')
         return pickle.load(open(file, 'rb'))
 
     @classmethod
@@ -414,8 +429,24 @@ class RV:
             _s.svrad = data[2] * factor
 
             _quantities = []
+
             #! hack
-            data = np.genfromtxt(f, names=True, dtype=None, comments='--', encoding=None)
+            with open(f) as ff:
+                header = ff.readline().strip()
+                if '\t' in header:
+                    names = header.split('\t')
+                else:
+                    names = header.split()
+
+            if len(names) > 3:
+                kw = dict(skip_header=2, dtype=None, encoding=None)
+                try:
+                    data = np.genfromtxt(f, **kw)
+                except ValueError:
+                    data = np.genfromtxt(f, **kw, delimiter='\t')
+                data.dtype.names = names
+            else:
+                data = np.array([], dtype=np.dtype([]))
 
             if 'fwhm' in data.dtype.fields:
                 _s.fwhm = data['fwhm']
@@ -453,7 +484,7 @@ class RV:
             for q in ['berv', 'texp']:
                 setattr(_s, q, np.full_like(time, np.nan))
                 _quantities.append(q)
-            for q in ['ccf_mask', 'date_night', 'prog_id', 'raw_file']:
+            for q in ['ccf_mask', 'date_night', 'prog_id', 'raw_file', 'pub_reference']:
                 setattr(_s, q, np.full(time.size, ''))
                 _quantities.append(q)
             for q in ['drs_qc']:
@@ -477,6 +508,44 @@ class RV:
             s.adjust_means()
 
         return s
+
+    @classmethod
+    def from_ccf(cls, files, star=None, instrument=None, **kwargs):
+        """ Create an RV object from a CCF file or a list of CCF files """
+        try:
+            import iCCF
+        except ImportError:
+            logger.error('iCCF is not installed. Please install it with `pip install iCCF`')
+            return
+        
+        if isinstance(files, str):
+            files = [files]
+    
+        I = iCCF.from_file(files)
+
+        objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in I])
+        if objects.size != 1:
+            logger.warning(f'found {objects.size} different stars in the CCF files, '
+                           'choosing the first one')
+        star = objects[0]
+
+        s = cls(star, _child=True)
+
+        # time, RVs, uncertainties
+        s.time = np.array([i.bjd for i in I])
+        s.vrad = np.array([i.RV*1e3 for i in I])
+        s.svrad = np.array([i.RVerror*1e3 for i in I])
+
+        s.fwhm = np.array([i.FWHM*1e3 for i in I])
+        s.fwhm_err = np.array([i.FWHMerror*1e3 for i in I])
+
+        # mask
+        s.mask = np.full_like(s.time, True, dtype=bool)
+
+        s.instruments = list(np.unique([i.instrument for i in I]))
+
+        return s
+
 
     def _check_instrument(self, instrument, strict=False):# -> list | None:
         """
@@ -819,6 +888,11 @@ class RV:
                 logger.error('no information from simbad, cannot remove secular acceleration')
             return
 
+        if self.simbad.plx_value is None:
+            if self.verbose:
+                logger.error('no parallax from simbad, cannot remove secular acceleration')
+            return
+
         #as_yr = units.arcsec / units.year
         mas_yr = units.milliarcsecond / units.year
         mas = units.milliarcsecond
@@ -848,6 +922,10 @@ class RV:
                     continue
 
                 s = getattr(self, inst)
+
+                if hasattr(s, '_did_secular_acceleration') and s._did_secular_acceleration:
+                    continue
+
                 s.vrad = s.vrad - sa * (s.time - epoch) / 365.25
             
             self._build_arrays()
@@ -1289,6 +1367,15 @@ class RV:
 
 
     #
+    @property
+    def HZ(self):
+        if not hasattr(self, 'star_mass'):
+            self.star_mass = float(input('stellar mass (Msun): '))
+        if not hasattr(self, 'lum'):
+            self.lum = float(input('luminosity (Lsun): '))
+        return getHZ_period(self.simbad.teff, self.star_mass, 1.0, self.lum)
+
+
     @property
     def planets(self):
         """ Query the NASA Exoplanet Archive for any known planets """
