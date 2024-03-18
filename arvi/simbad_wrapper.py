@@ -40,12 +40,11 @@ WHERE id = '{star}';
 
 def run_query(query):
     url = 'http://simbad.u-strasbg.fr/simbad/sim-tap/sync'
-    response = requests.post(url,
-                             data=dict(query=query,
-                                       request='doQuery',
-                                       lang='ADQL',
-                                       format='text/plain',
-                                       phase='run'))
+    data = dict(query=query, request='doQuery', lang='ADQL', format='text/plain', phase='run')
+    try:
+        response = requests.post(url, data=data, timeout=10)
+    except requests.ReadTimeout as err:
+        raise IndexError(err)
     return response.content.decode()
 
 def parse_table(table, cols=None, values=None):
@@ -121,6 +120,9 @@ class simbad:
                 setattr(self, col, val)
 
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
+
+        if self.plx_value == '':
+            self.plx_value = None
 
         try:
             swc_data = pysweetcat.get_data()
