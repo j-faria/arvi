@@ -19,15 +19,19 @@ def wmean(a, e):
         raise ValueError
     return np.average(a, weights=1 / e**2)
 
-def rms(a):
+def rms(a, ignore_nans=False):
     """ Root mean square of array `a`
 
     Args:
         a (array): Array containing data
     """
+    if ignore_nans:
+        a = a[~np.isnan(a)]
+    if len(a) == 0:
+        return np.nan
     return np.sqrt((a**2).mean())
 
-def wrms(a, e):
+def wrms(a, e, ignore_nans=False):
     """ Weighted root mean square of array `a`, with uncertanty given by `e`.
     The weighted rms is calculated using the weighted mean, where the weights
     are equal to 1/e**2.
@@ -36,6 +40,16 @@ def wrms(a, e):
         a (array): Array containing data 
         e (array): Uncertainties on `a`
     """
+    if ignore_nans:
+        nans = np.logical_or(np.isnan(a), np.isnan(e))
+        a = a[~nans]
+        e = e[~nans]
+    if (e == 0).any():
+        raise ZeroDivisionError('uncertainty cannot be zero')
+    if (e < 0).any():
+        raise ValueError('uncertainty cannot be negative')
+    if (a.shape != e.shape):
+        raise ValueError('arrays must have the same shape')
     w = 1 / e**2
     return np.sqrt(np.sum(w * (a - np.average(a, weights=w))**2) / sum(w))
 
