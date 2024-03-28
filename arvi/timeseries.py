@@ -402,7 +402,7 @@ class RV:
             files = [files]
 
         if star is None:
-            star_ = np.unique([os.path.splitext(f)[0].split('_')[0] for f in files])
+            star_ = np.unique([os.path.splitext(os.path.basename(f))[0].split('_')[0] for f in files])
             if star_.size == 1:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
