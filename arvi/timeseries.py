@@ -624,11 +624,12 @@ class RV:
                 setattr(self, q, arr)
 
 
-    def download_ccf(self, instrument=None, limit=None, directory=None):
+    def download_ccf(self, instrument=None, index=None, limit=None, directory=None):
         """ Download CCFs from DACE
 
         Args:
             instrument (str): Specific instrument for which to download data
+            index (int): Specific index of point for which to download data (0-based)
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
         """
@@ -643,13 +644,18 @@ class RV:
             for inst in instrument:
                 files += list(getattr(self, inst).raw_file)
 
+        if index is not None:
+            index = np.atleast_1d(index)
+            files = list(np.array(files)[index])
+
         do_download_ccf(files[:limit], directory)
 
-    def download_s1d(self, instrument=None, limit=None, directory=None):
+    def download_s1d(self, instrument=None, index=None, limit=None, directory=None):
         """ Download S1Ds from DACE
 
         Args:
             instrument (str): Specific instrument for which to download data
+            index (int): Specific index of point for which to download data (0-based)
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
         """
@@ -664,13 +670,18 @@ class RV:
             for inst in instrument:
                 files += list(getattr(self, inst).raw_file)
 
+        if index is not None:
+            index = np.atleast_1d(index)
+            files = list(np.array(files)[index])
+
         do_download_s1d(files[:limit], directory)
 
-    def download_s2d(self, instrument=None, limit=None, directory=None):
+    def download_s2d(self, instrument=None, index=None, limit=None, directory=None):
         """ Download S2Ds from DACE
 
         Args:
             instrument (str): Specific instrument for which to download data
+            index (int): Specific index of point for which to download data (0-based)
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
         """
@@ -685,7 +696,11 @@ class RV:
             for inst in instrument:
                 files += list(getattr(self, inst).raw_file)
 
-        extracted_files = do_download_s2d(files[:limit], directory)
+        if index is not None:
+            index = np.atleast_1d(index)
+            files = list(np.array(files)[index])
+
+        do_download_s2d(files[:limit], directory)
 
 
     from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_quantity
@@ -757,7 +772,9 @@ class RV:
             return self
 
     def remove_point(self, index):
-        """ Remove individual observations at a given index (or indices)
+        """
+        Remove individual observations at a given index (or indices).
+        NOTE: Like Python, the index is 0-based.
         
         Args:
             index (int, list, ndarray):
@@ -1203,7 +1220,8 @@ class RV:
             self._build_arrays()
 
 
-    def save(self, directory=None, instrument=None, full=False, save_nans=True):
+    def save(self, directory=None, instrument=None, full=False,
+             save_masked=False, save_nans=True):
         """ Save the observations in .rdb files.
 
         Args:
@@ -1238,11 +1256,18 @@ class RV:
                 continue
 
             if full:
-                d = np.c_[
-                    _s.mtime, _s.mvrad, _s.msvrad,
-                    _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
-                    _s.rhk[_s.mask], _s.rhk_err[_s.mask],
-                ]
+                if save_masked:
+                    d = np.c_[
+                        _s.time, _s.vrad, _s.svrad,
+                        _s.fwhm, _s.fwhm_err,
+                        _s.rhk, _s.rhk_err,
+                    ]
+                else:
+                    d = np.c_[
+                        _s.mtime, _s.mvrad, _s.msvrad,
+                        _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
+                        _s.rhk[_s.mask], _s.rhk_err[_s.mask],
+                    ]
                 if not save_nans:
                     if np.isnan(d).any():
                         # remove observations where any of the indicators are # NaN
@@ -1254,7 +1279,10 @@ class RV:
                 header =  'bjd\tvrad\tsvrad\tfwhm\tsfwhm\trhk\tsrhk\n'
                 header += '---\t----\t-----\t----\t-----\t---\t----'
             else:
-                d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
+                if save_masked:
+                    d = np.c_[_s.time, _s.vrad, _s.svrad]
+                else:
+                    d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
                 header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
             
             file = f'{star_name}_{inst}.rdb'
