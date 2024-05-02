@@ -226,6 +226,8 @@ class RV:
     @property
     def N_nights(self) -> int:
         """ Number of individual nights """
+        if self.mtime.size == 0:
+            return 0
         return binRV(self.mtime, None, None, binning_bins=True).size - 1
 
     @property
@@ -439,12 +441,12 @@ class RV:
                     names = header.split()
 
             if len(names) > 3:
-                kw = dict(skip_header=2, dtype=None, encoding=None)
-                try:
-                    data = np.genfromtxt(f, **kw)
-                except ValueError:
+                kw = dict(skip_header=0, comments='--', names=True, dtype=None, encoding=None)
+                if '\t' in header:
                     data = np.genfromtxt(f, **kw, delimiter='\t')
-                data.dtype.names = names
+                else:
+                    data = np.genfromtxt(f, **kw)
+                # data.dtype.names = names
             else:
                 data = np.array([], dtype=np.dtype([]))
 
@@ -463,8 +465,10 @@ class RV:
 
             if 'rhk' in data.dtype.fields:
                 _s.rhk = data['rhk']
-                if 'srhk' in data.dtype.fields:
-                    _s.rhk_err = data['srhk']
+                _s.rhk_err = np.full_like(time, np.nan)
+                for possible_name in ['srhk', 'rhk_err']:
+                    if possible_name in data.dtype.fields:
+                        _s.rhk_err = data[possible_name]
             else:
                 _s.rhk = np.zeros_like(time)
                 _s.rhk_err = np.full_like(time, np.nan)
@@ -624,7 +628,7 @@ class RV:
                 setattr(self, q, arr)
 
 
-    def download_ccf(self, instrument=None, index=None, limit=None, directory=None):
+    def download_ccf(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
         """ Download CCFs from DACE
 
         Args:
@@ -639,7 +643,8 @@ class RV:
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
-            instrument = self._check_instrument(instrument)
+            strict = kwargs.pop('strict', False)
+            instrument = self._check_instrument(instrument, strict=strict)
             files = []
             for inst in instrument:
                 files += list(getattr(self, inst).raw_file)
@@ -650,7 +655,7 @@ class RV:
 
         do_download_ccf(files[:limit], directory)
 
-    def download_s1d(self, instrument=None, index=None, limit=None, directory=None):
+    def download_s1d(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
         """ Download S1Ds from DACE
 
         Args:
@@ -665,7 +670,8 @@ class RV:
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
-            instrument = self._check_instrument(instrument)
+            strict = kwargs.pop('strict', False)
+            instrument = self._check_instrument(instrument, strict=strict)
             files = []
             for inst in instrument:
                 files += list(getattr(self, inst).raw_file)
@@ -676,7 +682,7 @@ class RV:
 
         do_download_s1d(files[:limit], directory)
 
-    def download_s2d(self, instrument=None, index=None, limit=None, directory=None):
+    def download_s2d(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
         """ Download S2Ds from DACE
 
         Args:
@@ -691,7 +697,8 @@ class RV:
         if instrument is None:
             files = [file for file in self.raw_file if file.endswith('.fits')]
         else:
-            instrument = self._check_instrument(instrument)
+            strict = kwargs.pop('strict', False)
+            instrument = self._check_instrument(instrument, strict=strict)
             files = []
             for inst in instrument:
                 files += list(getattr(self, inst).raw_file)
