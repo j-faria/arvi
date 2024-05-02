@@ -19,15 +19,24 @@ def get_extra_data(star, instrument=None, path=None, verbose=True):
     # print(metadata)
 
     files = glob(os.path.join(path, star + '*'))
+    files = [f for f in files if os.path.isfile(f)]
+    files = [f for f in files if not os.path.basename(f).endswith('.zip')]
+
     if len(files) == 0:
         raise FileNotFoundError
 
-    instruments = [os.path.basename(f).split('.')[0] for f in files]
-    instruments = [i.split('_', maxsplit=1)[1] for i in instruments]
+    def get_instruments(files):
+        instruments = [os.path.basename(f).split('.')[0] for f in files]
+        instruments = [i.split('_', maxsplit=1)[1] for i in instruments]
+        return instruments
+    
+    instruments = get_instruments(files)
 
     if instrument is not None:
         if not any([instrument in i for i in instruments]):
             raise FileNotFoundError
+        files = [f for f in files if instrument in f]
+        instruments = get_instruments(files)
 
     if verbose:
         logger.info(f'loading extra data for {star}')
