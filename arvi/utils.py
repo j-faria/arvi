@@ -13,6 +13,12 @@ import logging
 from glob import glob
 import numpy as np
 
+try:
+    from tqdm import tqdm, trange
+except ImportError:
+    tqdm = lambda x, *args, **kwargs: x
+    trange = lambda *args, **kwargs: range(*args, **kwargs)
+
 
 def create_directory(directory):
     """ Create a directory if it does not exist """
