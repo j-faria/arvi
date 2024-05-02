@@ -1,6 +1,8 @@
 import os
 from functools import partial, partialmethod
+from itertools import cycle
 
+import matplotlib.collections
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -15,7 +17,7 @@ from . import config
 
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
          remove_50000=False, tooltips=False, label=None, N_in_label=False,
-         versus_n=False, show_histogram=False, **kwargs):
+         versus_n=False, show_histogram=False, bw=False, **kwargs):
     """ Plot the RVs
 
     Args:
@@ -38,6 +40,8 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
         show_histogram (bool, optional)
             Whether to show a panel with the RV histograms (per intrument).
             Defaults to False.
+        bw (bool, optional):
+            Adapt plot to black and white. Defaults to False.
 
     Returns:
         Figure: the figure
@@ -58,7 +62,7 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             ax, axh = ax
         fig = ax.figure
 
-    kwargs.setdefault('marker', 'o')
+
     kwargs.setdefault('ls', '')
     kwargs.setdefault('capsize', 0)
     kwargs.setdefault('ms', 4)
@@ -66,10 +70,22 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
     if remove_50000:
         time_offset = 50000
 
-    instruments = self._check_instrument(instrument)
+    strict = kwargs.pop('strict', False)
+    instruments = self._check_instrument(instrument, strict=strict)
+
+    if bw:
+        markers = cycle(('o', 'P', 's', '^', '*'))
+    else:
+        markers = cycle(('o',) * len(instruments))
+
+    try:
+        zorders = cycle(-np.argsort([getattr(self, i).error for i in instruments])[::-1])
+    except AttributeError:
+        zorders = cycle([1] * len(instruments))
 
     cursors = {}
-    for inst in instruments:
+    containers = {}
+    for _i, inst in enumerate(instruments):
         s = self if self._child else getattr(self, inst)
         if s.mask.sum() == 0:
             continue
@@ -81,37 +97,42 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
                 p = p.replace('_', '.')
                 _label = f'{i}-{p}'
         else:
-            _label = label
+            if isinstance(label, list):
+                _label = label[_i]
+            else:
+                _label = label
 
         if versus_n:
-            container = ax.errorbar(np.arange(1, s.mtime.size + 1),
-                                    s.mvrad, s.msvrad, label=_label, picker=True, **kwargs)
+            container = ax.errorbar(np.arange(1, s.mtime.size + 1), s.mvrad, s.msvrad,
+                                    label=_label, picker=True, marker=next(markers), zorder=next(zorders),
+                                    **kwargs)
         else:
-            container = ax.errorbar(s.mtime - time_offset,
-                                    s.mvrad, s.msvrad, label=_label, picker=True, **kwargs)
+            container = ax.errorbar(s.mtime - time_offset, s.mvrad, s.msvrad,
+                                    label=_label, picker=True, marker=next(markers), zorder=next(zorders),
+                                    **kwargs)
+
+        containers[inst] = list(container)
 
         if show_histogram:
             kw = dict(histtype='step', bins='doane', orientation='horizontal')
             hlabel = f'{s.mvrad.std():.2f} {self.units}'
             axh.hist(s.mvrad, **kw, label=hlabel)
 
-        if tooltips:
-            cursors[inst] = crsr = mplcursors.cursor(container, multiple=False)
-
-            @crsr.connect("add")
-            def _(sel):
-                inst = sel.artist.get_label()
-                _s = getattr(self, inst)
-                vrad, svrad = _s.vrad[sel.index], _s.svrad[sel.index]
-                sel.annotation.get_bbox_patch().set(fc="white")
-                text = f'{inst}\n'
-                text += f'BJD: {sel.target[0]:9.5f}\n'
-                text += f'RV: {vrad:.3f} ± {svrad:.3f}'
-                # if fig.canvas.manager.toolmanager.get_tool('infotool').toggled:
-                #     text += '\n\n'
-                #     text += f'date: {_s.date_night[sel.index]}\n'
-                #     text += f'mask: {_s.ccf_mask[sel.index]}'
-                sel.annotation.set_text(text)
+                # cursors[inst] = crsr = mplcursors.cursor(container, multiple=False)
+                # @crsr.connect("add")
+                # def _(sel):
+                #     inst = sel.artist.get_label()
+                #     _s = getattr(self, inst)
+                #     vrad, svrad = _s.vrad[sel.index], _s.svrad[sel.index]
+                #     sel.annotation.get_bbox_patch().set(fc="white")
+                #     text = f'{inst}\n'
+                #     text += f'BJD: {sel.target[0]:9.5f}\n'
+                #     text += f'RV: {vrad:.3f} ± {svrad:.3f}'
+                #     # if fig.canvas.manager.toolmanager.get_tool('infotool').toggled:
+                #     #     text += '\n\n'
+                #     #     text += f'date: {_s.date_night[sel.index]}\n'
+                #     #     text += f'mask: {_s.ccf_mask[sel.index]}'
+                #     sel.annotation.set_text(text)
 
         if show_masked:
             if versus_n:
@@ -147,8 +168,42 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
                 fig.canvas.draw()
             except ValueError:
                 pass
-
     plt.connect('pick_event', on_pick_legend)
+
+    if tooltips:
+        annotations = []
+        def on_pick_point(event):
+            print('annotations:', annotations)
+            for text in annotations:
+                text.remove()
+                annotations.remove(text)
+
+            artist = event.artist
+            if isinstance(artist, (matplotlib.lines.Line2D, matplotlib.collections.LineCollection)):
+                print(event.ind, artist)
+                if isinstance(artist, matplotlib.lines.Line2D):
+                    matching_instrument = [k for k, v in containers.items() if artist in v]
+                    print(matching_instrument)
+                    if len(matching_instrument) == 0:
+                        return
+                    inst = matching_instrument[0]
+                    _s = getattr(self, inst)
+                    ind = event.ind[0]
+                    # print(_s.mtime[ind], _s.mvrad[ind], _s.msvrad[ind])
+
+                    text = f'{inst}\n'
+                    text += f'{_s.mtime[ind]:9.5f}\n'
+                    text += f'RV: {_s.mvrad[ind]:.1f} ± {_s.msvrad[ind]:.1f}'
+
+                    annotations.append(
+                        ax.annotate(text, (_s.mtime[ind], _s.mvrad[ind]), xycoords='data',
+                                    xytext=(5, 10), textcoords='offset points', fontsize=9,
+                                    bbox={'boxstyle': 'round', 'fc': 'w'}, arrowprops=dict(arrowstyle="-"))
+                    )
+                    # ax.annotate(f'{inst}', (0.5, 0.5), xycoords=artist, ha='center', va='center')
+                    fig.canvas.draw()
+                    # print(event.ind, artist.get_label())
+        plt.connect('pick_event', on_pick_point)
 
 
     if show_histogram:
@@ -339,6 +394,31 @@ def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwa
 
     if label is not None:
         ax.legend()
+
+    if ax.get_legend() is not None:
+        leg = ax.get_legend()
+        for text in leg.get_texts():
+            text.set_picker(True)
+
+        def on_pick_legend(event):
+            handles, labels = ax.get_legend_handles_labels()
+            artist = event.artist
+            if isinstance(artist, matplotlib.text.Text):
+                # print('handles:', handles)
+                # print('labels:', labels)
+                # print(artist.get_text())
+                try:
+                    h = handles[labels.index(artist.get_text())]
+                    alpha_text = {None:0.2, 1.0: 0.2, 0.2:1.0}[artist.get_alpha()]
+                    alpha_point = {None: 0.0, 1.0: 0.0, 0.2: 1.0}[artist.get_alpha()]
+                    h.set_alpha(alpha_point)
+                    artist.set_alpha(alpha_text)
+                    fig.canvas.draw()
+                except ValueError:
+                    pass
+
+        if 'pick_event' not in fig.canvas.callbacks.callbacks:
+            plt.connect('pick_event', on_pick_legend)
 
 
     if config.return_self:
