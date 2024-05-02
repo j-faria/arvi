@@ -5,7 +5,7 @@ import numpy as np
 from dace_query import DaceClass
 from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
 from .setup_logger import logger
-from .utils import create_directory, all_logging_disabled, stdout_disabled
+from .utils import create_directory, all_logging_disabled, stdout_disabled, tqdm
 
 
 def load_spectroscopy() -> SpectroscopyClass:
@@ -156,6 +156,13 @@ def check_existing(output_directory, files, type):
         f.partition('.fits')[0] for f in os.listdir(output_directory)
         if type in f
     ]
+
+    # also check for lowercase type
+    existing += [
+        f.partition('.fits')[0] for f in os.listdir(output_directory)
+        if type.lower() in f
+    ]
+
     if os.name == 'nt':  # on Windows, be careful with ':' in filename
         import re
         existing = [re.sub(r'T(\d+)_(\d+)_(\d+)', r'T\1:\2:\3', f) for f in existing]
