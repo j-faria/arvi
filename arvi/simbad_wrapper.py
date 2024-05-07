@@ -1,9 +1,12 @@
+import os
 from dataclasses import dataclass, field
 import requests
 
 from astropy.coordinates import SkyCoord
 import pysweetcat
 
+DATA_PATH = os.path.dirname(__file__)
+DATA_PATH = os.path.join(DATA_PATH, 'data')
 
 QUERY = """
 SELECT basic.OID,
@@ -44,6 +47,8 @@ def run_query(query):
     try:
         response = requests.post(url, data=data, timeout=10)
     except requests.ReadTimeout as err:
+        raise IndexError(err)
+    except requests.ConnectionError as err:
         raise IndexError(err)
     return response.content.decode()
 
@@ -93,6 +98,16 @@ class simbad:
             star (str): The name of the star to query simbad
         """
         self.star = star
+
+        if 'kobe' in self.star.lower():
+            fname = os.path.join(DATA_PATH, 'KOBE-translate.csv')
+            kobe_translate = {}
+            if os.path.exists(fname):
+                with open(fname) as f:
+                    for line in f.readlines():
+                        kobe_id, catname = line.strip().split(',')
+                        kobe_translate[kobe_id] = catname
+                self.star = star = kobe_translate[self.star]
 
         # oid = run_query(query=OID_QUERY.format(star=star))
         # self.oid = str(oid.split()[-1])
