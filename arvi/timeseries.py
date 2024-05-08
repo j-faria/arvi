@@ -13,8 +13,7 @@ from astropy import units
 from .setup_logger import logger
 from .config import return_self, check_internet
 from .translations import translate
-from .dace_wrapper import get_observations, get_arrays
-from .dace_wrapper import do_download_ccf, do_download_s1d, do_download_s2d
+from .dace_wrapper import do_download_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad
 from .extra_data import get_extra_data
 from .stats import wmean, wrms
@@ -655,7 +654,10 @@ class RV:
             index = np.atleast_1d(index)
             files = list(np.array(files)[index])
 
-        do_download_ccf(files[:limit], directory)
+        # remove empty strings
+        files = list(filter(None, files))
+
+        do_download_filetype('CCF', files[:limit], directory, **kwargs)
 
     def download_s1d(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
         """ Download S1Ds from DACE
@@ -682,7 +684,10 @@ class RV:
             index = np.atleast_1d(index)
             files = list(np.array(files)[index])
 
-        do_download_s1d(files[:limit], directory)
+        # remove empty strings
+        files = list(filter(None, files))
+
+        do_download_filetype('S1D', files[:limit], directory, **kwargs)
 
     def download_s2d(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
         """ Download S2Ds from DACE
@@ -709,7 +714,10 @@ class RV:
             index = np.atleast_1d(index)
             files = list(np.array(files)[index])
 
-        do_download_s2d(files[:limit], directory)
+        # remove empty strings
+        files = list(filter(None, files))
+
+        do_download_filetype('S2D', files[:limit], directory, **kwargs)
 
 
     from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_quantity

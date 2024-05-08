@@ -182,7 +182,7 @@ def download(files, type, output_directory):
     """ Download files from DACE """
     Spectroscopy = load_spectroscopy()
     # with stdout_disabled(), all_logging_disabled():
-    Spectroscopy.download_files(files, file_type=type,
+    Spectroscopy.download_files(files, file_type=type.lower(),
                                 output_directory=output_directory)
 
 def extract_fits(output_directory):
@@ -201,15 +201,16 @@ def extract_fits(output_directory):
     return files
 
 
-def do_download_ccf(raw_files, output_directory, clobber=False, verbose=True):
-    """ Download CCFs from DACE """
+def do_download_filetype(type, raw_files, output_directory, clobber=False,
+                         verbose=True, chunk_size=20):
+    """ Download CCFs / S1Ds / S2Ds from DACE """
     raw_files = np.atleast_1d(raw_files)
 
     create_directory(output_directory)
 
     # check existing files to avoid re-downloading
     if not clobber:
-        raw_files = check_existing(output_directory, raw_files, 'CCF')
+        raw_files = check_existing(output_directory, raw_files, type)
 
     # any file left to download?
     if raw_files.size == 0:
@@ -219,68 +220,71 @@ def do_download_ccf(raw_files, output_directory, clobber=False, verbose=True):
 
     if verbose:
         n = raw_files.size
-        logger.info(f"Downloading {n} CCFs into '{output_directory}'...")
+        logger.info(f"Downloading {n} {type}s into '{output_directory}'...")
 
-    download(raw_files, 'ccf', output_directory)
+    # avoid an empty chunk
+    if chunk_size > n:
+        chunk_size = n
 
-    if verbose:
-        logger.info('Extracting .fits files')
+    for files in tqdm(zip(*(iter(raw_files),) * chunk_size), total=n // chunk_size):
+        download(files, type, output_directory)
+        extract_fits(output_directory)
 
-    extract_fits(output_directory)
-
-
-def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
-    """ Download S1Ds from DACE """
-    raw_files = np.atleast_1d(raw_files)
-
-    create_directory(output_directory)
-
-    # check existing files to avoid re-downloading
-    if not clobber:
-        raw_files = check_existing(output_directory, raw_files, 'S1D')
-
-    # any file left to download?
-    if raw_files.size == 0:
-        if verbose:
-            logger.info('no files to download')
-        return
-
-    if verbose:
-        n = raw_files.size
-        logger.info(f"Downloading {n} S1Ds into '{output_directory}'...")
-
-    download(raw_files, 's1d', output_directory)
-
-    if verbose:
-        logger.info('Extracting .fits files')
-
-    extract_fits(output_directory)
+    logger.info('Extracted .fits files')
 
 
-def do_download_s2d(raw_files, output_directory, clobber=False, verbose=True):
-    """ Download S2Ds from DACE """
-    raw_files = np.atleast_1d(raw_files)
+# def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
+#     """ Download S1Ds from DACE """
+#     raw_files = np.atleast_1d(raw_files)
 
-    create_directory(output_directory)
+#     create_directory(output_directory)
 
-    # check existing files to avoid re-downloading
-    if not clobber:
-        raw_files = check_existing(output_directory, raw_files, 'S2D')
+#     # check existing files to avoid re-downloading
+#     if not clobber:
+#         raw_files = check_existing(output_directory, raw_files, 'S1D')
 
-    # any file left to download?
-    if raw_files.size == 0:
-        if verbose:
-            logger.info('no files to download')
-        return
+#     # any file left to download?
+#     if raw_files.size == 0:
+#         if verbose:
+#             logger.info('no files to download')
+#         return
 
-    if verbose:
-        n = raw_files.size
-        logger.info(f"Downloading {n} S2Ds into '{output_directory}'...")
+#     if verbose:
+#         n = raw_files.size
+#         logger.info(f"Downloading {n} S1Ds into '{output_directory}'...")
 
-    download(raw_files, 's2d', output_directory)
+#     download(raw_files, 's1d', output_directory)
 
-    if verbose:
-        logger.info('Extracting .fits files')
+#     if verbose:
+#         logger.info('Extracting .fits files')
 
-    extracted_files = extract_fits(output_directory)
-    return extracted_files
+#     extract_fits(output_directory)
+
+
+# def do_download_s2d(raw_files, output_directory, clobber=False, verbose=True):
+#     """ Download S2Ds from DACE """
+#     raw_files = np.atleast_1d(raw_files)
+
+#     create_directory(output_directory)
+
+#     # check existing files to avoid re-downloading
+#     if not clobber:
+#         raw_files = check_existing(output_directory, raw_files, 'S2D')
+
+#     # any file left to download?
+#     if raw_files.size == 0:
+#         if verbose:
+#             logger.info('no files to download')
+#         return
+
+#     if verbose:
+#         n = raw_files.size
+#         logger.info(f"Downloading {n} S2Ds into '{output_directory}'...")
+
+#     download(raw_files, 's2d', output_directory)
+
+#     if verbose:
+#         logger.info('Extracting .fits files')
+
+#     extracted_files = extract_fits(output_directory)
+#     return extracted_files
