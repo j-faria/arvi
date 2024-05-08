@@ -76,6 +76,14 @@ def strtobool(val):
     else:
         raise ValueError("invalid truth value {!r}".format(val))
 
+def there_is_internet(timeout=1):
+    from socket import create_connection
+    try:
+        create_connection(('8.8.8.8', 53), timeout=timeout)
+        return True
+    except OSError:
+        pass
+    return False
 
 def find_data_file(file):
     here = os.path.dirname(os.path.abspath(__file__))

@@ -11,7 +11,7 @@ import numpy as np
 from astropy import units
 
 from .setup_logger import logger
-from .config import return_self
+from .config import return_self, check_internet
 from .translations import translate
 from .dace_wrapper import get_observations, get_arrays
 from .dace_wrapper import do_download_ccf, do_download_s1d, do_download_s2d
@@ -20,7 +20,7 @@ from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
-from .utils import strtobool
+from .utils import strtobool, there_is_internet
 
 
 @dataclass
@@ -71,6 +71,8 @@ class RV:
         self.__star__ = translate(self.star)
 
         if not self._child:
+            if check_internet and not there_is_internet():
+                raise ConnectionError('There is no internet connection?')
             # complicated way to query Simbad with self.__star__ or, if that
             # fails, try after removing a trailing 'A'
             for target in (self.__star__, self.__star__.replace('A', '')):
