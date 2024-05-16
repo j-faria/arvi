@@ -15,6 +15,7 @@ from .config import return_self, check_internet
 from .translations import translate
 from .dace_wrapper import do_download_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad
+from .gaia_wrapper import gaia
 from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
@@ -72,6 +73,7 @@ class RV:
         if not self._child:
             if check_internet and not there_is_internet():
                 raise ConnectionError('There is no internet connection?')
+
             # complicated way to query Simbad with self.__star__ or, if that
             # fails, try after removing a trailing 'A'
             for target in (self.__star__, self.__star__.replace('A', '')):
@@ -83,6 +85,18 @@ class RV:
             else:
                 if self.verbose:
                     logger.error(f'simbad query for {self.__star__} failed')
+
+            # complicated way to query Gaia with self.__star__ or, if that
+            # fails, try after removing a trailing 'A'
+            for target in (self.__star__, self.__star__.replace('A', '')):
+                try:
+                    self.gaia = gaia(target)
+                    break
+                except ValueError:
+                    continue
+            else:
+                if self.verbose:
+                    logger.error(f'Gaia query for {self.__star__} failed')
 
             # query DACE
             if self.verbose:
@@ -922,7 +936,7 @@ class RV:
                 logger.error('no information from simbad, cannot remove secular acceleration')
             return
 
-        if self.simbad.plx_value is None:
+        if self.simbad.plx is None:
             if self.verbose:
                 logger.error('no parallax from simbad, cannot remove secular acceleration')
             return
@@ -931,7 +945,7 @@ class RV:
         mas_yr = units.milliarcsecond / units.year
         mas = units.milliarcsecond
 
-        π = self.simbad.plx_value * mas
+        π = self.simbad.plx * mas
         d = π.to(units.pc, equivalencies=units.parallax())
         μα = self.simbad.pmra * mas_yr
         μδ = self.simbad.pmdec * mas_yr
