@@ -43,8 +43,8 @@ def run_ariadne(self, fit=True, plot=True, priors={},
             'Av': ('default')
     }
 
-    f.initialize()
     if fit:
+        f.initialize()
         f.fit_bma()
 
     if plot:
@@ -58,6 +58,8 @@ def run_ariadne(self, fit=True, plot=True, priors={},
             artist.plot_SED()
         except FileNotFoundError as e:
             print('No model found:', e)
+        except IndexError as e:
+            print('Error!')
         artist.plot_bma_hist()
         artist.plot_bma_HR(10)
         artist.plot_corner()
