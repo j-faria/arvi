@@ -1,5 +1,7 @@
 import os
-import concurrent.futures
+import multiprocessing
+from functools import partial
+from itertools import chain
 from collections import namedtuple
 from tqdm import tqdm
 # import numpy as np
@@ -13,7 +15,8 @@ path = os.path.join(os.path.dirname(__file__), 'data')
 
 
 def get_star(star, instrument=None):
-    return RV(star, verbose=False, instrument=instrument, _raise_on_error=False)
+    return RV(star, instrument=instrument,
+              _raise_on_error=False, verbose=False, load_extra_data=False)
 
 
 class LazyRV:
@@ -22,6 +25,7 @@ class LazyRV:
         if isinstance(self.stars, str):
             self.stars = [self.stars]
         self.instrument = instrument
+        self._saved = None
 
     @property
     def N(self):
@@ -31,30 +35,49 @@ class LazyRV:
         return f"RV({self.N} stars)"
 
     def _get(self):
-        result = []
-        # use a with statement to ensure threads are cleaned up promptly
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            star_to_RV = {
-                pool.submit(get_star, star, self.instrument): star 
-                for star in self.stars
-            }
+        if self.N > 10:
+            # logger.info('Querying DACE...')
+            _get_star = partial(get_star, instrument=self.instrument)
+            with multiprocessing.Pool() as pool:
+                result = list(tqdm(pool.imap(_get_star, self.stars), 
+                                   total=self.N, unit='star', desc='Querying DACE'))
+                # result = pool.map(get_star, self.stars)
+        else:
+            result = []
             logger.info('Querying DACE...')
-            pbar = tqdm(concurrent.futures.as_completed(star_to_RV),
-                        total=self.N, unit='star')
-            for future in pbar:
-                star = star_to_RV[future]
+            pbar = tqdm(self.stars, total=self.N, unit='star')
+            for star in pbar:
                 pbar.set_description(star)
-                try:
-                    result.append(future.result())
-                except Exception:
-                    print(f'{star} generated an exception')
+                result.append(get_star(star, self.instrument))
+
         return result
+
+        # # use a with statement to ensure threads are cleaned up promptly
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        #     star_to_RV = {
+        #         pool.submit(get_star, star, self.instrument): star 
+        #         for star in self.stars
+        #     }
+        #     logger.info('Querying DACE...')
+        #     pbar = tqdm(concurrent.futures.as_completed(star_to_RV),
+        #                 total=self.N, unit='star')
+        #     for future in pbar:
+        #         star = star_to_RV[future]
+        #         pbar.set_description(star)
+        #         try:
+        #             result.append(future.result())
+        #         except ValueError:
+        #             print(f'{star} generated an exception')
+        #             result.append(None)
+        # return result
 
     def __iter__(self):
         return self._get()
 
     def __call__(self):
-        return self._get()
+        if not self._saved:
+            self._saved = self._get()
+        return self._saved
 
 
 # sorted by spectral type
