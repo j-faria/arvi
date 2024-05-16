@@ -1,5 +1,6 @@
 import os
 import sys
+from matplotlib import pyplot as plt
 
 try:
     from astroARIADNE.star import Star
@@ -63,6 +64,7 @@ def run_ariadne(self, fit=True, plot=True, priors={},
         artist.plot_bma_hist()
         artist.plot_bma_HR(10)
         artist.plot_corner()
+        plt.close('all')
         return s, f, artist
 
     return s, f
