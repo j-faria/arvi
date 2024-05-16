@@ -10,6 +10,7 @@ except ImportError:
 
 
 def run_ariadne(self, fit=True, plot=True, priors={},
+                models = ('phoenix', 'btsettl', 'btnextgen', 'btcond', 'kurucz', 'ck04'),
                 nlive=300, dlogz=1, threads=6, dynamic=False, **kwargs):
     if hasattr(self, 'gaia'):
         s = Star(self.star, self.gaia.ra, self.gaia.dec, g_id=self.gaia.dr3_id,
@@ -23,15 +24,6 @@ def run_ariadne(self, fit=True, plot=True, priors={},
     setup = dict(engine='dynesty', nlive=nlive, dlogz=dlogz,
                  bound='multi', sample='auto', threads=threads, dynamic=dynamic)
     setup = list(setup.values())
-
-    models = [
-            'phoenix',
-            'btsettl',
-            'btnextgen',
-            'btcond',
-            'kurucz',
-            'ck04'
-    ]
 
     f = Fitter()
     f.star = s
