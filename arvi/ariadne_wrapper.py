@@ -63,5 +63,6 @@ def run_ariadne(self, fit=True, plot=True, priors={},
         artist.plot_bma_hist()
         artist.plot_bma_HR(10)
         artist.plot_corner()
+        return s, f, artist
 
     return s, f
