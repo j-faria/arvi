@@ -85,7 +85,8 @@ class simbad:
         dec (float): declination
         coords (SkyCoord): coordinates as a SkyCoord object
         main_id (str): main identifier
-        plx_value (float): parallax
+        gaia_id (int): Gaia DR3 identifier
+        plx (float): parallax
         rvz_radvel (float): radial velocity
         sp_type (str): spectral type
         B (float): B magnitude 
@@ -125,6 +126,8 @@ class simbad:
         except IndexError:
             raise ValueError(f'simbad query for {star} failed')
 
+        self.gaia_id = int([i for i in self.ids if 'Gaia DR3' in i][0].split('Gaia DR3')[-1])
+
         for col, val in zip(cols, values):
             if col == 'oid':
                 setattr(self, col, str(val))
@@ -138,6 +141,9 @@ class simbad:
 
         if self.plx_value == '':
             self.plx_value = None
+        
+        self.plx = self._plx_value = self.plx_value
+        del self.plx_value
 
         try:
             swc_data = pysweetcat.get_data()
