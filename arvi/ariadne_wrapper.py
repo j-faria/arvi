@@ -9,7 +9,8 @@ except ImportError:
     sys.exit(0)
 
 
-def run_ariadne(self, fit=True, plot=True):
+def run_ariadne(self, fit=True, plot=True, priors={},
+                nlive=300, dlogz=1, threads=6, dynamic=False, **kwargs):
     if hasattr(self, 'gaia'):
         s = Star(self.star, self.gaia.ra, self.gaia.dec, g_id=self.gaia.dr3_id,
                  search_radius=1)
@@ -19,8 +20,8 @@ def run_ariadne(self, fit=True, plot=True):
 
     out_folder = f'{self.star}_ariadne'
 
-    setup = dict(engine='dynesty', nlive=300, dlogz=1, 
-                 bound='multi', sample='auto', threads=6, dynamic=False)
+    setup = dict(engine='dynesty', nlive=nlive, dlogz=dlogz,
+                 bound='multi', sample='auto', threads=threads, dynamic=dynamic)
     setup = list(setup.values())
 
     models = [
@@ -42,9 +43,9 @@ def run_ariadne(self, fit=True, plot=True):
     f.n_samples = 10_000
 
     f.prior_setup = {
-            'teff': ('default'),
+            'teff': priors.get('teff', ('default')),
             'logg': ('default'),
-            'z': ('default'),
+            'z': priors.get('feh', ('default')),
             'dist': ('default'),
             'rad': ('default'),
             'Av': ('default')
@@ -61,7 +62,10 @@ def run_ariadne(self, fit=True, plot=True):
         artist = SEDPlotter(os.path.join(out_folder, 'BMA.pkl'), out_folder, models_dir=modelsdir)
 
         artist.plot_SED_no_model()
-        artist.plot_SED()
+        try:
+            artist.plot_SED()
+        except FileNotFoundError as e:
+            print('No model found:', e)
         artist.plot_bma_hist()
         artist.plot_bma_HR(10)
         artist.plot_corner()
