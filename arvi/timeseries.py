@@ -50,7 +50,7 @@ class RV:
     do_sigma_clip: bool = field(init=True, repr=False, default=False)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
     only_latest_pipeline: bool = field(init=True, repr=False, default=True)
-    load_extra_data: Union[bool, str] = field(init=True, repr=False, default=True)
+    load_extra_data: Union[bool, str] = field(init=True, repr=False, default=False)
     #
     _child: bool = field(init=True, repr=False, default=False)
     _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
