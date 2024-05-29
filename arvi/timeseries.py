@@ -102,7 +102,7 @@ class RV:
             if self.verbose:
                 logger.info(f'querying DACE for {self.__star__}...')
             try:
-                self.dace_result = get_observations(self.__star__, self.instrument, 
+                self.dace_result = get_observations(self.__star__, self.instrument,
                                                     verbose=self.verbose)
             except ValueError as e:
                 # querying DACE failed, should we raise an error?
@@ -262,7 +262,7 @@ class RV:
         """ Masked array of times """
         return self.time[self.mask]
 
-    @property  
+    @property
     def mvrad(self) -> np.ndarray:
         """ Masked array of radial velocities """
         return self.vrad[self.mask]
@@ -388,7 +388,7 @@ class RV:
             star, timestamp = file.replace('.pkl', '').split('_')
         else:
             try:
-                file = sorted(glob(f'{star}_*.pkl'))[-1]
+                file = sorted(glob(f'{star}_*.*.pkl'))[-1]
             except IndexError:
                 raise ValueError(f'cannot find any file matching {star}_*.pkl')
             star, timestamp = file.replace('.pkl', '').split('_')
@@ -423,7 +423,7 @@ class RV:
             if star_.size == 1:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
-        
+
         if instrument is None:
             instruments = np.array([os.path.splitext(f)[0].split('_')[1] for f in files])
             logger.info(f'assuming instruments: {instruments}')
@@ -509,7 +509,7 @@ class RV:
             for q in ['drs_qc']:
                 setattr(_s, q, np.full(time.size, True))
                 _quantities.append(q)
-            
+
             #! end hack
 
             _s.mask = np.ones_like(time, dtype=bool)
@@ -536,10 +536,10 @@ class RV:
         except ImportError:
             logger.error('iCCF is not installed. Please install it with `pip install iCCF`')
             return
-        
+
         if isinstance(files, str):
             files = [files]
-    
+
         I = iCCF.from_file(files)
 
         objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in I])
@@ -743,13 +743,13 @@ class RV:
 
     def remove_instrument(self, instrument, strict=False):
         """ Remove all observations from one instrument
-        
+
         Args:
             instrument (str or list):
                 The instrument(s) for which to remove observations.
             strict (bool):
                 Whether to match (each) `instrument` exactly
-        
+
         Note:
             A common name can be used to remove observations for several subsets
             of a given instrument. For example
@@ -975,7 +975,7 @@ class RV:
                     continue
 
                 s.vrad = s.vrad - sa * (s.time - epoch) / 365.25
-            
+
             self._build_arrays()
 
         self._did_secular_acceleration = True
@@ -1026,7 +1026,7 @@ class RV:
 
     def clip_maxerror(self, maxerror:float):
         """ Mask out points with RV error larger than a given value
-        
+
         Args:
             maxerror (float): Maximum error to keep.
         """
@@ -1052,10 +1052,10 @@ class RV:
 
         WARNING: This creates and returns a new object and does not modify self.
         """
-        
+
         # create copy of self to be returned
         snew = deepcopy(self)
-        
+
         all_bad_quantities = []
 
         for inst in snew.instruments:
@@ -1064,7 +1064,7 @@ class RV:
             # only one observation?
             if s.N == 1:
                 continue
-        
+
             # are all observations masked?
             if s.mtime.size == 0:
                 continue
@@ -1115,7 +1115,7 @@ class RV:
                     with warnings.catch_warnings():
                         warnings.filterwarnings('ignore', category=RuntimeWarning)
                         try:
-                            _, yb = binRV(s.mtime, Q[s.mask], 
+                            _, yb = binRV(s.mtime, Q[s.mask],
                                         stat=np.nanmean, tstat=np.nanmean)
                             setattr(s, q, yb)
                         except TypeError:
@@ -1130,7 +1130,7 @@ class RV:
 
             s.time = tb
             s.mask = np.full(tb.shape, True)
-        
+
         if snew.verbose and len(all_bad_quantities) > 0:
             logger.warning('\nnew object will not have these non-float quantities')
 
@@ -1200,7 +1200,7 @@ class RV:
                 # log_msg += other
                 # if i < len(others) - 1:
                 #     log_msg += ', '
-            
+
             # if self.verbose:
             #     logger.info(log_msg)
 
@@ -1251,7 +1251,7 @@ class RV:
             self._build_arrays()
 
 
-    def save(self, directory=None, instrument=None, full=False,
+    def save(self, directory=None, instrument=None, full=False, postfix=None,
              save_masked=False, save_nans=True):
         """ Save the observations in .rdb files.
 
@@ -1260,9 +1260,10 @@ class RV:
                 Directory where to save the .rdb files.
             instrument (str, optional):
                 Instrument for which to save observations.
-            full (bool, optional): 
-                Whether to save just RVs and errors (False) or more indicators
-                (True).
+            full (bool, optional):
+                Save just RVs and errors (False) or more indicators (True).
+            postfix (str, optional):
+                Postfix to add to the filenames ([star]_[instrument]_[postfix].rdb).
             save_nans (bool, optional)
                 Whether to save NaN values in the indicators, if they exist. If
                 False, the full observation is not saved.
@@ -1315,8 +1316,11 @@ class RV:
                 else:
                     d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
                 header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
-            
+
             file = f'{star_name}_{inst}.rdb'
+            if postfix is not None:
+                file = f'{star_name}_{inst}_{postfix}.rdb'
+
             files.append(file)
             file = os.path.join(directory, file)
 
@@ -1324,7 +1328,7 @@ class RV:
 
             if self.verbose:
                 logger.info(f'saving to {file}')
-        
+
         return files
 
     def checksum(self, write_to=None):
@@ -1339,7 +1343,7 @@ class RV:
 
 
     #
-    def run_lbl(self, instrument=None, data_dir=None, 
+    def run_lbl(self, instrument=None, data_dir=None,
                 skysub=False, tell=False, limit=None, **kwargs):
         from .lbl_wrapper import run_lbl, NIRPS_create_telluric_corrected_S2D
 
@@ -1353,7 +1357,7 @@ class RV:
                     logger.error(f"No data from instrument '{instrument}'")
                     logger.info(f'available: {self.instruments}')
                     return
-            
+
             if isinstance(instrument, str):
                 instruments = [instrument]
             else:
@@ -1408,7 +1412,7 @@ class RV:
                     logger.error(f"No data from instrument '{instrument}'")
                     logger.info(f'available: {self.instruments}')
                     return
-            
+
             if isinstance(instrument, str):
                 instruments = [instrument]
             else:
