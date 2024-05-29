@@ -77,8 +77,11 @@ class gaia:
             results = parse_csv(table1)[0]
         except IndexError:
             raise ValueError(f'Gaia query for {star} failed')
-
-        self.dr3_id = int(results['source_id'])
+        
+        try:
+            self.dr3_id = int(results['source_id'])
+        except KeyError:
+            raise ValueError(f'Gaia query for {star} failed')
 
         self.ra = float(results['ra'])
         self.dec = float(results['dec'])
