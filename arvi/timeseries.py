@@ -926,45 +926,76 @@ class RV:
             n_before = (self.obs < self.obs[m]).sum()
             getattr(self, inst).mask[m - n_before] = False
 
-    def secular_acceleration(self, epoch=55500, plot=False):
+    def secular_acceleration(self, epoch=None, just_compute=False, force_simbad=False):
         """
         Remove secular acceleration from RVs
 
         Args:
-            epoch (float):
+            epoch (float, optional):
                 The reference epoch (DACE uses 55500, 31/10/2010)
             instruments (bool or collection of str):
-                Only remove secular acceleration for some instruments, or for all 
+                Only remove secular acceleration for some instruments, or for all
                 if `instruments=True`
-            plot (bool):
-                Show a plot of the RVs with the secular acceleration
         """
-        if self._did_secular_acceleration:  # don't do it twice
-            return
-        
-        try:
-            self.simbad
-        except AttributeError:
-            if self.verbose:
-                logger.error('no information from simbad, cannot remove secular acceleration')
-            return
-
-        if self.simbad.plx is None:
-            if self.verbose:
-                logger.error('no parallax from simbad, cannot remove secular acceleration')
+        if self._did_secular_acceleration and not just_compute:  # don't do it twice
             return
 
         #as_yr = units.arcsec / units.year
         mas_yr = units.milliarcsecond / units.year
         mas = units.milliarcsecond
 
-        π = self.simbad.plx * mas
-        d = π.to(units.pc, equivalencies=units.parallax())
-        μα = self.simbad.pmra * mas_yr
-        μδ = self.simbad.pmdec * mas_yr
-        μ = μα**2 + μδ**2
-        sa = (μ * d).to(units.m / units.second / units.year,
-                        equivalencies=units.dimensionless_angles())
+        try:
+            if force_simbad:
+                raise AttributeError
+
+            self.gaia
+            self.gaia.plx
+
+            if self.verbose:
+                logger.info('using Gaia information to remove secular acceleration')
+
+            if epoch is None:
+                # Gaia DR3 epoch (astropy.time.Time('J2016.0', format='jyear_str').jd)
+                epoch = 57389.0
+
+            π = self.gaia.plx * mas
+            d = π.to(units.pc, equivalencies=units.parallax())
+            μα = self.gaia.pmra * mas_yr
+            μδ = self.gaia.pmdec * mas_yr
+            μ = μα**2 + μδ**2
+            sa = (μ * d).to(units.m / units.second / units.year,
+                            equivalencies=units.dimensionless_angles())
+
+        except AttributeError:
+            try:
+                self.simbad
+            except AttributeError:
+                if self.verbose:
+                    logger.error('no information from simbad, cannot remove secular acceleration')
+                return
+
+            if self.simbad.plx is None:
+                if self.verbose:
+                    logger.error('no parallax from simbad, cannot remove secular acceleration')
+                return
+
+            if self.verbose:
+                logger.info('using Simbad information to remove secular acceleration')
+
+            if epoch is None:
+                epoch = 55500
+
+            π = self.simbad.plx * mas
+            d = π.to(units.pc, equivalencies=units.parallax())
+            μα = self.simbad.pmra * mas_yr
+            μδ = self.simbad.pmdec * mas_yr
+            μ = μα**2 + μδ**2
+            sa = (μ * d).to(units.m / units.second / units.year,
+                            equivalencies=units.dimensionless_angles())
+
+        if just_compute:
+            return sa
+
         sa = sa.value
 
         if self.verbose:
