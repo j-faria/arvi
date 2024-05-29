@@ -82,6 +82,8 @@ class gaia:
 
         self.ra = float(results['ra'])
         self.dec = float(results['dec'])
+        self.pmra = float(results['pmra'])
+        self.pmdec = float(results['pmdec'])
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
         self.plx = float(results['parallax'])
         self.radial_velocity = float(results['radial_velocity'])
