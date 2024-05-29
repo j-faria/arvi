@@ -802,11 +802,24 @@ class RV:
         if return_self:
             return self
 
+    def remove_condition(self, condition):
+        """ Remove all observations that satisfy a condition
+
+        Args:
+            condition (np.ndarray):
+                Boolean array of the same length as the observations
+        """
+        if self.verbose:
+            inst = np.unique(self.instrument_array[condition])
+            logger.info(f"Removing {condition.sum()} points from instruments {inst}")
+        self.mask = self.mask & ~condition
+        self._propagate_mask_changes()
+
     def remove_point(self, index):
         """
         Remove individual observations at a given index (or indices).
         NOTE: Like Python, the index is 0-based.
-        
+
         Args:
             index (int, list, ndarray):
                 Single index, list, or array of indices to remove.
