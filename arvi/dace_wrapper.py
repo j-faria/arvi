@@ -186,9 +186,9 @@ def check_existing(output_directory, files, type):
 def download(files, type, output_directory):
     """ Download files from DACE """
     Spectroscopy = load_spectroscopy()
-    # with stdout_disabled(), all_logging_disabled():
-    Spectroscopy.download_files(files, file_type=type.lower(),
-                                output_directory=output_directory)
+    with stdout_disabled(), all_logging_disabled():
+        Spectroscopy.download_files(files, file_type=type.lower(),
+                                    output_directory=output_directory)
 
 def extract_fits(output_directory):
     """ Extract fits files from tar.gz file """
@@ -217,21 +217,30 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
     if not clobber:
         raw_files = check_existing(output_directory, raw_files, type)
 
+    n = raw_files.size
+
     # any file left to download?
-    if raw_files.size == 0:
+    if n == 0:
         if verbose:
             logger.info('no files to download')
         return
-
-    if verbose:
-        n = raw_files.size
-        logger.info(f"Downloading {n} {type}s into '{output_directory}'...")
 
     # avoid an empty chunk
     if chunk_size > n:
         chunk_size = n
 
-    for files in tqdm(zip(*(iter(raw_files),) * chunk_size), total=n // chunk_size):
+    if verbose:
+        if chunk_size < n:
+            msg = f"Downloading {n} {type}s "
+            msg += f"(in chunks of {chunk_size}) "
+            msg += f"into '{output_directory}'..."
+            logger.info(msg)
+        else:
+            msg = f"Downloading {n} {type}s into '{output_directory}'..."
+            logger.info(msg)
+
+    iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
+    for files in tqdm(iterator, total=len(iterator)):
         download(files, type, output_directory)
         extract_fits(output_directory)
 
