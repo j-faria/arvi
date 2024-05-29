@@ -9,6 +9,11 @@ from .utils import create_directory, all_logging_disabled, stdout_disabled, tqdm
 
 
 def load_spectroscopy() -> SpectroscopyClass:
+    from .config import request_as_public
+    if request_as_public:
+        with all_logging_disabled():
+            dace = DaceClass(dace_rc_config_path='none')
+        return SpectroscopyClass(dace_instance=dace)
     if 'DACERC' in os.environ:
         dace = DaceClass(dace_rc_config_path=os.environ['DACERC'])
         return SpectroscopyClass(dace_instance=dace)
