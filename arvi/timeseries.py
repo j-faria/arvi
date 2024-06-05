@@ -711,7 +711,7 @@ class RV:
         if symlink:
             if 'top_level' not in kwargs:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
-            do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
+            do_symlink_filetype('S1D', files[:limit], directory, **kwargs)
         else:
             do_download_filetype('S1D', files[:limit], directory, **kwargs)
 
@@ -747,7 +747,7 @@ class RV:
         if symlink:
             if 'top_level' not in kwargs:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
-            do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
+            do_symlink_filetype('S2D', files[:limit], directory, **kwargs)
         else:
             do_download_filetype('S2D', files[:limit], directory, **kwargs)
 
