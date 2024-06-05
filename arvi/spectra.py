@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 from .setup_logger import logger
 
+from tqdm import tqdm
 import astropy.units as u, astropy.constants as const
 from astropy.io import fits
 
@@ -23,7 +24,7 @@ def doppler_shift(wave: np.ndarray, flux: np.ndarray, velocity: float):
     return new_wavelength, new_flux
 
 def fit_gaussian_to_line(wave, flux, center_wavelength, around=0.15 * u.angstrom,
-                         plot=True):
+                         careful_continuum=False, plot=True, ax=None):
     from scipy.optimize import curve_fit
     if center_wavelength < wave.min() or center_wavelength > wave.max():
         raise ValueError('`center_wavelength` is outside the wavelength range')
@@ -51,26 +52,46 @@ def fit_gaussian_to_line(wave, flux, center_wavelength, around=0.15 * u.angstrom
 
     wave_around = (wave > center_wavelength - around) & (wave < center_wavelength + around)
     w, f = wave[wave_around].value, flux[wave_around]
+
+    if careful_continuum:
+        wave_around_continuum = (wave > center_wavelength - 10*around) & (wave < center_wavelength + 10*around)
+        wc, fc = wave[wave_around_continuum].value, flux[wave_around_continuum]
+        lim = np.percentile(fc, 80)
+        wc = wc[fc > lim]
+        fc = fc[fc > lim]
+        w, f = np.r_[wc, w], np.r_[fc, f]
+        f = f[np.argsort(w)]
+        w = np.sort(w)
+
     lower, upper = np.array([
         [-np.inf, 0], 
         [-np.inf, np.inf], 
         [0.0, 0.11], 
         [0.9*f.max(), 1.1*f.max()]
     ]).T
+
     popt, pcov = curve_fit(gaussian, w, f, p0=[-f.ptp(), center_wavelength.value, 0.1, f.max()], bounds=(lower, upper))
+
     EW = A = (np.sqrt(2) * np.abs(popt[0]) * np.abs(popt[2]) * np.sqrt(np.pi)) / popt[3]
     perr = np.sqrt(np.diag(pcov))
     EW_err = (np.sqrt(2) * np.abs(perr[0]) * np.abs(perr[2]) * np.sqrt(np.pi)) / perr[3]
 
     if plot:
-        plt.plot(wave[wave_around], flux[wave_around], 'ko', ms=4, zorder=1)
-        plt.plot(wave[wave_around], flux[wave_around] - gaussian(w, *popt), 'o', ms=2)
-        wave_around_plot = (wave > center_wavelength - 2*around) & (wave < center_wavelength + 2*around)
-        # plt.plot(wave[wave_around_plot], flux[wave_around_plot], 'o', ms=2)
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 4))
+        if careful_continuum:
+            ax.plot(w, f, 'ko', ms=4, zorder=1)
+            wave_around_plot = wave_around_continuum
+        else:
+            ax.plot(wave[wave_around], flux[wave_around], 'ko', ms=4, zorder=1)
+            ax.plot(wave[wave_around], flux[wave_around] - gaussian(w, *popt), 'o', ms=2)
+            wave_around_plot = (wave > center_wavelength - 2*around) & (wave < center_wavelength + 2*around)
+        # ax.plot(wave[wave_around_plot], flux[wave_around_plot], 'o', ms=2)
         w = wave[wave_around_plot].value
-        plt.plot(w, gaussian(w, *popt), 'r-')
-        plt.fill_between([popt[1]-A, popt[1]+A], popt[3]+popt[0], popt[3],
+        ax.plot(w, gaussian(w, *popt), 'r-')
+        ax.fill_between([popt[1]-A, popt[1]+A], popt[3]+popt[0], popt[3],
                          color='C2', alpha=0.1, lw=0)
+
     return popt, EW*1e3, EW_err*1e3
 
 def detrend(w, f):
@@ -115,3 +136,54 @@ def build_master(self, limit=None, plot=True):
         axs[0].legend([], [], title=f'{len(files)} S1D spectra')
 
     return w0, master_flux
+
+
+def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
+    try:
+        from juliacall import Main as jl
+        jl.seval("using Korg")
+        Korg = jl.Korg
+    except ModuleNotFoundError:
+        msg = 'this function requires juliacall and Korg.jl, please `pip install juliacall`'
+        logger.error(msg)
+        return
+
+    w, f = build_master(self, plot=plot)
+
+    linelist = np.genfromtxt(linelist, dtype=None, encoding=None, names=True)
+    lines = [
+        Korg.Line(line['wl'], line['loggf'], Korg.Species(line['elem'].replace('Fe', 'Fe ')), line['EP'])
+        for line in linelist
+    ]
+
+    if self.verbose:
+        logger.info(f'Found {len(lines)} lines in linelist')
+        logger.info('Measuring EWs...')
+
+    EW = []
+    pbar = tqdm(linelist)
+    for line in pbar:
+        pbar.set_description(f'{line["elem"]} {line["wl"]}')
+        _, ew, _ = fit_gaussian_to_line(w, f, line['wl'], plot=plot,
+                                        careful_continuum=kwargs.pop('careful_continuum', False))
+        EW.append(ew)
+    
+    if self.verbose:
+        logger.info('Determining stellar parameters (can take a few minutes)...')
+
+    result = Korg.Fit.ews_to_stellar_parameters(lines, EW, callback=lambda p,r,A: print(p))
+    par, stat_err, sys_err = result
+
+    if self.verbose:
+        logger.info(f'Best fit stellar parameters:')
+        logger.info(f'  Teff: {par[0]:.0f} ± {sys_err[0]:.0f} K')
+        logger.info(f'  logg: {par[1]:.2f} ± {sys_err[1]:.2f} dex')
+        logger.info(f'  m/H :  {par[3]:.2f} ± {sys_err[3]:.2f} dex')
+
+    return {
+        'teff': (par[0], sys_err[0]),
+        'logg': (par[1], sys_err[1]),
+        'vmic': (par[2], sys_err[2]),
+        'moh': (par[3], sys_err[3]),
+    }
+
