@@ -13,7 +13,7 @@ from astropy import units
 from .setup_logger import logger
 from .config import return_self, check_internet
 from .translations import translate
-from .dace_wrapper import do_download_filetype, get_observations, get_arrays
+from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad
 from .gaia_wrapper import gaia
 from .extra_data import get_extra_data
@@ -643,7 +643,8 @@ class RV:
                 setattr(self, q, arr)
 
 
-    def download_ccf(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
+    def download_ccf(self, instrument=None, index=None, limit=None,
+                     directory=None, symlink=False, **kwargs):
         """ Download CCFs from DACE
 
         Args:
@@ -671,9 +672,15 @@ class RV:
         # remove empty strings
         files = list(filter(None, files))
 
-        do_download_filetype('CCF', files[:limit], directory, **kwargs)
+        if symlink:
+            if 'top_level' not in kwargs:
+                logger.warning('may need to provide `top_level` in kwargs to find file')
+            do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
+        else:
+            do_download_filetype('CCF', files[:limit], directory, **kwargs)
 
-    def download_s1d(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
+    def download_s1d(self, instrument=None, index=None, limit=None,
+                     directory=None, symlink=False, **kwargs):
         """ Download S1Ds from DACE
 
         Args:
@@ -701,9 +708,15 @@ class RV:
         # remove empty strings
         files = list(filter(None, files))
 
-        do_download_filetype('S1D', files[:limit], directory, **kwargs)
+        if symlink:
+            if 'top_level' not in kwargs:
+                logger.warning('may need to provide `top_level` in kwargs to find file')
+            do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
+        else:
+            do_download_filetype('S1D', files[:limit], directory, **kwargs)
 
-    def download_s2d(self, instrument=None, index=None, limit=None, directory=None, **kwargs):
+    def download_s2d(self, instrument=None, index=None, limit=None,
+                     directory=None, symlink=False, **kwargs):
         """ Download S2Ds from DACE
 
         Args:
@@ -731,7 +744,12 @@ class RV:
         # remove empty strings
         files = list(filter(None, files))
 
-        do_download_filetype('S2D', files[:limit], directory, **kwargs)
+        if symlink:
+            if 'top_level' not in kwargs:
+                logger.warning('may need to provide `top_level` in kwargs to find file')
+            do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
+        else:
+            do_download_filetype('S2D', files[:limit], directory, **kwargs)
 
 
     from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_quantity

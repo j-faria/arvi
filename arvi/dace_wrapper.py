@@ -206,6 +206,35 @@ def extract_fits(output_directory):
     return files
 
 
+def do_symlink_filetype(type, raw_files, output_directory, top_level=None, verbose=True):
+    terminations = {
+        'CCF': '_CCF_A.fits',
+        'S1D': '_S1D_A.fits',
+        'S2D': '_S2D_A.fits',
+    }
+
+    n = len(raw_files)
+
+    if verbose:
+        msg = f"symlinking {n} {type}s into '{output_directory}'..."
+        logger.info(msg)
+
+    for file in raw_files:
+        if top_level is not None:
+            top = file.split('/')[0] + '/'
+            if not top_level.endswith('/'):
+                top_level = top_level + '/'
+            file = file.replace(top, top_level)
+
+        file = file.replace('.fits', terminations[type])
+
+        if os.path.exists(file):
+            os.symlink(file, os.path.join(output_directory, os.path.basename(file)))
+            # print(file, os.path.join(output_directory, os.path.basename(file)))
+        else:
+            logger.warning(f'file not found: {file}')
+
+
 def do_download_filetype(type, raw_files, output_directory, clobber=False,
                          verbose=True, chunk_size=20):
     """ Download CCFs / S1Ds / S2Ds from DACE """
