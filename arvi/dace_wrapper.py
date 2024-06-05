@@ -206,20 +206,34 @@ def extract_fits(output_directory):
     return files
 
 
-def do_symlink_filetype(type, raw_files, output_directory, top_level=None, verbose=True):
+def do_symlink_filetype(type, raw_files, output_directory, clobber=False, top_level=None, verbose=True):
     terminations = {
         'CCF': '_CCF_A.fits',
         'S1D': '_S1D_A.fits',
         'S2D': '_S2D_A.fits',
     }
 
-    n = len(raw_files)
+    create_directory(output_directory)
+
+    raw_files = np.atleast_1d(raw_files)
+
+    # check existing files
+    if not clobber:
+        raw_files = check_existing(output_directory, raw_files, type)
+
+    n = raw_files.size
+
+    # any file left?
+    if n == 0:
+        if verbose:
+            logger.info('no files to symlink')
+        return
 
     if verbose:
         msg = f"symlinking {n} {type}s into '{output_directory}'..."
         logger.info(msg)
 
-    for file in raw_files:
+    for file in tqdm(raw_files):
         if top_level is not None:
             top = file.split('/')[0] + '/'
             if not top_level.endswith('/'):
