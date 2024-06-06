@@ -71,7 +71,12 @@ def fit_gaussian_to_line(wave, flux, center_wavelength, around=0.15 * u.angstrom
         [0.9*f.max(), 1.1*f.max()]
     ]).T
 
-    popt, pcov = curve_fit(gaussian, w, f, p0=[-f.ptp(), center_wavelength.value, 0.1, f.max()], bounds=(lower, upper))
+    try:
+        popt, pcov = curve_fit(gaussian, w, f, p0=[-f.ptp(), center_wavelength.value, 0.1, f.max()],
+                               bounds=(lower, upper))
+    except RuntimeError as e:
+        logger.warning(f'fit_gaussian_to_line: {e}')
+        return None, np.nan, np.nan
 
     EW = A = (np.sqrt(2) * np.abs(popt[0]) * np.abs(popt[2]) * np.sqrt(np.pi)) / popt[3]
     perr = np.sqrt(np.diag(pcov))
@@ -113,6 +118,11 @@ def build_master(self, limit=None, plot=True):
         logger.info(f'Found {len(files)} S1D files')
 
     files = files[:limit]
+
+    if len(files) == 0:
+        if self.verbose:
+            logger.warning('Should probably run `download_s1d` first')
+        return
 
     if plot:
         fig, axs = plt.subplots(2, 1, figsize=(9, 6), sharex=True, constrained_layout=True)
@@ -168,7 +178,10 @@ def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
         _, ew, _ = fit_gaussian_to_line(w, f, line['wl'], plot=plot,
                                         careful_continuum=kwargs.pop('careful_continuum', False))
         EW.append(ew)
-    
+
+    lines = list(np.array(lines)[~np.isnan(EW)])
+    EW = np.array(EW)[~np.isnan(EW)]
+
     if self.verbose:
         logger.info('Determining stellar parameters (can take a few minutes)...')
 
