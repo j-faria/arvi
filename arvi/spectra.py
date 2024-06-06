@@ -1,5 +1,6 @@
 import os
 from glob import glob
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -171,7 +172,8 @@ def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
     if self.verbose:
         logger.info('Determining stellar parameters (can take a few minutes)...')
 
-    result = Korg.Fit.ews_to_stellar_parameters(lines, EW, callback=lambda p,r,A: print(p))
+    callback = lambda p, r, A: print('current parameters:', p)
+    result = Korg.Fit.ews_to_stellar_parameters(lines, EW, callback=callback)
     par, stat_err, sys_err = result
 
     if self.verbose:
@@ -180,10 +182,14 @@ def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
         logger.info(f'  logg: {par[1]:.2f} ± {sys_err[1]:.2f} dex')
         logger.info(f'  m/H :  {par[3]:.2f} ± {sys_err[3]:.2f} dex')
 
-    return {
+    r = {
         'teff': (par[0], sys_err[0]),
         'logg': (par[1], sys_err[1]),
         'vmic': (par[2], sys_err[2]),
         'moh': (par[3], sys_err[3]),
     }
 
+    with open(f'{self.star}_stellar_parameters.pkl', 'wb') as f:
+        pickle.dump(r, f)
+    
+    return r
