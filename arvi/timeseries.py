@@ -677,7 +677,7 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('CCF', files[:limit], directory, **kwargs)
+            do_download_filetype('CCF', files[:limit], directory, verbose=self.verbose, **kwargs)
 
     def download_s1d(self, instrument=None, index=None, limit=None,
                      directory=None, symlink=False, **kwargs):
@@ -713,7 +713,7 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('S1D', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('S1D', files[:limit], directory, **kwargs)
+            do_download_filetype('S1D', files[:limit], directory, verbose=self.verbose, **kwargs)
 
     def download_s2d(self, instrument=None, index=None, limit=None,
                      directory=None, symlink=False, **kwargs):
@@ -749,7 +749,7 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('S2D', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('S2D', files[:limit], directory, **kwargs)
+            do_download_filetype('S2D', files[:limit], directory, verbose=self.verbose, **kwargs)
 
 
     from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_quantity
