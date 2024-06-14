@@ -313,12 +313,13 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
     ax.legend()
     ax.minorticks_on()
 
-    if quantity == 'fwhm':
-        ax.set_ylabel(f'FWHM [{self.units}]')
-    elif quantity == 'bispan':
-        ax.set_ylabel(f'BIS [{self.units}]')
-    elif quantity == 'rhk':
-        ax.set_ylabel(r"$\log$ R'$_{HK}$")
+    ylabel = {
+        'fwhm': f'FWHM [{self.units}]',
+        'bispan': f'BIS [{self.units}]',
+        'rhk': r"$\log$ R'$_{HK}$",
+        'berv': f'BERV [km/s]',
+    }
+    ax.set_ylabel(ylabel[quantity])
 
     if remove_50000:
         ax.set_xlabel('BJD - 2450000 [days]')
@@ -334,6 +335,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
 plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
 plot_bis = partialmethod(plot_quantity, quantity='bispan')
 plot_rhk = partialmethod(plot_quantity, quantity='rhk')
+plot_berv = partialmethod(plot_quantity, quantity='berv')
 
 
 def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwargs):
