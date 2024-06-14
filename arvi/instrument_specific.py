@@ -1,17 +1,19 @@
 import os, sys
 import numpy as np
-import matplotlib.pyplot as plt
 
 from .setup_logger import logger
 
 # ESPRESSO ADC issues
 from .utils import ESPRESSO_ADC_issues
 
-def ADC_issues(self, plot=True):
+def ADC_issues(self, plot=True, check_headers=False):
     """ Identify and mask points affected by ADC issues (ESPRESSO).
 
     Args:
-        plot (bool, optional): Whether to plot the masked points.
+        plot (bool, optional):
+            Whether to plot the masked points.
+        check_headers (bool, optional):
+            Whether to (double-)check the headers for missing/zero keywords.
     """
     instruments = self._check_instrument('ESPRESSO')
     
@@ -24,6 +26,14 @@ def ADC_issues(self, plot=True):
     affected_file_roots = ESPRESSO_ADC_issues()
     file_roots = [os.path.basename(f).replace('.fits', '') for f in self.raw_file]
     intersect = np.in1d(file_roots, affected_file_roots)
+
+    if check_headers:
+        from .headers import get_headers
+        H = get_headers(self, check_lesta=False, check_exo2=False, instrument='ESPRE')
+        badACD2 = np.array([h['*ADC2 RA'][0] for h in H]) == 0
+        badACD2 |= np.array([h['*ADC2 SENS1'][0] for h in H]) == 0
+        badACD2 |= np.array([h['*ADC2 TEMP'][0] for h in H]) == 0
+        intersect = np.logical_or(intersect, badACD2)
 
     total_affected = intersect.sum()
 
