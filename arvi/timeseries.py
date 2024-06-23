@@ -11,7 +11,7 @@ import numpy as np
 from astropy import units
 
 from .setup_logger import logger
-from .config import return_self, check_internet, debug
+from . import config
 from .translations import translate
 from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad
@@ -71,7 +71,7 @@ class RV:
         self.__star__ = translate(self.star)
 
         if not self._child:
-            if check_internet and not there_is_internet():
+            if config.check_internet and not there_is_internet():
                 raise ConnectionError('There is no internet connection?')
 
             # complicated way to query Simbad with self.__star__ or, if that
@@ -103,9 +103,9 @@ class RV:
                 logger.info(f'querying DACE for {self.__star__}...')
             try:
                 with timer():
+                    mid = self.simbad.main_id if hasattr(self, 'simbad') else None
                     self.dace_result = get_observations(self.__star__, self.instrument,
-                                                        main_id=self.simbad.main_id,
-                                                        verbose=self.verbose)
+                                                        main_id=mid, verbose=self.verbose)
             except ValueError as e:
                 # querying DACE failed, should we raise an error?
                 if self._raise_on_error:
@@ -546,9 +546,9 @@ class RV:
         if isinstance(files, str):
             files = [files]
 
-        I = iCCF.from_file(files)
+        CCFs = iCCF.from_file(files)
 
-        objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in I])
+        objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
         if objects.size != 1:
             logger.warning(f'found {objects.size} different stars in the CCF files, '
                            'choosing the first one')
@@ -557,17 +557,17 @@ class RV:
         s = cls(star, _child=True)
 
         # time, RVs, uncertainties
-        s.time = np.array([i.bjd for i in I])
-        s.vrad = np.array([i.RV*1e3 for i in I])
-        s.svrad = np.array([i.RVerror*1e3 for i in I])
+        s.time = np.array([i.bjd for i in CCFs])
+        s.vrad = np.array([i.RV*1e3 for i in CCFs])
+        s.svrad = np.array([i.RVerror*1e3 for i in CCFs])
 
-        s.fwhm = np.array([i.FWHM*1e3 for i in I])
-        s.fwhm_err = np.array([i.FWHMerror*1e3 for i in I])
+        s.fwhm = np.array([i.FWHM*1e3 for i in CCFs])
+        s.fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
 
         # mask
         s.mask = np.full_like(s.time, True, dtype=bool)
 
-        s.instruments = list(np.unique([i.instrument for i in I]))
+        s.instruments = list(np.unique([i.instrument for i in CCFs]))
 
         return s
 
@@ -828,7 +828,7 @@ class RV:
             if self.verbose:
                 logger.info(f"Removed observations from '{instrument}'")
 
-        if return_self:
+        if config.return_self:
             return self
 
     def remove_condition(self, condition):
@@ -856,7 +856,7 @@ class RV:
         index = np.atleast_1d(index)
         try:
             instrument_index = self.obs[index]
-            instrument = np.array(self.instruments)[instrument_index - 1]
+            np.array(self.instruments)[instrument_index - 1]
         except IndexError:
             logger.errors(f'index {index} is out of bounds for N={self.N}')
             return
@@ -869,7 +869,7 @@ class RV:
         # for i, inst in zip(index, instrument):
         #     index_in_instrument = i - (self.obs < instrument_index).sum()
         #     getattr(self, inst).mask[index_in_instrument] = False
-        if return_self:
+        if config.return_self:
             return self
 
     def remove_non_public(self):
@@ -932,7 +932,7 @@ class RV:
         instruments = self._check_instrument(instrument)
         rng = np.random.default_rng(seed=seed)
         for inst in instruments:
-            s = getattr(self, inst)
+            # s = getattr(self, inst)
             mask_for_this_inst = self.obs == self.instruments.index(inst) + 1
             # only choose if there are more than n points
             if self.mask[mask_for_this_inst].sum() > n:
@@ -1055,7 +1055,7 @@ class RV:
         self._did_secular_acceleration_epoch = epoch
         self._did_secular_acceleration_simbad = force_simbad
 
-        if return_self:
+        if config.return_self:
             return self
     
     def _undo_secular_acceleration(self):
@@ -1111,7 +1111,7 @@ class RV:
             #     # if insts.size == 1: # of the same instrument?
             #     if self.verbose:
             #         logger.warning(f'would remove all observations from {insts[0]}, skipping')
-            #     if return_self:
+            #     if config.return_self:
             #         return self
             #     continue
 
@@ -1123,7 +1123,7 @@ class RV:
             self._did_adjust_means = False
             self.adjust_means()
 
-        if return_self:
+        if config.return_self:
             return self
 
     def clip_maxerror(self, maxerror:float):
@@ -1145,7 +1145,7 @@ class RV:
             logger.warning(f'clip_maxerror ({maxerror} {self.units}) removed {n} point' + s)
 
         self._propagate_mask_changes()
-        if return_self:
+        if config.return_self:
             return self
 
     def bin(self):
@@ -1309,7 +1309,7 @@ class RV:
 
         self._build_arrays()
         self._did_adjust_means = True
-        if return_self:
+        if config.return_self:
             return self
 
     def add_to_vrad(self, values):
