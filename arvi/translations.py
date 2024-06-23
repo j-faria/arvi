@@ -1,8 +1,10 @@
 import re
 
 STARS = {
+    '_51Peg': '51 Peg',
     'Barnard': 'GJ699',
     "Barnard's": 'GJ699',
+    'Ross128': 'Ross  128',
 }
 
 
