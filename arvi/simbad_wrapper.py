@@ -126,7 +126,11 @@ class simbad:
         except IndexError:
             raise ValueError(f'simbad query for {star} failed')
 
-        self.gaia_id = int([i for i in self.ids if 'Gaia DR3' in i][0].split('Gaia DR3')[-1])
+        try:
+            self.gaia_id = int([i for i in self.ids if 'Gaia DR3' in i][0]
+                               .split('Gaia DR3')[-1])
+        except IndexError:
+            self.gaia_id = None
 
         for col, val in zip(cols, values):
             if col == 'oid':
