@@ -89,7 +89,10 @@ class gaia:
         self.pmdec = float(results['pmdec'])
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
         self.plx = float(results['parallax'])
-        self.radial_velocity = float(results['radial_velocity'])
+        try:
+            self.radial_velocity = float(results['radial_velocity'])
+        except ValueError:
+            self.radial_velocity = None
 
         return
 
