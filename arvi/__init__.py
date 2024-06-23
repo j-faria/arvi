@@ -19,8 +19,9 @@ def __getattr__(name: str):
     try:
         globals()[name] = RV(name)
         return globals()[name]
-    except ValueError:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    except ValueError as e:
+        raise ImportError(e) from None
+        # raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     ## OLD
     # # can't do it any other way :(
