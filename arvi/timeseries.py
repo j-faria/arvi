@@ -11,7 +11,7 @@ import numpy as np
 from astropy import units
 
 from .setup_logger import logger
-from .config import return_self, check_internet
+from .config import return_self, check_internet, debug
 from .translations import translate
 from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad
@@ -20,7 +20,7 @@ from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
-from .utils import strtobool, there_is_internet
+from .utils import strtobool, there_is_internet, timer
 
 
 @dataclass
@@ -102,8 +102,10 @@ class RV:
             if self.verbose:
                 logger.info(f'querying DACE for {self.__star__}...')
             try:
-                self.dace_result = get_observations(self.__star__, self.instrument,
-                                                    verbose=self.verbose)
+                with timer():
+                    self.dace_result = get_observations(self.__star__, self.instrument,
+                                                        main_id=self.simbad.main_id,
+                                                        verbose=self.verbose)
             except ValueError as e:
                 # querying DACE failed, should we raise an error?
                 if self._raise_on_error:
@@ -256,6 +258,10 @@ class RV:
         table += ' | '.join([i*'-' for i in map(len, self.instruments)]) + '\n'
         table += ' | '.join(map(str, self.NN.values())) + '\n'
         return table
+
+    @property
+    def point(self):
+        return [(t.round(4), v.round(4), sv.round(4)) for t, v, sv in zip(self.time, self.vrad, self.svrad)]
 
     @property
     def mtime(self) -> np.ndarray:

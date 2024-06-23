@@ -1,4 +1,5 @@
 import os
+import time
 from contextlib import contextmanager
 try:
     from unittest.mock import patch
@@ -18,6 +19,9 @@ try:
 except ImportError:
     tqdm = lambda x, *args, **kwargs: x
     trange = lambda *args, **kwargs: range(*args, **kwargs)
+
+from .setup_logger import logger
+from . import config
 
 
 def create_directory(directory):
@@ -60,6 +64,23 @@ def all_logging_disabled():
         yield
     finally:
         logging.disable(previous_level)
+
+
+@contextmanager
+def timer():
+    """ A simple context manager to time a block of code """
+    if not config.debug:
+        yield
+        return
+
+    logger.debug(f'starting timer')
+    start = time.time()
+    try:
+        yield
+    finally:
+        end = time.time()
+        logger.debug(f'elapsed time: {end - start:.2f} seconds')
+
 
 def strtobool(val):
     """Convert a string representation of truth to true (1) or false (0).
