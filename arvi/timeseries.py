@@ -572,7 +572,7 @@ class RV:
         return s
 
 
-    def _check_instrument(self, instrument, strict=False):# -> list | None:
+    def _check_instrument(self, instrument, strict=False, log=False):# -> list | None:
         """
         Check if there are observations from `instrument`.
 
@@ -604,6 +604,11 @@ class RV:
             else:
                 if any([instrument in inst for inst in self.instruments]):
                     return [inst for inst in self.instruments if instrument in inst]
+
+        if log:
+            logger.error(f"No data from instrument '{instrument}'")
+            logger.info(f'available: {self.instruments}')
+            return
 
 
     def _build_arrays(self):
@@ -758,8 +763,8 @@ class RV:
             do_download_filetype('S2D', files[:limit], directory, verbose=self.verbose, **kwargs)
 
 
-    from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_quantity
-    from .plots import gls, gls_fwhm, gls_bis, gls_rhk
+    from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_berv, plot_quantity
+    from .plots import gls, gls_fwhm, gls_bis, gls_rhk, window_function
     from .reports import report
 
     from .instrument_specific import known_issues
@@ -1047,8 +1052,37 @@ class RV:
             self._build_arrays()
 
         self._did_secular_acceleration = True
+        self._did_secular_acceleration_epoch = epoch
+        self._did_secular_acceleration_simbad = force_simbad
+
         if return_self:
             return self
+    
+    def _undo_secular_acceleration(self):
+        if self._did_secular_acceleration:
+            _old_verbose = self.verbose
+            self.verbose = False
+            sa = self.secular_acceleration(just_compute=True,
+                                           force_simbad=self._did_secular_acceleration_simbad)
+            self.verbose = _old_verbose
+            sa = sa.value
+
+            if self._child:
+                self.vrad = self.vrad + sa * (self.time - self._did_secular_acceleration_epoch) / 365.25
+            else:
+                for inst in self.instruments:
+                    if 'HIRES' in inst:  # never remove it from HIRES...
+                        continue
+                    if 'NIRPS' in inst:  # never remove it from NIRPS...
+                        continue
+
+                    s = getattr(self, inst)
+
+                    s.vrad = s.vrad + sa * (s.time - self._did_secular_acceleration_epoch) / 365.25
+
+                self._build_arrays()
+
+            self._did_secular_acceleration = False
 
     def sigmaclip(self, sigma=5, instrument=None, strict=True):
         """ Sigma-clip RVs (per instrument!) """
@@ -1244,6 +1278,11 @@ class RV:
         for inst in self.instruments:
             s = getattr(self, inst)
 
+            if s.mtime.size == 0:
+                if self.verbose:
+                    logger.info(f'all observations of {inst} are masked')
+                continue
+
             if s.N == 1:
                 if self.verbose:
                     msg = (f'only 1 observation for {inst}, '
@@ -1255,27 +1294,36 @@ class RV:
 
             s.rv_mean = wmean(s.mvrad, s.msvrad)
             s.vrad -= s.rv_mean
+
             if self.verbose:
                 logger.info(f'subtracted weighted average from {inst:10s}: ({s.rv_mean:.3f} {self.units})')
+
             if just_rv:
                 continue
-            # log_msg = 'same for '
+
             for i, other in enumerate(others):
                 y, ye = getattr(s, other), getattr(s, other + '_err')
                 m = wmean(y[s.mask], ye[s.mask])
                 setattr(s, f'{other}_mean', m)
                 setattr(s, other, getattr(s, other) - m)
-                # log_msg += other
-                # if i < len(others) - 1:
-                #     log_msg += ', '
-
-            # if self.verbose:
-            #     logger.info(log_msg)
 
         self._build_arrays()
         self._did_adjust_means = True
         if return_self:
             return self
+
+    def add_to_vrad(self, values):
+        """ Add an array of values to the RVs of all instruments """
+        if values.size != self.vrad.size:
+            raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {self.vrad.size}")
+
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            mask = self.instrument_array == inst
+            s.vrad += values[mask]
+
+        self._build_arrays()
+
 
     def put_at_systemic_velocity(self):
         """
@@ -1516,22 +1564,50 @@ class RV:
         return self._planets
 
 
-def fit_sine(t, y, yerr, period='gls', fix_period=False):
+def fit_sine(t, y, yerr=None, period='gls', fix_period=False):
+    """ Fit a sine curve of the form y = A * sin(2π * t / P + φ) + c
+
+    Args:
+        t (ndarray):
+            Time array
+        y (ndarray):
+            Array of observed values
+        yerr (ndarray, optional):
+            Array of uncertainties. Defaults to None.
+        period (str or float, optional):
+            Initial guess for period or 'gls' to get it from Lomb-Scargle
+            periodogram. Defaults to 'gls'.
+        fix_period (bool, optional):
+            Whether to fix the period. Defaults to False.
+
+    Returns:
+        p (ndarray):
+            Best-fit parameters [A, P, φ, c] or [A, φ, c]
+        f (callable):
+            Function that returns the best-fit sine curve for input times
+    """
     from scipy.optimize import leastsq
     if period == 'gls':
         from astropy.timeseries import LombScargle
         gls = LombScargle(t, y, yerr)
         freq, power = gls.autopower()
         period = 1 / freq[power.argmax()]
+    else:
+        period = float(period)
 
-    if fix_period and period is None:
-        logger.error('period is fixed but no value provided')
-        return
+    if yerr is None:
+        yerr = np.ones_like(y)
 
-    def sine(t, p):
-        return p[0] * np.sin(2 * np.pi * t / p[1] + p[2]) + p[3]
+    if fix_period:
+        def sine(t, p):
+            return p[0] * np.sin(2 * np.pi * t / period + p[1]) + p[2]
+        f = lambda p, t, y, ye: (sine(t, p) - y) / ye
+        p0 = [y.ptp(), 0.0, 0.0]
+    else:
+        def sine(t, p):
+            return p[0] * np.sin(2 * np.pi * t / p[1] + p[2]) + p[3]
+        f = lambda p, t, y, ye: (sine(t, p) - y) / ye
+        p0 = [y.ptp(), period, 0.0, 0.0]
 
-    p0 = [y.ptp(), period, 0.0, 0.0]
-    xbest, _ = leastsq(lambda p, t, y, ye: (sine(t, p) - y) / ye,
-                       p0, args=(t, y, yerr))
+    xbest, _ = leastsq(f, p0, args=(t, y, yerr))
     return xbest, partial(sine, p=xbest)
