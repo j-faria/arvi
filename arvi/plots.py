@@ -6,13 +6,101 @@ import matplotlib.collections
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
 import mplcursors
 
 from astropy.timeseries import LombScargle
 
 from .setup_logger import logger
 from . import config
+from .stats import wmean
+
+
+class BlittedCursor:
+    """ A cross-hair cursor using blitting for faster redraw. """
+    def __init__(self, axes, vertical=True, horizontal=True, show_text=None,
+                 transforms_x=None, transforms_y=None):
+        if isinstance(axes, matplotlib.axes.Axes):
+            axes = [axes]
+        self.axes = axes
+        self.background = None
+        self.vertical = vertical
+        self.horizontal = horizontal
+        
+        self.transforms_x = [lambda x:x for _ in axes] if transforms_x is None else transforms_x
+        self.transforms_y = [lambda x:x for _ in axes] if transforms_y is None else transforms_y
+
+        if horizontal:
+            self.horizontal_line = [ax.axhline(color='k', lw=0.8, ls='--') for ax in axes]
+        if vertical:
+            self.vertical_line = [ax.axvline(color='k', lw=0.8, ls='--') for ax in axes]
+
+        self.show_text = show_text
+        if show_text is not None: # text location in axes coordinates
+            self.text = [ax.text(0.72, 0.9, '', transform=ax.transAxes) for ax in axes]
+
+        self._creating_background = False
+        for ax in axes:
+            ax.figure.canvas.mpl_connect('draw_event', self.on_draw)
+
+    def on_draw(self, event):
+        self.create_new_background()
+
+    def set_cross_hair_visible(self, visible):
+        if self.horizontal:
+            need_redraw = [line.get_visible() != visible for line in self.horizontal_line]
+        else:
+            need_redraw = [line.get_visible() != visible for line in self.vertical_line]
+        if self.horizontal:
+            [line.set_visible(visible) for line in self.horizontal_line]
+        if self.vertical:
+            [line.set_visible(visible) for line in self.vertical_line]
+        if self.show_text:
+            self.text.set_visible(visible)
+        return need_redraw
+
+    def create_new_background(self):
+        if self._creating_background:
+            # discard calls triggered from within this function
+            return
+        self._creating_background = True
+        self.set_cross_hair_visible(False)
+        for ax in self.axes:
+            ax.figure.canvas.draw()
+        self.backgrounds = [ax.figure.canvas.copy_from_bbox(ax.bbox) for ax in self.axes]
+        self.set_cross_hair_visible(True)
+        self._creating_background = False
+
+    def on_mouse_move(self, event):
+        if self.background is None:
+            self.create_new_background()
+        if not event.inaxes:
+            need_redraw = self.set_cross_hair_visible(False)
+            if any(need_redraw):
+                for ax, bkgd in zip(self.axes, self.backgrounds):
+                    ax.figure.canvas.restore_region(bkgd)
+                    ax.figure.canvas.blit(ax.bbox)
+        else:
+            self.set_cross_hair_visible(True)
+            # update the line positions
+            x, y = event.xdata, event.ydata
+            X = [trans(x) for trans in self.transforms_x]
+            Y = [trans(y) for trans in self.transforms_y]
+            if self.horizontal:
+                [line.set_ydata([y]) for line, y in zip(self.horizontal_line, Y)]
+            if self.vertical:
+                [line.set_xdata([x]) for line, x in zip(self.vertical_line, X)]
+            if self.show_text:
+                self.text.set_text(f'x={x:1.2f}, y={y:1.2f}')
+
+            for ax, bkgd in zip(self.axes, self.backgrounds):
+                ax.figure.canvas.restore_region(bkgd)
+                if self.horizontal:
+                    [ax.draw_artist(line) for line in self.horizontal_line]
+                if self.vertical:
+                    [ax.draw_artist(line) for line in self.vertical_line]
+                if self.show_text:
+                    ax.draw_artist(self.text)
+                ax.figure.canvas.blit(ax.bbox)
 
 
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
@@ -72,11 +160,12 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
 
     strict = kwargs.pop('strict', False)
     instruments = self._check_instrument(instrument, strict=strict)
+    marker = kwargs.pop('marker', 'o')
 
     if bw:
-        markers = cycle(('o', 'P', 's', '^', '*'))
+        markers = cycle((marker, 'P', 's', '^', '*'))
     else:
-        markers = cycle(('o',) * len(instruments))
+        markers = cycle((marker,) * len(instruments))
 
     try:
         zorders = cycle(-np.argsort([getattr(self, i).error for i in instruments])[::-1])
@@ -338,7 +427,8 @@ plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 plot_berv = partialmethod(plot_quantity, quantity='berv')
 
 
-def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwargs):
+def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=config.adjust_means_gls,
+        picker=True, **kwargs):
     """
     Calculate and plot the Generalised Lomb-Scargle periodogram of the radial
     velocities.
@@ -350,42 +440,82 @@ def gls(self, ax=None, label=None, fap=True, picker=True, instrument=None, **kwa
         label (str):
             The label to use for the plot.
         fap (bool):
-            Whether to show the false alarm probability.
+            Whether to show the false alarm probability. Default is True.
         instrument (str or list):
-            Which instruments' data to include in the periodogram.
+            Which instruments' data to include in the periodogram. Default is
+            all instruments.
+        adjust_means (bool):
+            Whether to adjust (subtract) the weighted means of each instrument.
+            Default is `config.adjust_means_gls`.
     """
     if self.N == 0:
         if self.verbose:
             logger.error('no data to compute gls')
         return
 
+    if not self._did_adjust_means and not adjust_means:
+        logger.warning('gls() called before adjusting instrument means, '
+                       'consider using `adjust_means` argument')
+
+    if instrument is not None:
+        strict = kwargs.pop('strict', False)
+        instrument = self._check_instrument(instrument, strict=strict, log=True)
+        if instrument is None:
+            return
+
+        instrument_mask = np.isin(self.instrument_array, instrument)
+        t = self.time[instrument_mask & self.mask].copy()
+        y = self.vrad[instrument_mask & self.mask].copy()
+        e = self.svrad[instrument_mask & self.mask].copy()
+        if self.verbose:
+            logger.info(f'calculating periodogram for instrument {instrument}')
+
+        if adjust_means:
+            if self.verbose:
+                logger.info('adjusting instrument means before gls')
+            means = np.empty_like(y)
+            for i in instrument:
+                mask = self.instrument_array[instrument_mask & self.mask] == i
+                if len(y[mask]) > 0:
+                    means += wmean(y[mask], e[mask]) * mask
+            y = y - means
+
+    else:
+        t = self.time[self.mask].copy()
+        y = self.vrad[self.mask].copy()
+        e = self.svrad[self.mask].copy()
+
+        if adjust_means:
+            if self.verbose:
+                logger.info('adjusting instrument means before gls')
+            means = np.empty_like(y)
+            for i in self.instruments:
+                mask = self.instrument_array[self.mask] == i
+                if len(y[mask]) > 0:
+                    means += wmean(y[mask], e[mask]) * mask
+            y = y - means
+
+    self._gls = gls = LombScargle(t, y, e)
+
+    maximum_frequency = kwargs.pop('maximum_frequency', 1.0)
+    minimum_frequency = kwargs.pop('minimum_frequency', None)
+    samples_per_peak = kwargs.pop('samples_per_peak', 10)
+
+    freq, power = gls.autopower(maximum_frequency=maximum_frequency,
+                                minimum_frequency=minimum_frequency,
+                                samples_per_peak=samples_per_peak)
+
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
         fig = ax.figure
 
-    if instrument is not None:
-        strict = kwargs.pop('strict', False)
-        instrument = self._check_instrument(instrument, strict=strict)
-        if instrument is not None:
-            instrument_mask = np.isin(self.instrument_array, instrument)
-            t = self.time[instrument_mask & self.mask]
-            y = self.vrad[instrument_mask & self.mask]
-            e = self.svrad[instrument_mask & self.mask]
-            if self.verbose:
-                logger.info(f'calculating periodogram for instrument {instrument}')
+    if kwargs.pop('fill_between', False):
+        kwargs.pop('lw', None)
+        ax.fill_between(1/freq, 0, power, label=label, lw=0, **kwargs)
+        ax.set_xscale('log')
     else:
-        t = self.time[self.mask]
-        y = self.vrad[self.mask]
-        e = self.svrad[self.mask]
-
-    self._gls = gls = LombScargle(t, y, e)
-    maximum_frequency = kwargs.pop('maximum_frequency', 1.0)
-    minimum_frequency = kwargs.pop('minimum_frequency', None)
-    freq, power = gls.autopower(maximum_frequency=maximum_frequency,
-                                minimum_frequency=minimum_frequency,
-                                samples_per_peak=10)
-    ax.semilogx(1/freq, power, picker=picker, label=label, **kwargs)
+        ax.semilogx(1/freq, power, picker=picker, label=label, **kwargs)
 
     if fap:
         ax.axhline(gls.false_alarm_level(0.01),

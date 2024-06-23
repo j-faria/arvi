@@ -6,3 +6,9 @@ check_internet = False
 
 # make all DACE requests without using a .dacerc file
 request_as_public = False
+
+# whether to adjust instrument means before gls by default
+adjust_means_gls = True
+
+# debug
+debug = False
