@@ -12,6 +12,6 @@ def test_import_object():
     if os.path.exists(os.path.expanduser('~/.dacerc')):
         from arvi import HD10180
     else:
-        with pytest.raises(ValueError):
+        with pytest.raises(ImportError):
             from arvi import HD10180
 
