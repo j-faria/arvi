@@ -603,6 +603,73 @@ gls_bis = partialmethod(gls_quantity, quantity='bispan')
 gls_rhk = partialmethod(gls_quantity, quantity='rhk')
 
 
+
+def window_function(self, ax1=None, ax2=None, instrument=None, crosshair=False, **kwargs):
+    """
+    Calculate and plot the window function of the observed times.
+
+    Args:
+        ax1 (matplotlib.axes.Axes):
+            An axes to plot the window function vs period. If None, a new figure
+            will be created.
+        ax2 (matplotlib.axes.Axes):
+            An axes to plot the periodogram vs frequency. If None, a new figure
+            will be created.
+        instrument (str or list):
+            Which instruments' data to include in the window function.
+        crosshair (bool):
+            If True, a crosshair will be drawn on the plot.
+    """
+    if self.N == 0:
+        if self.verbose:
+            logger.error('no data to compute window function')
+        return
+
+    if ax1 is None:
+        fig, (ax1, ax2) = plt.subplots(2, 1, constrained_layout=True)
+    else:
+        fig = ax1.figure
+
+    if instrument is not None:
+        strict = kwargs.pop('strict', False)
+        instrument = self._check_instrument(instrument, strict=strict)
+        if instrument is not None:
+            instrument_mask = np.isin(self.instrument_array, instrument)
+            t = self.time[instrument_mask & self.mask]
+            ye = self.svrad[instrument_mask & self.mask]
+            if self.verbose:
+                logger.info(f'calculating window function for instrument {instrument}')
+    else:
+        t = self.time[self.mask]
+        ye = self.svrad[self.mask]
+
+    wf = LombScargle(t, np.ones_like(t), ye / np.std(ye),
+                     fit_mean=False, center_data=False)
+
+    freq, power = wf.autopower(maximum_frequency=1.1, 
+                               samples_per_peak=20, method='cython')
+    ax1.semilogx(1/freq, power, **kwargs)
+    ax1.set(xlabel='Period [days]', ylabel='Window function')
+
+    ax2.plot(freq, power, **kwargs)
+    ax2.set(xlabel='Frequency [1/day]', ylabel='Window function')
+
+    for x in (365.25, 1.0, 1 - 1.0/365.25):
+        ax1.axvline(x, color='k', alpha=0.2, zorder=-1)
+        ax2.axvline(1/x, color='k', alpha=0.2, zorder=-1)
+    
+    if crosshair:
+        blitted_cursor = BlittedCursor((ax1, ax2), horizontal=False,
+                                    transforms_x=(lambda x:x, lambda x:1/x))
+        fig.canvas.mpl_connect('motion_notify_event', blitted_cursor.on_mouse_move)
+        return fig, (ax1, ax2), blitted_cursor
+        # from matplotlib.widgets import MultiCursor
+        # cursor = MultiCursor(fig.canvas, (ax1, ax2), color='r',
+        #                      lw=0.5, horizOn=False, vertOn=True)
+        # return fig, (ax1, ax2), (cursor)
+    else:
+        return fig, (ax1, ax2)
+
 def histogram_svrad(self, ax=None, instrument=None, label=None):
     """ Plot an histogram of the radial velocity uncertainties. 
     
