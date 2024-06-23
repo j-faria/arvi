@@ -1,4 +1,3 @@
-from collections import namedtuple
 import numpy as np
 from astropy.constants import G
 from astropy import units

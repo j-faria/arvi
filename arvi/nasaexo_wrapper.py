@@ -125,7 +125,7 @@ class Planets:
             self.model.keplerian.uid = 0
 
         for i in range(self.np):
-            if self.K[i] == False or np.isnan(self.K[i]):
+            if not self.K[i] or np.isnan(self.K[i]):
                 self.model.add_keplerian_from_period(self.P[i], fit=True)
             else:
                 self.model.add_keplerian([self.P[i], self.K[i], self.e[i], 0.0, self.w[i]],

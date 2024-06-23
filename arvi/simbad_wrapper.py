@@ -1,5 +1,4 @@
 import os
-from dataclasses import dataclass, field
 import requests
 
 from astropy.coordinates import SkyCoord

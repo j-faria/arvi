@@ -1,11 +1,9 @@
 import os
 from io import StringIO
 from csv import DictReader
-from dataclasses import dataclass, field
 import requests
 
 from astropy.coordinates import SkyCoord
-import pysweetcat
 
 DATA_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(DATA_PATH, 'data')
