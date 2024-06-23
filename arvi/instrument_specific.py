@@ -86,6 +86,52 @@ def blue_cryostat_issues(self, plot=True):
     return intersect
 
 
+def qc_scired_issues(self, plot=False, **kwargs):
+    """ Identify and mask points with failed SCIRED QC
+
+    Args:
+        plot (bool, optional): Whether to plot the masked points.
+    """
+    from .headers import get_headers
+
+    instruments = self._check_instrument('ESPRESSO')
+    
+    if instruments is None:
+        if self.verbose:
+            logger.error(f"no data from ESPRESSO")
+            logger.info(f'available: {self.instruments}')
+        return
+
+    H = kwargs.get('H', None)
+    if H is None:
+        H = get_headers(self, check_lesta=False, check_exo2=False, instrument='ESPRE')
+    if len(H) == 0:
+        if self.verbose:
+            logger.warning('this function requires access to headers, but none found')
+            logger.warning('trying to download')
+        self.download_ccf()
+        H = get_headers(self, check_lesta=False, check_exo2=False, instrument='ESPRE')
+    
+    scired_check = np.array([h['HIERARCH ESO QC SCIRED CHECK'] for h in H])
+    affected = scired_check == 0
+    n = affected.sum()
+
+    if self.verbose:
+        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
+                     "where QC SCIRED CHECK is 0")
+
+    if n == 0:
+        return
+
+    self.mask[affected] = False
+    self._propagate_mask_changes()
+
+    if plot:
+        self.plot(show_masked=True)
+
+    return affected
+
+
 def known_issues(self, plot=False, **kwargs):
     """ Identify and mask known instrumental issues (ADC and blue cryostat for ESPRESSO)
 
