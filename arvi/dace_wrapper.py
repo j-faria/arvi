@@ -1,6 +1,7 @@
 import os
 import tarfile
 import collections
+from functools import lru_cache
 import numpy as np
 from dace_query import DaceClass
 from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
@@ -19,6 +20,17 @@ def load_spectroscopy() -> SpectroscopyClass:
         return SpectroscopyClass(dace_instance=dace)
     # elif os.path.exists(os.path.expanduser('~/.dacerc')):
     return default_Spectroscopy
+
+@lru_cache()
+def get_dace_id(star):
+    filters = {"obj_id_catname": {"contains": [star]}}
+    try:
+        with stdout_disabled(), all_logging_disabled():
+            r = load_spectroscopy().query_database(filters=filters, limit=1)
+        return r['obj_id_daceid'][0]
+    except KeyError:
+        logger.error(f"Could not find DACE ID for {star}")
+        raise ValueError from None
 
 def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
     arrays = []
@@ -39,7 +51,7 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                 i = [i for i, pipe in enumerate(pipelines) if ESPRESSO_mode in pipe][0]
                 pipelines = [pipelines[i]]
             else:
-                if verbose:
+                if len(pipelines) > 1 and verbose:
                     logger.warning(f'no observations for requested ESPRESSO mode ({ESPRESSO_mode})')
 
         if latest_pipeline:
@@ -73,19 +85,118 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
     return arrays
 
-def get_observations(star, instrument=None, verbose=True):
-    Spectroscopy = load_spectroscopy()
+def get_observations_from_instrument(star, instrument, main_id=None):
+    """ Query DACE for all observations of a given star and instrument
+
+    Args:
+        star (str): name of the star
+        instrument (str): instrument name
+        main_id (str, optional): Simbad main id of target to query DACE id. Defaults to None.
+
+    Raises:
+        ValueError: If query for DACE id fails
+
+    Returns:
+        dict: dictionary with data from DACE
+    """
     try:
-        with stdout_disabled(), all_logging_disabled():
-            result = Spectroscopy.get_timeseries(target=star,
-                                                sorted_by_instrument=True,
-                                                output_format='numpy')
-    except TypeError:
-        if instrument is None:
-            msg = f'no observations for {star}'
+        dace_id = get_dace_id(star)
+    except ValueError as e:
+        if main_id is not None:
+            dace_id = get_dace_id(main_id)
         else:
+            raise e
+
+    Spectroscopy = load_spectroscopy()
+    filters = {
+        "ins_name": {"contains": [instrument]}, 
+        "obj_id_daceid": {"contains": [dace_id]}
+    }
+    with stdout_disabled(), all_logging_disabled():
+        result = Spectroscopy.query_database(filters=filters)
+    
+    if len(result) == 0:
+        raise ValueError
+
+    r = {}
+    for inst in np.unique(result['ins_name']):
+        mask1 = result['ins_name'] == inst
+        r[inst] = {}
+        for pipe in np.unique(result['ins_drs_version'][mask1]):
+            mask2 = mask1 & (result['ins_drs_version'] == pipe)
+            ins_mode = np.unique(result['ins_mode'][mask2])[0]
+            _nan = np.full(mask2.sum(), np.nan)
+            r[inst][pipe] = {
+                ins_mode: {
+                    'texp': result['texp'][mask2],
+                    'bispan': result['spectro_ccf_bispan'][mask2],
+                    'bispan_err': result['spectro_ccf_bispan_err'][mask2],
+                    'drift_noise': result['spectro_cal_drift_noise'][mask2],
+                    'rjd': result['obj_date_bjd'][mask2],
+                    'cal_therror': _nan,
+                    'fwhm': result['spectro_ccf_fwhm'][mask2],
+                    'fwhm_err': result['spectro_ccf_fwhm_err'][mask2],
+                    'rv': result['spectro_ccf_rv'][mask2],
+                    'rv_err': result['spectro_ccf_rv_err'][mask2],
+                    'berv': result['spectro_cal_berv'][mask2],
+                    'ccf_noise': _nan,
+                    'rhk': result['spectro_analysis_rhk'][mask2],
+                    'rhk_err': result['spectro_analysis_rhk_err'][mask2],
+                    'contrast': result['spectro_ccf_contrast'][mask2],
+                    'contrast_err': result['spectro_ccf_contrast_err'][mask2],
+                    'cal_thfile': result['spectro_cal_thfile'][mask2],
+                    'spectroFluxSn50': result['spectro_flux_sn50'][mask2],
+                    'protm08': result['spectro_analysis_protm08'][mask2],
+                    'protm08_err': result['spectro_analysis_protm08_err'][mask2],
+                    'caindex': result['spectro_analysis_ca'][mask2],
+                    'caindex_err': result['spectro_analysis_ca_err'][mask2],
+                    'pub_reference': result['pub_ref'][mask2],
+                    'drs_qc': result['spectro_drs_qc'][mask2],
+                    'haindex': result['spectro_analysis_halpha'][mask2],
+                    'haindex_err': result['spectro_analysis_halpha_err'][mask2],
+                    'protn84': result['spectro_analysis_protn84'][mask2],
+                    'protn84_err': result['spectro_analysis_protn84_err'][mask2],
+                    'naindex': result['spectro_analysis_na'][mask2],
+                    'naindex_err': result['spectro_analysis_na_err'][mask2],
+                    'snca2': _nan,
+                    'mask': result['spectro_ccf_mask'][mask2],
+                    'public': result['public'][mask2],
+                    'spectroFluxSn20': result['spectro_flux_sn20'][mask2],
+                    'sindex': result['spectro_analysis_smw'][mask2],
+                    'sindex_err': result['spectro_analysis_smw_err'][mask2],
+                    'drift_used': _nan,
+                    'ccf_asym': result['spectro_ccf_asym'][mask2],
+                    'ccf_asym_err': result['spectro_ccf_asym_err'][mask2],
+                    'date_night': result['date_night'][mask2],
+                    'raw_file': result['file_rootpath'][mask2],
+                    'prog_id': result['prog_id'][mask2],
+                    'th_ar': result['th_ar'][mask2],
+                    'th_ar1': result['th_ar1'][mask2],
+                    'th_ar2': result['th_ar2'][mask2],
+                }
+            }
+    return r
+
+def get_observations(star, instrument=None, main_id=None, verbose=True):
+    if instrument is None:
+        Spectroscopy = load_spectroscopy()
+        try:
+            with stdout_disabled(), all_logging_disabled():
+                result = Spectroscopy.get_timeseries(target=star,
+                                                     sorted_by_instrument=True,
+                                                     output_format='numpy')
+        except TypeError:
+            if instrument is None:
+                msg = f'no observations for {star}'
+            else:
+                msg = f'no {instrument} observations for {star}'
+            raise ValueError(msg) from None
+    else:
+        try:
+            result = get_observations_from_instrument(star, instrument, main_id, verbose)
+        except ValueError:
             msg = f'no {instrument} observations for {star}'
-        raise ValueError(msg) from None
+            raise ValueError(msg) from None
 
     # defaultdict --> dict
     if isinstance(result, collections.defaultdict):
