@@ -1037,12 +1037,17 @@ class RV:
             self.vrad = self.vrad - sa * (self.time - epoch) / 365.25
         else:
             for inst in self.instruments:
+                s = getattr(self, inst)
+
+                # if RVs come from a publication, don't remove the secular
+                # acceleration
+                if np.all(s.pub_reference != ''):
+                    continue
+
                 if 'HIRES' in inst:  # never remove it from HIRES...
                     continue
                 if 'NIRPS' in inst:  # never remove it from NIRPS...
                     continue
-
-                s = getattr(self, inst)
 
                 if hasattr(s, '_did_secular_acceleration') and s._did_secular_acceleration:
                     continue
