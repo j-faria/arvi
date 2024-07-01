@@ -193,7 +193,7 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
             raise ValueError(msg) from None
     else:
         try:
-            result = get_observations_from_instrument(star, instrument, main_id, verbose)
+            result = get_observations_from_instrument(star, instrument, main_id)
         except ValueError:
             msg = f'no {instrument} observations for {star}'
             raise ValueError(msg) from None
