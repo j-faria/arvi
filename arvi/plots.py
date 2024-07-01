@@ -407,6 +407,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
         'bispan': f'BIS [{self.units}]',
         'rhk': r"$\log$ R'$_{HK}$",
         'berv': f'BERV [km/s]',
+        quantity: quantity,
     }
     ax.set_ylabel(ylabel[quantity])
 
