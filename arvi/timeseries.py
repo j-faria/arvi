@@ -1611,6 +1611,8 @@ class RV:
 
 
     #
+    from .stellar import calc_prot_age
+
     @property
     def HZ(self):
         if not hasattr(self, 'star_mass'):
