@@ -20,12 +20,14 @@ def get_star(star, instrument=None):
 
 
 class LazyRV:
-    def __init__(self, stars: list, instrument: str = None):
+    def __init__(self, stars: list, instrument: str = None,
+                 _parallel_limit=10):
         self.stars = stars
         if isinstance(self.stars, str):
             self.stars = [self.stars]
         self.instrument = instrument
         self._saved = None
+        self._parallel_limit = _parallel_limit
 
     @property
     def N(self):
@@ -35,7 +37,7 @@ class LazyRV:
         return f"RV({self.N} stars)"
 
     def _get(self):
-        if self.N > 10:
+        if self.N > self._parallel_limit:
             # logger.info('Querying DACE...')
             _get_star = partial(get_star, instrument=self.instrument)
             with multiprocessing.Pool() as pool:
