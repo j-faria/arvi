@@ -23,6 +23,9 @@ from .HZ import getHZ_period
 from .utils import strtobool, there_is_internet, timer
 
 
+class ExtraFields:
+    pass
+
 @dataclass
 class RV:
     """
@@ -383,6 +386,7 @@ class RV:
         s.mask = kwargs.get('mask', np.full_like(s.time, True, dtype=bool))
 
         s.instruments = [inst]
+        s._quantities = np.array([])
 
         return s
 
@@ -444,6 +448,13 @@ class RV:
 
         s = cls(star, _child=True, **kwargs)
 
+        def find_column(data, names):
+            has_col = np.array([name in data.dtype.fields for name in names])
+            if any(has_col):
+                col = np.where(has_col)[0][0]
+                return data[names[col]]
+            return False
+
         for i, (f, instrument) in enumerate(zip(files, instruments)):
             data = np.loadtxt(f, skiprows=2, usecols=range(3), unpack=True)
             _s = cls(star, _child=True, **kwargs)
@@ -472,10 +483,11 @@ class RV:
             else:
                 data = np.array([], dtype=np.dtype([]))
 
-            if 'fwhm' in data.dtype.fields:
-                _s.fwhm = data['fwhm']
-                if 'sfwhm' in data.dtype.fields:
-                    _s.fwhm_err = data['sfwhm']
+            # try to find FWHM and uncertainty
+            if (v := find_column(data, ['fwhm'])) is not False:  # walrus !!
+                _s.fwhm = v
+                if (sv := find_column(data, ['sfwhm', 'fwhm_err', 'sig_fwhm'])) is not False:
+                    _s.fwhm_err = sv
                 else:
                     _s.fwhm_err = 2 * _s.svrad
             else:
@@ -485,12 +497,11 @@ class RV:
             _quantities.append('fwhm')
             _quantities.append('fwhm_err')
 
-            if 'rhk' in data.dtype.fields:
-                _s.rhk = data['rhk']
+            if (v := find_column(data, ['rhk'])) is not False:
+                _s.rhk = v
                 _s.rhk_err = np.full_like(time, np.nan)
-                for possible_name in ['srhk', 'rhk_err']:
-                    if possible_name in data.dtype.fields:
-                        _s.rhk_err = data[possible_name]
+                if (sv := find_column(data, ['srhk', 'rhk_err', 'sig_rhk'])) is not False:
+                    _s.rhk_err = sv
             else:
                 _s.rhk = np.zeros_like(time)
                 _s.rhk_err = np.full_like(time, np.nan)
@@ -516,6 +527,12 @@ class RV:
             for q in ['drs_qc']:
                 setattr(_s, q, np.full(time.size, True))
                 _quantities.append(q)
+
+            _s.extra_fields = ExtraFields()
+            for field in data.dtype.names:
+                if field not in _quantities:
+                    setattr(_s.extra_fields, field, data[field])
+                    # _quantities.append(field)
 
             #! end hack
 
@@ -544,10 +561,15 @@ class RV:
             logger.error('iCCF is not installed. Please install it with `pip install iCCF`')
             return
 
+        verbose = kwargs.get('verbose', True)
+
         if isinstance(files, str):
             files = [files]
 
         CCFs = iCCF.from_file(files)
+
+        if not isinstance(CCFs, list):
+            CCFs = [CCFs]
 
         objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
         if objects.size != 1:
@@ -556,19 +578,58 @@ class RV:
         star = objects[0]
 
         s = cls(star, _child=True)
+        instruments = list(np.unique([i.instrument for i in CCFs]))
 
-        # time, RVs, uncertainties
-        s.time = np.array([i.bjd for i in CCFs])
-        s.vrad = np.array([i.RV*1e3 for i in CCFs])
-        s.svrad = np.array([i.RVerror*1e3 for i in CCFs])
+        for instrument in instruments:
+            # time, RVs, uncertainties
+            time = np.array([i.bjd for i in CCFs])
+            vrad = np.array([i.RV*1e3 for i in CCFs])
+            svrad = np.array([i.RVerror*1e3 for i in CCFs])
+            _s = RV.from_arrays(star, time, vrad, svrad, inst=instrument)
 
-        s.fwhm = np.array([i.FWHM*1e3 for i in CCFs])
-        s.fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
+            _quantities = []
 
-        # mask
-        s.mask = np.full_like(s.time, True, dtype=bool)
+            _s.fwhm = np.array([i.FWHM*1e3 for i in CCFs])
+            _s.fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
 
-        s.instruments = list(np.unique([i.instrument for i in CCFs]))
+            _quantities.append('fwhm')
+            _quantities.append('fwhm_err')
+
+            _s.contrast = np.array([i.contrast for i in CCFs])
+            _s.contrast_err = np.array([i.contrast_error for i in CCFs])
+
+            _quantities.append('contrast')
+            _quantities.append('contrast_err')
+
+            _s.texp = np.array([i.HDU[0].header['EXPTIME'] for i in CCFs])
+            _quantities.append('texp')
+
+            _s.date_night = np.array([
+                i.HDU[0].header['DATE-OBS'].split('T')[0] for i in CCFs
+            ])
+            _quantities.append('date_night')
+
+            _s.mask = np.full_like(_s.time, True, dtype=bool)
+
+            _s.drs_qc = np.array([i.HDU[0].header['HIERARCH ESO QC SCIRED CHECK'] for i in CCFs], dtype=bool)
+            # mask out drs_qc = False
+            if not _s.drs_qc.all():
+                n = (~ _s.drs_qc).sum()
+                if verbose:
+                    logger.warning(f'masking {n} points where DRS QC failed for {instrument}')
+                _s.mask &= _s.drs_qc
+            print(_s.mask)
+
+            _s._quantities = np.array(_quantities)
+            setattr(s, instrument, _s)
+
+        s._child = False
+        s.instruments = instruments
+        s._build_arrays()
+
+        if instruments == ['ESPRESSO']:
+            from .instrument_specific import divide_ESPRESSO
+            divide_ESPRESSO(s)
 
         return s
 
@@ -611,7 +672,6 @@ class RV:
             logger.info(f'available: {self.instruments}')
             return
 
-
     def _build_arrays(self):
         """ build all concatenated arrays of `self` from each of the `.inst`s """
         if self._child:
@@ -653,7 +713,6 @@ class RV:
                     [getattr(getattr(self, inst), q) for inst in self.instruments]
                 )
                 setattr(self, q, arr)
-
 
     def download_ccf(self, instrument=None, index=None, limit=None,
                      directory=None, symlink=False, **kwargs):
