@@ -218,6 +218,7 @@ class RV:
         self._did_secular_acceleration = False
         self._did_sigma_clip = False
         self._did_adjust_means = False
+        self._did_correct_berv = False
         self.__post_init__()
 
     def snapshot(self):
