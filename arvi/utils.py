@@ -122,6 +122,19 @@ def find_data_file(file):
 
     return data_file
 
+
+import importlib.util
+import sys
+def lazy_import(name):
+    spec = importlib.util.find_spec(name)
+    loader = importlib.util.LazyLoader(spec.loader)
+    spec.loader = loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    loader.exec_module(module)
+    return module
+
+
 def ESPRESSO_ADC_issues():
     adc_file = find_data_file('obs_affected_ADC_issues.dat')
     lines = [line.strip() for line in open(adc_file).readlines()]
