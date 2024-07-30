@@ -1,8 +1,4 @@
 import numpy as np
-from numpy.testing import suppress_warnings
-
-from scipy.stats import binned_statistic as old_binned_statistic,\
-                        binned_statistic_dd as old_binned_statistic_dd
 
 from .setup_logger import logger
 
@@ -38,6 +34,7 @@ def binned_statistic(x, values, statistic='mean', bins=10, range=None,
 
 def binned_statistic_dd(sample, values, statistic='mean', bins=10, range=None,
                         expand_binnumbers=False, weights=None):
+    from numpy.testing import suppress_warnings
     known_stats = [
         'mean', 'median', 'count', 'sum', 'std', 'min', 'max', 'ptp'
     ]
@@ -214,11 +211,13 @@ def binned_statistic_dd(sample, values, statistic='mean', bins=10, range=None,
     return result, edges, binnumbers
 
 
-# put back the documentation
-doc1 = old_binned_statistic.__doc__
-doc2 = old_binned_statistic_dd.__doc__
-binned_statistic.__doc__ = doc1
-binned_statistic_dd.__doc__ = doc2
+# # put back the documentation
+# from scipy.stats import binned_statistic as old_binned_statistic,\
+#                         binned_statistic_dd as old_binned_statistic_dd
+# doc1 = old_binned_statistic.__doc__
+# doc2 = old_binned_statistic_dd.__doc__
+# binned_statistic.__doc__ = doc1
+# binned_statistic_dd.__doc__ = doc2
 
 ###############################################################################
 
