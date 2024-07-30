@@ -339,12 +339,18 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
     if (err is not None) and (stat == 'wmean'):
         stat = wmean  # default is weighted mean
 
+    if (err is None) and (stat == 'wmean'):
+        stat = 'mean'
+
     brv = binned_statistic(time, rv, statistic=stat, bins=bins, range=None,
                            weights=err)
 
     # bin the times
     if (err is not None) and (tstat == 'wmean'):
         tstat = wmean  # default is weighted mean
+
+    if (err is None) and (tstat == 'wmean'):
+        tstat = 'mean'
 
     times = binned_statistic(time, time, statistic=tstat, bins=bins,
                              range=None, weights=err)
