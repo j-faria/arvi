@@ -1,7 +1,4 @@
 import numpy as np
-from scipy.stats import median_abs_deviation
-from scipy.stats._stats_py import SigmaclipResult
-
 
 def wmean(a, e):
     """Weighted mean of array `a`, with uncertainties given by `e`.
@@ -69,6 +66,8 @@ def sigmaclip_median(a, low=4.0, high=4.0):
             - `lower`: Lower clipping limit
             - `upper`: Upper clipping limit
     """
+    from scipy.stats import median_abs_deviation
+    from scipy.stats._stats_py import SigmaclipResult
     c = np.asarray(a).ravel()
     delta = 1
     while delta:
