@@ -26,7 +26,7 @@ def run_query(query):
     url = 'https://gea.esac.esa.int/tap-server/tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='csv')
     try:
-        response = requests.post(url, data=data, timeout=10)
+        response = requests.post(url, data=data, timeout=5)
     except requests.ReadTimeout as err:
         raise IndexError(err)
     except requests.ConnectionError as err:
