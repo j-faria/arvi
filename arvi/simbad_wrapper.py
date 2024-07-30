@@ -1,7 +1,6 @@
 import os
 import requests
 
-from astropy.coordinates import SkyCoord
 import pysweetcat
 
 DATA_PATH = os.path.dirname(__file__)
@@ -44,7 +43,7 @@ def run_query(query):
     url = 'http://simbad.u-strasbg.fr/simbad/sim-tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='text/plain', phase='run')
     try:
-        response = requests.post(url, data=data, timeout=10)
+        response = requests.post(url, data=data, timeout=5)
     except requests.ReadTimeout as err:
         raise IndexError(err)
     except requests.ConnectionError as err:
@@ -97,6 +96,8 @@ class simbad:
         Args:
             star (str): The name of the star to query simbad
         """
+        from astropy.coordinates import SkyCoord
+
         self.star = star
 
         if 'kobe' in self.star.lower():
