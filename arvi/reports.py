@@ -1,9 +1,6 @@
 from functools import partial
 import numpy as np
 from astropy.timeseries import LombScargle
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
-from matplotlib.backends.backend_pdf import PdfPages
 
 from .setup_logger import logger
 
@@ -31,6 +28,10 @@ def sine_picker(event, self, fig, ax, ax1):
 
 
 def report(self, save=None):
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib.backends.backend_pdf import PdfPages
+
     # size = A4
     size = 8.27, 11.69
     fig = plt.figure(figsize=size, constrained_layout=True)
