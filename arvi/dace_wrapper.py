@@ -23,7 +23,7 @@ def load_spectroscopy() -> SpectroscopyClass:
 
 @lru_cache()
 def get_dace_id(star):
-    filters = {"obj_id_catname": {"contains": [star]}}
+    filters = {"obj_id_catname": {"equal": [star]}}
     try:
         with stdout_disabled(), all_logging_disabled():
             r = load_spectroscopy().query_database(filters=filters, limit=1)
