@@ -1,12 +1,7 @@
-import os
-from functools import partial, partialmethod
+from functools import partialmethod, wraps
 from itertools import cycle
 
-import matplotlib.collections
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import mplcursors
 
 from astropy.timeseries import LombScargle
 
@@ -172,7 +167,6 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
     except AttributeError:
         zorders = cycle([1] * len(instruments))
 
-    cursors = {}
     containers = {}
     for _i, inst in enumerate(instruments):
         s = self if self._child else getattr(self, inst)
@@ -206,22 +200,6 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             kw = dict(histtype='step', bins='doane', orientation='horizontal')
             hlabel = f'{s.mvrad.std():.2f} {self.units}'
             axh.hist(s.mvrad, **kw, label=hlabel)
-
-                # cursors[inst] = crsr = mplcursors.cursor(container, multiple=False)
-                # @crsr.connect("add")
-                # def _(sel):
-                #     inst = sel.artist.get_label()
-                #     _s = getattr(self, inst)
-                #     vrad, svrad = _s.vrad[sel.index], _s.svrad[sel.index]
-                #     sel.annotation.get_bbox_patch().set(fc="white")
-                #     text = f'{inst}\n'
-                #     text += f'BJD: {sel.target[0]:9.5f}\n'
-                #     text += f'RV: {vrad:.3f} ± {svrad:.3f}'
-                #     # if fig.canvas.manager.toolmanager.get_tool('infotool').toggled:
-                #     #     text += '\n\n'
-                #     #     text += f'date: {_s.date_night[sel.index]}\n'
-                #     #     text += f'mask: {_s.ccf_mask[sel.index]}'
-                #     sel.annotation.set_text(text)
 
         if show_masked:
             if versus_n:
