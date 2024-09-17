@@ -9,11 +9,24 @@ from .setup_logger import logger
 from . import config
 from .stats import wmean
 
+from .utils import lazy_import
+plt = lazy_import('matplotlib.pyplot')
+
+
+def plot_fast(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        with plt.style.context('fast'):
+            return func(*args, **kwargs)
+    return wrapper
+
+
 
 class BlittedCursor:
     """ A cross-hair cursor using blitting for faster redraw. """
     def __init__(self, axes, vertical=True, horizontal=True, show_text=None,
                  transforms_x=None, transforms_y=None):
+        import matplotlib # delay import
         if isinstance(axes, matplotlib.axes.Axes):
             axes = [axes]
         self.axes = axes
@@ -97,10 +110,31 @@ class BlittedCursor:
                     ax.draw_artist(self.text)
                 ax.figure.canvas.blit(ax.bbox)
 
+def clickable_legend(fig, ax, leg):
+    from matplotlib.text import Text
+    handles, labels = ax.get_legend_handles_labels()
+    for text in leg.get_texts():
+        text.set_picker(True)
 
+    def on_pick_legend(event):
+        artist = event.artist
+        if isinstance(artist, Text):
+            try:
+                h = handles[labels.index(artist.get_text())]
+                alpha_text = {None:0.2, 1.0: 0.2, 0.2:1.0}[artist.get_alpha()]
+                alpha_point = {None: 0.0, 1.0: 0.0, 0.2: 1.0}[artist.get_alpha()]
+                h[0].set_alpha(alpha_point)
+                h[2][0].set_alpha(alpha_point)
+                artist.set_alpha(alpha_text)
+                fig.canvas.draw()
+            except ValueError:
+                pass
+    return on_pick_legend
+
+# @plot_fast
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
-         remove_50000=False, tooltips=False, label=None, N_in_label=False,
-         versus_n=False, show_histogram=False, bw=False, **kwargs):
+         remove_50000=False, tooltips=False, show_legend=True, label=None,
+         N_in_label=False, versus_n=False, show_histogram=False, bw=False, **kwargs):
     """ Plot the RVs
 
     Args:
@@ -116,6 +150,8 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             Whether to subtract 50000 from time. Defaults to False.
         tooltips (bool, optional):
             Show information upon clicking a point. Defaults to True.
+        show_legend (bool, optional):
+            Show legend. Defaults to True.
         N_in_label (bool, optional):
             Show number of observations in legend. Defaults to False.
         versus_n (bool, optional):
@@ -140,11 +176,13 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             fig, (ax, axh) = plt.subplots(1, 2, constrained_layout=True, gridspec_kw={'width_ratios': [3, 1]})
         else:
             fig, ax = plt.subplots(1, 1, constrained_layout=True)
+    elif ax == -1:
+        ax = plt.gca()
+        fig = ax.figure
     else:
         if show_histogram:
             ax, axh = ax
         fig = ax.figure
-
 
     kwargs.setdefault('ls', '')
     kwargs.setdefault('capsize', 0)
@@ -217,60 +255,102 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             ax.errorbar(self.time[~self.mask] - time_offset, self.vrad[~self.mask], self.svrad[~self.mask],
                         label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
-    leg = ax.legend()
-    handles, labels = ax.get_legend_handles_labels()
-    for text in leg.get_texts():
-        text.set_picker(True)
-
-    def on_pick_legend(event):
-        artist = event.artist
-        if isinstance(artist, matplotlib.text.Text):
-            try:
-                h = handles[labels.index(artist.get_text())]
-                alpha_text = {None:0.2, 1.0: 0.2, 0.2:1.0}[artist.get_alpha()]
-                alpha_point = {None: 0.0, 1.0: 0.0, 0.2: 1.0}[artist.get_alpha()]
-                h[0].set_alpha(alpha_point)
-                h[2][0].set_alpha(alpha_point)
-                artist.set_alpha(alpha_text)
-                fig.canvas.draw()
-            except ValueError:
-                pass
-    plt.connect('pick_event', on_pick_legend)
+    if show_legend:
+        leg = ax.legend()
+        on_pick_legend = clickable_legend(fig, ax, leg)
+        plt.connect('pick_event', on_pick_legend)
 
     if tooltips:
+        from matplotlib.lines import Line2D
+        from matplotlib.collections import LineCollection
         annotations = []
-        def on_pick_point(event):
-            print('annotations:', annotations)
+        axes_artists = []
+        selected_inds = []
+        selected_insts = []
+
+        def _cleanup():
             for text in annotations:
                 text.remove()
                 annotations.remove(text)
+            for art in axes_artists:
+                art.remove()
+                axes_artists.remove(art)
+            for ind in selected_inds:
+                selected_inds.remove(ind)
 
+        def on_press(event):
+            # print('press', event.key)
+            if event.key in ('r',):
+                for i, inst in zip(selected_inds, selected_insts):
+                    i = self._index_from_instrument_index(i, inst)
+                    self.remove_point(i)
+                _cleanup()
+                fig.canvas.draw_idle()
+            if event.key == 'escape':
+                _cleanup()
+                kp_cid = None
+                for k, _f in fig.canvas.callbacks.callbacks['key_press_event'].items():
+                    if _f._obj == on_press:
+                        kp_cid = k
+                if kp_cid is not None:
+                    fig.canvas.callbacks.disconnect(k)
+                fig.canvas.draw_idle()
+
+        def on_pick_point(event):
+            _cleanup()            
             artist = event.artist
-            if isinstance(artist, (matplotlib.lines.Line2D, matplotlib.collections.LineCollection)):
-                print(event.ind, artist)
-                if isinstance(artist, matplotlib.lines.Line2D):
+            if isinstance(artist, (Line2D, LineCollection)):
+                # print(event.ind, artist)
+                if isinstance(artist, Line2D):
+                    ind = event.ind
                     matching_instrument = [k for k, v in containers.items() if artist in v]
-                    print(matching_instrument)
                     if len(matching_instrument) == 0:
                         return
                     inst = matching_instrument[0]
+
                     _s = getattr(self, inst)
-                    ind = event.ind[0]
-                    # print(_s.mtime[ind], _s.mvrad[ind], _s.msvrad[ind])
 
-                    text = f'{inst}\n'
-                    text += f'{_s.mtime[ind]:9.5f}\n'
-                    text += f'RV: {_s.mvrad[ind]:.1f} ± {_s.msvrad[ind]:.1f}'
+                    if event.ind.size > 1:
+                        mint, maxt = _s.mtime[ind].min(), _s.mtime[ind].max()
+                        miny, maxy = _s.mvrad[ind].min(), _s.mvrad[ind].max()
+                        axins = ax.inset_axes([0.1, 0.5, 0.5, 0.4],
+                            xlim=(mint - 0.1 * (maxt - mint), maxt + 0.1 * (maxt - mint)), 
+                            ylim=(miny - 0.1 * (maxy - miny), maxy + 0.1 * (maxy - miny)), 
+                            xticklabels=[], yticklabels=[]
+                            )
+                        axins.errorbar(_s.mtime[ind], _s.mvrad[ind], _s.msvrad[ind], fmt='o', ms=3,
+                                       color=artist.get_color())
+                        axins.margins(x=0.5)
+                        axins.autoscale_view()
+                        rectangle_patch, connector_lines = ax.indicate_inset_zoom(axins, edgecolor="black")
+                        axes_artists.append(axins)
+                        axes_artists.append(rectangle_patch)
+                        for line in connector_lines:
+                            axes_artists.append(line)
+                    else:
+                        ind = event.ind[0]
+                        selected_inds.append(ind)
+                        selected_insts.append(inst)
+                        # print(_s.mtime[ind], _s.mvrad[ind], _s.msvrad[ind])
 
-                    annotations.append(
-                        ax.annotate(text, (_s.mtime[ind], _s.mvrad[ind]), xycoords='data',
-                                    xytext=(5, 10), textcoords='offset points', fontsize=9,
-                                    bbox={'boxstyle': 'round', 'fc': 'w'}, arrowprops=dict(arrowstyle="-"))
-                    )
+                        text = f'{inst} ({ind})\n'
+                        text += f'{_s.mtime[ind]:9.5f}\n'
+                        text += f'RV: {_s.mvrad[ind]:.1f} ± {_s.msvrad[ind]:.1f}'
+
+                        annotations.append(
+                            ax.annotate(text, (_s.mtime[ind], _s.mvrad[ind]), xycoords='data',
+                                        xytext=(5, 10), textcoords='offset points', fontsize=9,
+                                        bbox={'boxstyle': 'round', 'fc': 'w'}, arrowprops=dict(arrowstyle="-"))
+                        )
                     # ax.annotate(f'{inst}', (0.5, 0.5), xycoords=artist, ha='center', va='center')
                     fig.canvas.draw()
                     # print(event.ind, artist.get_label())
+
+                    _ = fig.canvas.mpl_connect('key_press_event', on_press)
+
         plt.connect('pick_event', on_pick_point)
+
+
 
 
     if show_histogram:
@@ -287,25 +367,23 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
         else:
             ax.set_xlabel('BJD - 2400000 [days]')
 
-    from matplotlib.backend_tools import ToolBase, ToolToggleBase
-    tm = fig.canvas.manager.toolmanager
-
-    class InfoTool(ToolToggleBase):
-        description = "Show extra information about each observation"
-        image = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'info.svg'))
-        # def enable(self, *args, **kwargs):
-        #     self.figure.add_axes([1, 0, 0.3, 1])
-        #     self.figure.canvas.draw_idle()
-
-    from PIL import UnidentifiedImageError
-    try:
-        tm.add_tool("infotool", InfoTool)
-        fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
-        raise UnidentifiedImageError
-    except AttributeError:
-        pass
-    except UnidentifiedImageError:
-        pass
+    # from matplotlib.backend_tools import ToolBase, ToolToggleBase
+    # tm = fig.canvas.manager.toolmanager
+    # class InfoTool(ToolToggleBase):
+    #     description = "Show extra information about each observation"
+    #     image = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'info.svg'))
+    #     # def enable(self, *args, **kwargs):
+    #     #     self.figure.add_axes([1, 0, 0.3, 1])
+    #     #     self.figure.canvas.draw_idle()
+    # from PIL import UnidentifiedImageError
+    # try:
+    #     tm.add_tool("infotool", InfoTool)
+    #     fig.canvas.manager.toolbar.add_tool(tm.get_tool("infotool"), "toolgroup")
+    #     raise UnidentifiedImageError
+    # except AttributeError:
+    #     pass
+    # except UnidentifiedImageError:
+    #     pass
 
 
     if config.return_self:
@@ -317,8 +395,9 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
     return fig, ax
 
 
+@plot_fast
 def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
-                  time_offset=0, remove_50000=False, tooltips=False,
+                  time_offset=0, remove_50000=False, tooltips=False, show_legend=True,
                   N_in_label=False, **kwargs):
     if self.N == 0:
         if self.verbose:
@@ -377,17 +456,21 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
                     getattr(self, quantity + '_err')[~self.mask],
                     label='masked', fmt='x', ms=10, color='k', zorder=-2)
 
-    ax.legend()
+    if show_legend:
+        leg = ax.legend()
+        on_pick_legend = clickable_legend(fig, ax, leg)
+        plt.connect('pick_event', on_pick_legend)
+
     ax.minorticks_on()
 
     ylabel = {
+        quantity: quantity,
         'fwhm': f'FWHM [{self.units}]',
         'bispan': f'BIS [{self.units}]',
         'rhk': r"$\log$ R'$_{HK}$",
-        'berv': f'BERV [km/s]',
-        quantity: quantity,
+        'berv': 'BERV [km/s]',
     }
-    ax.set_ylabel(ylabel[quantity])
+    ax.set_ylabel(ylabel[quantity.lower()])
 
     if remove_50000:
         ax.set_xlabel('BJD - 2450000 [days]')
@@ -406,6 +489,7 @@ plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 plot_berv = partialmethod(plot_quantity, quantity='berv')
 
 
+@plot_fast
 def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=config.adjust_means_gls,
         picker=True, **kwargs):
     """
@@ -449,7 +533,7 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         if self.verbose:
             logger.info(f'calculating periodogram for instrument {instrument}')
 
-        if adjust_means:
+        if adjust_means and not self._child:
             if self.verbose:
                 logger.info('adjusting instrument means before gls')
             means = np.empty_like(y)
@@ -464,7 +548,7 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         y = self.vrad[self.mask].copy()
         e = self.svrad[self.mask].copy()
 
-        if adjust_means:
+        if adjust_means and not self._child:
             if self.verbose:
                 logger.info('adjusting instrument means before gls')
             means = np.empty_like(y)
@@ -507,6 +591,7 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         ax.legend()
 
     if ax.get_legend() is not None:
+        from matplotlib.text import Text
         leg = ax.get_legend()
         for text in leg.get_texts():
             text.set_picker(True)
@@ -514,7 +599,7 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         def on_pick_legend(event):
             handles, labels = ax.get_legend_handles_labels()
             artist = event.artist
-            if isinstance(artist, matplotlib.text.Text):
+            if isinstance(artist, Text):
                 # print('handles:', handles)
                 # print('labels:', labels)
                 # print(artist.get_text())
@@ -538,6 +623,7 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         return fig, ax
 
 
+@plot_fast
 def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
     if not hasattr(self, quantity):
         logger.error(f"cannot find '{quantity}' attribute")
@@ -550,7 +636,10 @@ def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
 
     t = self.mtime
     y = getattr(self, quantity)[self.mask]
-    ye = getattr(self, quantity + '_err')[self.mask]
+    try:
+        ye = getattr(self, quantity + '_err')[self.mask]
+    except AttributeError:
+        ye = None
 
     if np.isnan(y).any():
         if self.verbose:
