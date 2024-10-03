@@ -36,10 +36,6 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
     arrays = []
     instruments = list(result.keys())
 
-    # if verbose:
-    #     if latest_pipeline:
-    #         logger.info('selecting latest pipeline version')
-
     for inst in instruments:
         pipelines = list(result[inst].keys())
 
@@ -226,11 +222,12 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
         raise ValueError(msg)
 
     # sort pipelines, being extra careful with HARPS pipeline names
-    # (i.e. ensure that 3.0.0 > 3.5)
+    # (i.e. ensure that 3.x.x > 3.5)
+    from re import match
     def cmp(a, b):
-        if a[0] in ('3.5', '3.5 EGGS') and b[0] == '3.0.0':
+        if a[0] in ('3.5', '3.5 EGGS') and match(r'3.\d.\d', b[0]):
             return -1
-        if b[0] in ('3.5', '3.5 EGGS') and a[0] == '3.0.0':
+        if b[0] in ('3.5', '3.5 EGGS') and match(r'3.\d.\d', a[0]):
             return 1
 
         if a[0] == b[0]:
@@ -243,8 +240,7 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
     from functools import cmp_to_key
     new_result = {}
     for inst in instruments:
-        new_result[inst] = dict(sorted(result[inst].items(),
-                                       key=cmp_to_key(cmp), reverse=True))
+        new_result[inst] = dict(sorted(result[inst].items(), key=cmp_to_key(cmp), reverse=True))
 
     if verbose:
         logger.info('RVs available from')
