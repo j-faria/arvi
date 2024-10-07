@@ -3,6 +3,90 @@ import numpy as np
 
 from .setup_logger import logger
 
+
+# HARPS fiber upgrade (28 May 2015)
+# https://www.eso.org/sci/facilities/lasilla/instruments/harps/news/harps_upgrade_2015.html
+HARPS_technical_intervention = 57170
+
+# ESPRESSO fiber link upgrade (1 July 2019)
+ESPRESSO_technical_intervention = 58665
+
+
+def divide_ESPRESSO(self):
+    """ Split ESPRESSO data into separate sub ESP18 and ESP19 subsets """
+    if self._check_instrument('ESPRESSO', strict=False) is None:
+        return
+    if 'ESPRESSO18' in self.instruments and 'ESPRESSO19' in self.instruments:
+        if self.verbose:
+            logger.info('ESPRESSO data seems to be split already, doing nothing')
+        return
+
+    from .timeseries import RV
+
+    before = self.time < ESPRESSO_technical_intervention
+    after = self.time >= ESPRESSO_technical_intervention
+    new_instruments = []
+
+
+    for inst, mask in zip(['ESPRESSO18', 'ESPRESSO19'], [before, after]):
+        if not mask.any():
+            continue
+
+        _s = RV.from_arrays(self.star, self.time[mask], self.vrad[mask], self.svrad[mask],
+                            inst=inst)
+        for q in self._quantities:
+            setattr(_s, q, getattr(self, q)[mask])
+        setattr(self, inst, _s)
+        _s._quantities = self._quantities
+        _s.mask = self.mask[mask]
+        new_instruments.append(inst)
+
+    delattr(self, 'ESPRESSO')
+    self.instruments = new_instruments
+    self._build_arrays()
+
+    if self.verbose:
+        logger.info(f'divided ESPRESSO into {self.instruments}')
+    
+
+def divide_HARPS(self):
+    """ Split HARPS data into separate sub HARPS03 and HARPS15 subsets """
+    if self._check_instrument('HARPS', strict=False) is None:
+        return
+    if 'HARPS03' in self.instruments and 'HARPS15' in self.instruments:
+        if self.verbose:
+            logger.info('HARPS data seems to be split already, doing nothing')
+        return
+
+    from .timeseries import RV
+
+    new_instruments = []
+    before = self.time < HARPS_technical_intervention
+    if before.any():
+        new_instruments += ['HARPS03']
+
+    after = self.time >= HARPS_technical_intervention
+    if after.any():
+        new_instruments += ['HARPS15']
+
+    for inst, mask in zip(new_instruments, [before, after]):
+        _s = RV.from_arrays(self.star, self.time[mask], self.vrad[mask], self.svrad[mask],
+                            inst=inst)
+        for q in self._quantities:
+            setattr(_s, q, getattr(self, q)[mask])
+        setattr(self, inst, _s)
+        _s._quantities = self._quantities
+        _s.mask = self.mask[mask]
+
+    delattr(self, 'HARPS')
+    self.instruments = new_instruments
+    self._build_arrays()
+
+    if self.verbose:
+        logger.info(f'divided HARPS into {self.instruments}')
+    
+
+
 # ESPRESSO ADC issues
 from .utils import ESPRESSO_ADC_issues
 
