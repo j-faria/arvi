@@ -108,7 +108,10 @@ class simbad:
                     for line in f.readlines():
                         kobe_id, catname = line.strip().split(',')
                         kobe_translate[kobe_id] = catname
-                self.star = star = kobe_translate[self.star]
+                try:
+                    self.star = star = kobe_translate[self.star]
+                except KeyError:
+                    raise ValueError(f'simbad query for {star} failed')
 
         # oid = run_query(query=OID_QUERY.format(star=star))
         # self.oid = str(oid.split()[-1])
