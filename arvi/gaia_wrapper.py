@@ -22,6 +22,18 @@ CONTAINS(
 )=1
 """
 
+QUERY_ID = """
+SELECT TOP 20 gaia_source.designation,gaia_source.source_id,gaia_source.ra,gaia_source.dec,gaia_source.parallax,gaia_source.pmra,gaia_source.pmdec,gaia_source.ruwe,gaia_source.phot_g_mean_mag,gaia_source.bp_rp,gaia_source.radial_velocity,gaia_source.phot_variable_flag,gaia_source.non_single_star,gaia_source.has_xp_continuous,gaia_source.has_xp_sampled,gaia_source.has_rvs,gaia_source.has_epoch_photometry,gaia_source.has_epoch_rv,gaia_source.has_mcmc_gspphot,gaia_source.has_mcmc_msc,gaia_source.teff_gspphot,gaia_source.logg_gspphot,gaia_source.mh_gspphot,gaia_source.distance_gspphot,gaia_source.azero_gspphot,gaia_source.ag_gspphot,gaia_source.ebpminrp_gspphot
+FROM gaiadr3.gaia_source 
+WHERE 
+gaia_source.source_id = {id}
+"""
+
+translate = {
+    'LS II +14 13': '4318465066420528000',
+}
+
+
 def run_query(query):
     url = 'https://gea.esac.esa.int/tap-server/tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='csv')
@@ -71,8 +83,11 @@ class gaia:
         args = dict(ra=ra, dec=dec, plx=plx, pmra=pmra, pmdec=pmdec, rv=rv)          
 
         try:
-            table1 = run_query(query=QUERY.format(**args))
-            results = parse_csv(table1)[0]
+            if star in translate:
+                table = run_query(query=QUERY_ID.format(id=translate[star]))
+            else:
+                table = run_query(query=QUERY.format(**args))
+            results = parse_csv(table)[0]
         except IndexError:
             raise ValueError(f'Gaia query for {star} failed')
         
