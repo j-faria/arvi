@@ -41,14 +41,18 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
         # select ESPRESSO mode, which is defined at the level of the pipeline
         if 'ESPRESSO' in inst:
-            if any(ESPRESSO_mode in pipe for pipe in pipelines):
+
+            find_mode = [ESPRESSO_mode in pipe for pipe in pipelines]
+            # the mode was not found
+            if not any(find_mode):
+                if len(pipelines) > 1 and verbose:
+                    logger.warning(f'no observations for requested ESPRESSO mode ({ESPRESSO_mode})')
+            # the mode was found but do nothing if it's the only one
+            elif any(find_mode) and not all(find_mode):
                 if verbose:
                     logger.info(f'selecting mode {ESPRESSO_mode} for ESPRESSO')
                 i = [i for i, pipe in enumerate(pipelines) if ESPRESSO_mode in pipe][0]
                 pipelines = [pipelines[i]]
-            else:
-                if len(pipelines) > 1 and verbose:
-                    logger.warning(f'no observations for requested ESPRESSO mode ({ESPRESSO_mode})')
 
         if latest_pipeline:
             if verbose and len(pipelines) > 1:
@@ -59,6 +63,7 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
         for pipe in pipelines:
             modes = list(result[inst][pipe].keys())
 
+                
             # select NIRPS mode, which is defined at the level of the mode
             if 'NIRPS' in inst:
                 if NIRPS_mode in modes:
@@ -69,6 +74,19 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                 else:
                     if verbose:
                         logger.warning(f'no observations for requested NIRPS mode ({NIRPS_mode})')
+
+            # HARPS15 observations should not be separated by 'mode' if some are
+            # done together with NIRPS
+            if 'HARPS15' in inst and 'HARPS+NIRPS' in modes:
+                m0 = modes[0]
+                data = {
+                    k: np.concatenate([result[inst][pipe][m][k] for m in modes])
+                    for k in result[inst][pipe][m0].keys()
+                }
+                arrays.append(
+                    ((inst, pipe, m0), data)
+                )
+                continue
 
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
