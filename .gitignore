@@ -1,4 +1,8 @@
 *.fits
+*.pkl
+*.rdb
+arvi/data/KOBE-translate.csv
+
 
 
 # Byte-compiled / optimized / DLL files
