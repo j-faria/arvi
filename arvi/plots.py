@@ -431,12 +431,16 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
             p = p.replace('_', '.')
             label = f'{i}-{p}'
 
-        y = getattr(s, quantity)
+        y = getattr(s, quantity).copy()
         try:
-            ye = getattr(s, quantity + '_err')
+            ye = getattr(s, quantity + '_err').copy()
         except AttributeError:
             ye = np.zeros_like(y)
 
+        if (nans := np.isnan(y)).any():
+            if self.verbose:
+                logger.warning(f'{nans.sum()} NaN values for {inst}')
+            ye[nans] = np.nan
 
         if np.isnan(y).all() or np.isnan(ye).all():
             lines, *_ = ax.errorbar([], [], [],
@@ -464,7 +468,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
     ax.minorticks_on()
 
     ylabel = {
-        quantity: quantity,
+        quantity.lower(): quantity,
         'fwhm': f'FWHM [{self.units}]',
         'bispan': f'BIS [{self.units}]',
         'rhk': r"$\log$ R'$_{HK}$",
@@ -485,6 +489,7 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
 
 plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
 plot_bis = partialmethod(plot_quantity, quantity='bispan')
+plot_contrast = partialmethod(plot_quantity, quantity='contrast')
 plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 plot_berv = partialmethod(plot_quantity, quantity='berv')
 
