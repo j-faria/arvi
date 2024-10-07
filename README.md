@@ -10,7 +10,7 @@ may be useful for other surveys and instruments.
 
 ## Getting started
 
-Install `arvi` using pip
+Install `arvi` using pip  
 
 ```sh
 pip install arvi
@@ -18,6 +18,7 @@ pip install arvi
 # or
 pip install arvi -U # to update
 ```
+
 
 Then either directly import a given target
 
@@ -32,6 +33,9 @@ from arvi import RV
 s = RV('HD1234', instrument='ESPRESSO')
 ```
 
+#### Current version
+
+![PyPI - Version](https://img.shields.io/pypi/v/arvi)
 
 #### Actions
 
