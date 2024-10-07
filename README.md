@@ -4,8 +4,8 @@
 
 This package sits alongside [DACE](https://dace.unige.ch/) to help with the
 analysis of radial velocity datasets.  
-It has been used extensively within the ESPRESSO GTO program, and
-may be useful for other surveys and instruments.
+It has been used within the ESPRESSO GTO program, and may be useful for other
+surveys and instruments.
 
 
 ## Getting started
