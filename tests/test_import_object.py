@@ -9,9 +9,9 @@ def test_import():
 def test_import_object():
     from arvi import _51Peg
 
-    if os.path.exists(os.path.expanduser('~/.dacerc')):
-        from arvi import HD10180
-    else:
-        with pytest.raises(ImportError):
-            from arvi import HD10180
+    from arvi import HD10180
+    # if os.path.exists(os.path.expanduser('~/.dacerc')):
+    # else:
+    #     with pytest.raises(ImportError):
+    #         from arvi import HD10180
 
