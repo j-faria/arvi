@@ -2,12 +2,12 @@
 import numpy as np
 
 class prot_age_result:
-    prot_n84: float | np.ndarray
-    prot_n84_err: float | np.ndarray
-    prot_m08: float | np.ndarray
-    prot_m08_err: float | np.ndarray
-    age_m08: float | np.ndarray
-    age_m08_err: float | np.ndarray
+    prot_n84 = None #: float | np.ndarray
+    prot_n84_err = None #: float | np.ndarray
+    prot_m08 = None #: float | np.ndarray
+    prot_m08_err = None #: float | np.ndarray
+    age_m08 = None #: float | np.ndarray
+    age_m08_err = None #: float | np.ndarray
     def __init__(self):
         pass
     def __repr__(self):
