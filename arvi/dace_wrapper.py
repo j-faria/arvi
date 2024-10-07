@@ -133,62 +133,70 @@ def get_observations_from_instrument(star, instrument, main_id=None):
         raise ValueError
 
     r = {}
+
     for inst in np.unique(result['ins_name']):
         mask1 = result['ins_name'] == inst
         r[inst] = {}
+
         for pipe in np.unique(result['ins_drs_version'][mask1]):
             mask2 = mask1 & (result['ins_drs_version'] == pipe)
-            ins_mode = np.unique(result['ins_mode'][mask2])[0]
-            _nan = np.full(mask2.sum(), np.nan)
-            r[inst][pipe] = {
-                ins_mode: {
-                    'texp': result['texp'][mask2],
-                    'bispan': result['spectro_ccf_bispan'][mask2],
-                    'bispan_err': result['spectro_ccf_bispan_err'][mask2],
-                    'drift_noise': result['spectro_cal_drift_noise'][mask2],
-                    'rjd': result['obj_date_bjd'][mask2],
+            r[inst][pipe] = {}
+
+            for ins_mode in np.unique(result['ins_mode'][mask2]):
+                mask3 = mask2 & (result['ins_mode'] == ins_mode)
+                _nan = np.full(mask3.sum(), np.nan)
+
+                r[inst][pipe][ins_mode] = {
+                    'texp': result['texp'][mask3],
+                    'bispan': result['spectro_ccf_bispan'][mask3],
+                    'bispan_err': result['spectro_ccf_bispan_err'][mask3],
+                    'drift_noise': result['spectro_cal_drift_noise'][mask3],
+                    'rjd': result['obj_date_bjd'][mask3],
                     'cal_therror': _nan,
-                    'fwhm': result['spectro_ccf_fwhm'][mask2],
-                    'fwhm_err': result['spectro_ccf_fwhm_err'][mask2],
-                    'rv': result['spectro_ccf_rv'][mask2],
-                    'rv_err': result['spectro_ccf_rv_err'][mask2],
-                    'berv': result['spectro_cal_berv'][mask2],
+                    'fwhm': result['spectro_ccf_fwhm'][mask3],
+                    'fwhm_err': result['spectro_ccf_fwhm_err'][mask3],
+                    'rv': result['spectro_ccf_rv'][mask3],
+                    'rv_err': result['spectro_ccf_rv_err'][mask3],
+                    'berv': result['spectro_cal_berv'][mask3],
                     'ccf_noise': _nan,
-                    'rhk': result['spectro_analysis_rhk'][mask2],
-                    'rhk_err': result['spectro_analysis_rhk_err'][mask2],
-                    'contrast': result['spectro_ccf_contrast'][mask2],
-                    'contrast_err': result['spectro_ccf_contrast_err'][mask2],
-                    'cal_thfile': result['spectro_cal_thfile'][mask2],
-                    'spectroFluxSn50': result['spectro_flux_sn50'][mask2],
-                    'protm08': result['spectro_analysis_protm08'][mask2],
-                    'protm08_err': result['spectro_analysis_protm08_err'][mask2],
-                    'caindex': result['spectro_analysis_ca'][mask2],
-                    'caindex_err': result['spectro_analysis_ca_err'][mask2],
-                    'pub_reference': result['pub_ref'][mask2],
-                    'drs_qc': result['spectro_drs_qc'][mask2],
-                    'haindex': result['spectro_analysis_halpha'][mask2],
-                    'haindex_err': result['spectro_analysis_halpha_err'][mask2],
-                    'protn84': result['spectro_analysis_protn84'][mask2],
-                    'protn84_err': result['spectro_analysis_protn84_err'][mask2],
-                    'naindex': result['spectro_analysis_na'][mask2],
-                    'naindex_err': result['spectro_analysis_na_err'][mask2],
+                    'rhk': result['spectro_analysis_rhk'][mask3],
+                    'rhk_err': result['spectro_analysis_rhk_err'][mask3],
+                    'contrast': result['spectro_ccf_contrast'][mask3],
+                    'contrast_err': result['spectro_ccf_contrast_err'][mask3],
+                    'cal_thfile': result['spectro_cal_thfile'][mask3],
+                    'spectroFluxSn50': result['spectro_flux_sn50'][mask3],
+                    'protm08': result['spectro_analysis_protm08'][mask3],
+                    'protm08_err': result['spectro_analysis_protm08_err'][mask3],
+                    'caindex': result['spectro_analysis_ca'][mask3],
+                    'caindex_err': result['spectro_analysis_ca_err'][mask3],
+                    'pub_reference': result['pub_ref'][mask3],
+                    'drs_qc': result['spectro_drs_qc'][mask3],
+                    'haindex': result['spectro_analysis_halpha'][mask3],
+                    'haindex_err': result['spectro_analysis_halpha_err'][mask3],
+                    'protn84': result['spectro_analysis_protn84'][mask3],
+                    'protn84_err': result['spectro_analysis_protn84_err'][mask3],
+                    'naindex': result['spectro_analysis_na'][mask3],
+                    'naindex_err': result['spectro_analysis_na_err'][mask3],
                     'snca2': _nan,
-                    'mask': result['spectro_ccf_mask'][mask2],
-                    'public': result['public'][mask2],
-                    'spectroFluxSn20': result['spectro_flux_sn20'][mask2],
-                    'sindex': result['spectro_analysis_smw'][mask2],
-                    'sindex_err': result['spectro_analysis_smw_err'][mask2],
+                    'mask': result['spectro_ccf_mask'][mask3],
+                    'public': result['public'][mask3],
+                    'spectroFluxSn20': result['spectro_flux_sn20'][mask3],
+                    'sindex': result['spectro_analysis_smw'][mask3],
+                    'sindex_err': result['spectro_analysis_smw_err'][mask3],
                     'drift_used': _nan,
-                    'ccf_asym': result['spectro_ccf_asym'][mask2],
-                    'ccf_asym_err': result['spectro_ccf_asym_err'][mask2],
-                    'date_night': result['date_night'][mask2],
-                    'raw_file': result['file_rootpath'][mask2],
-                    'prog_id': result['prog_id'][mask2],
-                    'th_ar': result['th_ar'][mask2],
-                    'th_ar1': result['th_ar1'][mask2],
-                    'th_ar2': result['th_ar2'][mask2],
+                    'ccf_asym': result['spectro_ccf_asym'][mask3],
+                    'ccf_asym_err': result['spectro_ccf_asym_err'][mask3],
+                    'date_night': result['date_night'][mask3],
+                    'raw_file': result['file_rootpath'][mask3],
+                    'prog_id': result['prog_id'][mask3],
+                    'th_ar': result['th_ar'][mask3],
+                    'th_ar1': result['th_ar1'][mask3],
+                    'th_ar2': result['th_ar2'][mask3],
                 }
-            }
+    
+    # print(r.keys())    
+    # print([r[k].keys() for k in r.keys()])
+    # print([r[k1][k2].keys() for k1 in r.keys() for k2 in r[k1].keys()])
     return r
 
 def get_observations(star, instrument=None, main_id=None, verbose=True):
@@ -266,16 +274,20 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
             _inst = ''
             for inst in instruments:
                 pipelines = list(new_result[inst].keys())
+                max_len = max([len(pipe) for pipe in pipelines])
                 for pipe in pipelines:
+                    last_pipe = pipe == pipelines[-1]
                     modes = list(new_result[inst][pipe].keys())
                     for mode in modes:
                         N = len(new_result[inst][pipe][mode]['rjd'])
                         # LOG
-                        if inst == _inst:
-                            logger.info(f'{" ":>12s} └ {pipe} - {mode} ({N} observations)')
+                        if inst == _inst and last_pipe:
+                            logger.info(f'{" ":>12s} └ {pipe:{max_len}s} - {mode} ({N} observations)')
+                        elif inst == _inst:
+                            logger.info(f'{" ":>12s} ├ {pipe:{max_len}s} - {mode} ({N} observations)')
                         else:
-                            logger.info(f'{inst:>12s} ├ {pipe} - {mode} ({N} observations)')
-                        _inst = inst
+                            logger.info(f'{inst:>12s} ├ {pipe:{max_len}s} - {mode} ({N} observations)')
+                            _inst = inst
 
     return new_result
 
