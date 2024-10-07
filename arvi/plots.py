@@ -523,7 +523,7 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
 
     if not self._did_adjust_means and not adjust_means:
         logger.warning('gls() called before adjusting instrument means, '
-                       'consider using `adjust_means` argument')
+                       'consider using the `adjust_means` argument')
 
     if instrument is not None:
         strict = kwargs.pop('strict', False)
@@ -541,11 +541,11 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         if adjust_means and not self._child:
             if self.verbose:
                 logger.info('adjusting instrument means before gls')
-            means = np.empty_like(y)
+            means = np.zeros_like(y)
             for i in instrument:
                 mask = self.instrument_array[instrument_mask & self.mask] == i
                 if len(y[mask]) > 0:
-                    means += wmean(y[mask], e[mask]) * mask
+                    means = means + wmean(y[mask], e[mask]) * mask
             y = y - means
 
     else:
@@ -556,11 +556,11 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         if adjust_means and not self._child:
             if self.verbose:
                 logger.info('adjusting instrument means before gls')
-            means = np.empty_like(y)
+            means = np.zeros_like(y)
             for i in self.instruments:
                 mask = self.instrument_array[self.mask] == i
                 if len(y[mask]) > 0:
-                    means += wmean(y[mask], e[mask]) * mask
+                    means = means + wmean(y[mask], e[mask]) * mask
             y = y - means
 
     self._gls = gls = LombScargle(t, y, e)
@@ -628,31 +628,70 @@ def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=confi
         return fig, ax
 
 
-@plot_fast
-def gls_quantity(self, quantity, ax=None, fap=True, picker=True):
+# @plot_fast
+def gls_quantity(self, quantity, ax=None, fap=True, instrument=None,
+                 adjust_means=True, picker=True, **kwargs):
+
     if not hasattr(self, quantity):
-        logger.error(f"cannot find '{quantity}' attribute")
+        if self.verbose:
+            logger.error(f"cannot find '{quantity}' attribute")
+        return
+
+    if self.N == 0:
+        if self.verbose:
+            logger.error('no data to compute gls')
+        return
+
+    if not self._did_adjust_means and not adjust_means:
+        logger.warning('gls() called before adjusting instrument means, '
+                       'consider using the `adjust_means` argument')
+
+    strict = kwargs.pop('strict', False)
+    instrument = self._check_instrument(instrument, strict=strict, log=True)
+    if instrument is None:
+        return
+
+    instrument_mask = np.isin(self.instrument_array, instrument)
+    final_mask = instrument_mask & self.mask
+
+    t = self.time[final_mask].copy()
+    y = getattr(self, quantity)[final_mask].copy()
+    try:
+        ye = getattr(self, quantity + '_err')[final_mask].copy()
+    except AttributeError:
+        ye = None
+
+    if self.verbose:
+        logger.info(f'calculating periodogram for instrument {instrument}')
+
+    nan_mask = np.isnan(y)
+    if nan_mask.any():
+        if self.verbose:
+            logger.warning(f'{quantity} contains NaNs, ignoring them')
+
+    if adjust_means and not self._child:
+        if self.verbose:
+            logger.info('adjusting instrument means before gls')
+        means = np.zeros_like(y)
+        for i in instrument:
+            mask = (self.instrument_array[final_mask] == i) & ~nan_mask
+            if len(y[mask]) > 0:
+                # print(wmean(y[mask], ye[mask]))
+                means += wmean(y[mask], ye[mask]) * mask
+        y = y - means
+
+    t = t[~nan_mask]
+    y = y[~nan_mask]
+    ye = ye[~nan_mask]
+
+    if len(y) == 0:
+        logger.error('no data left to compute gls after removing NaNs')
         return
 
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
     else:
         fig = ax.figure
-
-    t = self.mtime
-    y = getattr(self, quantity)[self.mask]
-    try:
-        ye = getattr(self, quantity + '_err')[self.mask]
-    except AttributeError:
-        ye = None
-
-    if np.isnan(y).any():
-        if self.verbose:
-            logger.warning(f'{quantity} contains NaNs, ignoring them')
-        m = np.isnan(y)
-        t = t[~m]
-        y = y[~m]
-        ye = ye[~m]
 
     gls = LombScargle(t, y, ye)
     freq, power = gls.autopower(maximum_frequency=1.0)
