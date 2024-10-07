@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from contextlib import contextmanager
 try:
@@ -82,6 +83,39 @@ def timer():
         logger.debug(f'elapsed time: {end - start:.2f} seconds')
 
 
+def pretty_print_table(rows, line_between_rows=True, logger=None):
+    """
+    Example Output
+    ┌──────┬─────────────┬────┬───────┐
+    │ True │ short       │ 77 │ catty │
+    ├──────┼─────────────┼────┼───────┤
+    │ 36   │ long phrase │ 9  │ dog   │
+    ├──────┼─────────────┼────┼───────┤
+    │ 8    │ medium      │ 3  │ zebra │
+    └──────┴─────────────┴────┴───────┘
+    """
+    _print = logger.info if logger else print
+
+    # find the max length of each column
+    max_col_lens = list(map(max, zip(*[(len(str(cell)) for cell in row) for row in rows])))
+
+    # print the table's top border
+    _print('┌' + '┬'.join('─' * (n + 2) for n in max_col_lens) + '┐')
+
+    rows_separator = '├' + '┼'.join('─' * (n + 2) for n in max_col_lens) + '┤'
+
+    row_fstring = ' │ '.join("{: <%s}" % n for n in max_col_lens)
+
+    for i, row in enumerate(rows):
+        _print('│ ' + row_fstring.format(*map(str, row)) + ' │')
+        
+        if line_between_rows and i < len(rows) - 1:
+            _print(rows_separator)
+
+    # print the table's bottom border
+    _print('└' + '┴'.join('─' * (n + 2) for n in max_col_lens) + '┘')
+
+
 def strtobool(val):
     """Convert a string representation of truth to true (1) or false (0).
 
@@ -163,4 +197,12 @@ def get_max_berv_span(self, n=None):
         inds.append(b2)
     return np.array(inds[:n])
 
+def get_object_fast(file):
+    with open(file, 'rb') as f:
+        f.read(800) # read first 10 keywords
+        key = f.read(8)
+        assert key == b'OBJECT  ', 'Object keyword not found.'
+        f.read(2)
+        value = f.read(20)
+    return value.decode().split("'")[1].strip()
 
