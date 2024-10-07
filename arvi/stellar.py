@@ -1,22 +1,32 @@
+
 import numpy as np
 
 class prot_age_result:
-    prot_n84: float
-    prot_n84_err: float
-    prot_m08: float
-    prot_m08_err: float
-    age_m08: float
-    age_m08_err: float
+    prot_n84: float | np.ndarray
+    prot_n84_err: float | np.ndarray
+    prot_m08: float | np.ndarray
+    prot_m08_err: float | np.ndarray
+    age_m08: float | np.ndarray
+    age_m08_err: float | np.ndarray
     def __init__(self):
         pass
     def __repr__(self):
-        s = f'{self.prot_n84=:.2f} ± {self.prot_n84_err:.2f}, '
-        s += f'{self.prot_m08=:.2f} ± {self.prot_m08_err:.2f}, '
-        s += f'{self.age_m08=:.2f} ± {self.age_m08_err:.2f}'
+        if isinstance(self.prot_n84, np.ndarray):
+            s = f'{self.prot_n84.mean()=:.2f} ± {self.prot_n84_err.mean():.2f}, '
+        else:
+            s = f'{self.prot_n84=:.2f} ± {self.prot_n84_err:.2f}, '
+        if isinstance(self.prot_m08, np.ndarray):
+            s += f'{self.prot_m08.mean()=:.2f} ± {self.prot_m08_err.mean():.2f}, '
+        else:
+            s += f'{self.prot_m08=:.2f} ± {self.prot_m08_err:.2f}, '
+        if isinstance(self.age_m08, np.ndarray):
+            s += f'{self.age_m08.mean()=:.2f} ± {self.age_m08_err.mean():.2f}'
+        else:
+            s += f'{self.age_m08=:.2f} ± {self.age_m08_err:.2f}'
         return s.replace('self.', '')
 
 
-def calc_prot_age(self, bv=None):
+def calc_prot_age(self, bv=None, array=False):
     """
     Calculate rotation period and age from logR'HK activity level, based on the
     empirical relations of Noyes et al. (1984) and Mamajek & Hillenbrand (2008).
@@ -46,7 +56,12 @@ def calc_prot_age(self, bv=None):
     Range of logR'HK-Prot relation: -5.5 < logR'HK < -4.3
     Range of Mamajek & Hillenbrand (2008) relation for ages: 0.5 < B-V < 0.9
     """
-    log_rhk = np.nanmean(self.rhk[self.mask])
+
+    if array:
+        log_rhk = self.rhk[~np.isnan(self.rhk)]
+    else:
+        log_rhk = np.nanmean(self.rhk[self.mask])
+
     if bv is None:
         bv = self.simbad.B - self.simbad.V
 
@@ -60,9 +75,13 @@ def calc_prot_age(self, bv=None):
         prot_n84 = 0.324 - 0.400*(5 + log_rhk) - 0.283*(5 + log_rhk)**2 - 1.325*(5 + log_rhk)**3 + tau
         prot_n84 = 10**prot_n84
         prot_n84_err = np.log(10)*0.08*prot_n84
+        if array:
+            prot_n84_err = np.full_like(log_rhk, prot_n84_err)
 
         prot_m08 = (0.808 - 2.966*(log_rhk + 4.52))*10**tau
         prot_m08_err = 4.4*bv*1.7 - 1.7
+        if array:
+            prot_m08_err = np.full_like(log_rhk, prot_m08_err)
     else:
         prot_n84 = np.nan
         prot_n84_err = np.nan
