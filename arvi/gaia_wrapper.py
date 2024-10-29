@@ -30,6 +30,7 @@ gaia_source.source_id = {id}
 """
 
 translate = {
+    'Proxima': '5853498713190525696',
     'LS II +14 13': '4318465066420528000',
 }
 
@@ -38,7 +39,7 @@ def run_query(query):
     url = 'https://gea.esac.esa.int/tap-server/tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='csv')
     try:
-        response = requests.post(url, data=data, timeout=5)
+        response = requests.post(url, data=data, timeout=2)
     except requests.ReadTimeout as err:
         raise IndexError(err)
     except requests.ConnectionError as err:
