@@ -11,7 +11,7 @@ import numpy as np
 from astropy import units
 
 from .setup_logger import logger
-from . import config
+from .config import config
 from .translations import translate
 from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad

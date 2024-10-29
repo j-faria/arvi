@@ -1,5 +1,6 @@
 __all__ = ['RV']
 
+from .config import config
 from .timeseries import RV
 
 ## OLD
