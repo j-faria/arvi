@@ -27,6 +27,29 @@ def sine_picker(event, self, fig, ax, ax1):
     fig.canvas.draw_idle()
 
 
+def summary(self, add_ccf_mask=True, add_prog_id=False):
+    from .utils import pretty_print_table
+    rows = []
+    rows.append([self.star] + [''] * len(self.instruments))
+    rows.append([''] + self.instruments)
+    rows.append(['N'] + list(self.NN.values()))
+
+    if add_ccf_mask:
+        row = ['CCF mask']
+        for inst in self.instruments:
+            row.append(', '.join(np.unique(getattr(self, inst).ccf_mask)))
+        rows.append(row)
+
+    if add_prog_id:
+        row = ['prog ID']
+        for inst in self.instruments:
+            p = ', '.join(np.unique(getattr(self, inst).prog_id))
+            row.append(p)
+        rows.append(row)
+
+    pretty_print_table(rows)
+
+
 def report(self, save=None):
     import matplotlib.pyplot as plt
     import matplotlib.gridspec as gridspec
