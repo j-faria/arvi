@@ -5,19 +5,21 @@ STARS = {
     'Barnard': 'GJ699',
     "Barnard's": 'GJ699',
     'Ross128': 'Ross  128',
+    'Ross 128': 'Ross  128',
 }
 
 
-def translate(star):
+def translate(star, ngc=False):
     # known translations
     if star in STARS:
         return STARS[star]
 
     # regex translations
-    NGC_match = re.match(r'NGC([\s\d]+)No([\s\d]+)', star)
-    if NGC_match:
-        cluster = NGC_match.group(1).replace(' ', '')
-        target = NGC_match.group(2).replace(' ', '')
-        return f'Cl* NGC {cluster} MMU {target}'
+    if ngc:
+        NGC_match = re.match(r'NGC([\s\d]+)No([\s\d]+)', star)
+        if NGC_match:
+            cluster = NGC_match.group(1).replace(' ', '')
+            target = NGC_match.group(2).replace(' ', '')
+            return f'Cl* NGC {cluster} MMU {target}'
 
     return star
