@@ -3,6 +3,8 @@ import requests
 
 import pysweetcat
 
+from .translations import translate
+
 DATA_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(DATA_PATH, 'data')
 
@@ -98,7 +100,7 @@ class simbad:
         """
         from astropy.coordinates import SkyCoord
 
-        self.star = star
+        self.star = translate(star, ngc=True)
 
         if 'kobe' in self.star.lower():
             fname = os.path.join(DATA_PATH, 'KOBE-translate.csv')
@@ -117,13 +119,13 @@ class simbad:
         # self.oid = str(oid.split()[-1])
 
         try:
-            table1 = run_query(query=QUERY.format(star=star))
+            table1 = run_query(query=QUERY.format(star=self.star))
             cols, values = parse_table(table1)
 
-            table2 = run_query(query=BV_QUERY.format(star=star))
+            table2 = run_query(query=BV_QUERY.format(star=self.star))
             cols, values = parse_table(table2, cols, values)
 
-            table3 = run_query(query=IDS_QUERY.format(star=star))
+            table3 = run_query(query=IDS_QUERY.format(star=self.star))
             line = table3.splitlines()[2]
             self.ids = line.replace('"', '').replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').split('|')
         except IndexError:
