@@ -22,7 +22,7 @@ except ImportError:
     trange = lambda *args, **kwargs: range(*args, **kwargs)
 
 from .setup_logger import logger
-from . import config
+from .config import config
 
 
 def create_directory(directory):
