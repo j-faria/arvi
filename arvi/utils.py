@@ -68,13 +68,17 @@ def all_logging_disabled():
 
 
 @contextmanager
-def timer():
+def timer(name=None):
     """ A simple context manager to time a block of code """
     if not config.debug:
         yield
         return
 
-    logger.debug(f'starting timer')
+    if name is None:
+        logger.debug('starting timer')
+    else:
+        logger.debug(f'starting timer: {name}')
+
     start = time.time()
     try:
         yield
@@ -82,6 +86,11 @@ def timer():
         end = time.time()
         logger.debug(f'elapsed time: {end - start:.2f} seconds')
 
+
+def sanitize_path(path):
+    if os.name == 'nt':  # on Windows, be careful with ':' in filename
+        path = path.replace(':', '_')
+    return path
 
 def pretty_print_table(rows, line_between_rows=True, logger=None):
     """
@@ -139,6 +148,11 @@ def there_is_internet(timeout=1):
     except OSError:
         pass
     return False
+
+def get_data_path():
+    here = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(here, 'data')
+    return data_path
 
 def find_data_file(file):
     here = os.path.dirname(os.path.abspath(__file__))
