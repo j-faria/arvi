@@ -2,6 +2,9 @@ import os
 import sys
 from matplotlib import pyplot as plt
 
+from .utils import stdout_disabled, all_logging_disabled
+from .setup_logger import logger
+
 try:
     from astroARIADNE.star import Star
     from astroARIADNE.fitter import Fitter

@@ -12,7 +12,7 @@ from astropy.timeseries import LombScargle
 from tqdm import tqdm
 
 from .setup_logger import logger
-from . import config
+from .config import config
 
 
 def correct_rvs(self, simple=False, H=None, save_files=False, plot=True):
@@ -349,7 +349,6 @@ def BERV(self, H=None, use_gaia_meassurements=False, plx=None,
         axs[1].plot(bjd, diff, 'k.', label=label)
         axs[1].axhline(np.mean(diff), ls='--', c='k', alpha=0.1)
 
-        from adjustText import adjust_text
         text = axs[1].text(bjd.max(), diff.min() + 0.1*diff.ptp(), 
                            f'ptp: {diff.ptp()*1e2:.2f} cm/s',
                            ha='right', va='bottom', color='g', alpha=0.8)
