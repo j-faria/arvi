@@ -103,11 +103,10 @@ def ADC_issues(self, mask=True, plot=True, check_headers=False):
     """
     instruments = self._check_instrument('ESPRESSO')
     
-    if len(instruments) < 1:
+    if instruments is None:
         if self.verbose:
-            logger.error(f"no data from ESPRESSO")
-            logger.info(f'available: {self.instruments}')
-    
+            logger.error(f"ADC_issues: no data from ESPRESSO")
+        return
 
     affected_file_roots = ESPRESSO_ADC_issues()
     file_roots = [os.path.basename(f).replace('.fits', '') for f in self.raw_file]
@@ -149,10 +148,10 @@ def blue_cryostat_issues(self, mask=True, plot=True):
     """
     instruments = self._check_instrument('ESPRESSO')
     
-    if len(instruments) < 1:
+    if instruments is None:
         if self.verbose:
-            logger.error(f"no data from ESPRESSO")
-            logger.info(f'available: {self.instruments}')
+            logger.error(f"blue_cryostat_issues: no data from ESPRESSO")
+        return
 
     affected_file_roots = ESPRESSO_cryostat_issues()
     file_roots = [os.path.basename(f).replace('.fits', '') for f in self.raw_file]
@@ -230,16 +229,18 @@ def known_issues(self, mask=True, plot=False, **kwargs):
     """
     try:
         adc = ADC_issues(self, mask, plot, **kwargs)
-    except IndexError as e:
+    except IndexError:
         # logger.error(e)
         logger.error('are the data binned? cannot proceed to mask these points...')
 
     try:
         cryostat = blue_cryostat_issues(self, mask, plot)
-    except IndexError as e:
+    except IndexError:
         # logger.error(e)
         logger.error('are the data binned? cannot proceed to mask these points...')
 
+    if adc is None and cryostat is None:
+        return
     try:
         return adc | cryostat
     except UnboundLocalError:
