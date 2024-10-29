@@ -123,7 +123,7 @@ def get_observations_from_instrument(star, instrument, main_id=None):
 
     Spectroscopy = load_spectroscopy()
     filters = {
-        "ins_name": {"contains": [instrument]}, 
+        "ins_name": {"contains": [instrument]},
         "obj_id_daceid": {"contains": [dace_id]}
     }
     with stdout_disabled(), all_logging_disabled():
@@ -251,9 +251,9 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
     # (i.e. ensure that 3.x.x > 3.5)
     from re import match
     def cmp(a, b):
-        if a[0] in ('3.5', '3.5 EGGS') and match(r'3.\d.\d', b[0]):
+        if a[0] in ('3.5', '3.5 EGGS') or 'EGGS' in a[0] and match(r'3.\d.\d', b[0]):
             return -1
-        if b[0] in ('3.5', '3.5 EGGS') and match(r'3.\d.\d', a[0]):
+        if b[0] in ('3.5', '3.5 EGGS') or 'EGGS' in b[0] and match(r'3.\d.\d', a[0]):
             return 1
 
         if a[0] == b[0]:
@@ -411,12 +411,12 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
 
     if verbose:
         if chunk_size < n:
-            msg = f"Downloading {n} {type}s "
+            msg = f"downloading {n} {type}s "
             msg += f"(in chunks of {chunk_size}) "
             msg += f"into '{output_directory}'..."
             logger.info(msg)
         else:
-            msg = f"Downloading {n} {type}s into '{output_directory}'..."
+            msg = f"downloading {n} {type}s into '{output_directory}'..."
             logger.info(msg)
 
     iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
@@ -424,7 +424,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
         download(files, type, output_directory)
         extract_fits(output_directory)
 
-    logger.info('Extracted .fits files')
+    logger.info('extracted .fits files')
 
 
 # def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
