@@ -1444,11 +1444,16 @@ class RV:
         snew._build_arrays()
         return snew
 
-    def nth_day_mean(self, n=1.0):
+    def nth_day_mean(self, n=1.0, masked=True):
         """ Calculate the n-th day rolling mean of the radial velocities """
-        mask = np.abs(self.mtime[:, None] - self.mtime[None, :]) < n
-        z = np.full((self.mtime.size, self.mtime.size), np.nan)
-        z[mask] = np.repeat(self.mvrad[:, None], self.mtime.size, axis=1)[mask]
+        if masked:
+            mask = np.abs(self.mtime[:, None] - self.mtime[None, :]) < n
+            z = np.full((self.mtime.size, self.mtime.size), np.nan)
+            z[mask] = np.repeat(self.mvrad[:, None], self.mtime.size, axis=1)[mask]
+        else:
+            mask = np.abs(self.time[:, None] - self.time[None, :]) < n
+            z = np.full((self.time.size, self.time.size), np.nan)
+            z[mask] = np.repeat(self.vrad[:, None], self.time.size, axis=1)[mask]
         return np.nanmean(z, axis=0)
 
     def subtract_mean(self):
