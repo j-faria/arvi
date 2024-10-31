@@ -9,7 +9,7 @@ STARS = {
 }
 
 
-def translate(star, ngc=False):
+def translate(star, ngc=False, ic=False):
     # known translations
     if star in STARS:
         return STARS[star]
@@ -21,5 +21,11 @@ def translate(star, ngc=False):
             cluster = NGC_match.group(1).replace(' ', '')
             target = NGC_match.group(2).replace(' ', '')
             return f'Cl* NGC {cluster} MMU {target}'
+    if ic:
+        IC_match = re.match(r'IC([\s\d]+)No([\s\d]+)', star)
+        if IC_match:
+            cluster = IC_match.group(1).replace(' ', '')
+            target = IC_match.group(2).replace(' ', '')
+            return f'Cl* IC {cluster} MMU {target}'
 
     return star
