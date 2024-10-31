@@ -1700,12 +1700,14 @@ class RV:
                         _s.time, _s.vrad, _s.svrad,
                         _s.fwhm, _s.fwhm_err,
                         _s.rhk, _s.rhk_err,
+                        _s.bispan, _s.bispan_err,
                     ]
                 else:
                     d = np.c_[
                         _s.mtime, _s.mvrad, _s.msvrad,
                         _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
                         _s.rhk[_s.mask], _s.rhk_err[_s.mask],
+                        _s.bispan[_s.mask], _s.bispan_err[_s.mask],
                     ]
                 if not save_nans:
                     if np.isnan(d).any():
@@ -1715,8 +1717,14 @@ class RV:
                         if self.verbose:
                             logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
 
-                header =  'bjd\tvrad\tsvrad\tfwhm\tsfwhm\trhk\tsrhk\n'
-                header += '---\t----\t-----\t----\t-----\t---\t----'
+                header = '\t'.join(['bjd', 'vrad', 'svrad', 
+                                    'fwhm', 'sfwhm',
+                                    'rhk', 'srhk',
+                                    'bispan', 'sbispan'
+                                    ]) 
+                header += '\n'
+                header += '\t'.join(['-' * len(c) for c in header.strip().split('\t')])
+
             else:
                 if save_masked:
                     d = np.c_[_s.time, _s.vrad, _s.svrad]
