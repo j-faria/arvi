@@ -1034,6 +1034,31 @@ class RV:
         if config.return_self:
             return self
 
+    def restore_point(self, index):
+        """
+        Restore previously deleted individual observations at a given index (or
+        indices). NOTE: Like Python, the index is 0-based.
+
+        Args:
+            index (int, list, ndarray):
+                Single index, list, or array of indices to restore.
+        """
+        index = np.atleast_1d(index)
+        try:
+            instrument_index = self.obs[index]
+            np.array(self.instruments)[instrument_index - 1]
+        except IndexError:
+            logger.errors(f'index {index} is out of bounds for N={self.N}')
+            return
+
+        if self.verbose:
+            logger.info(f'restoring point{"s" if index.size > 1 else ""} {index}')
+
+        self.mask[index] = True
+        self._propagate_mask_changes()
+        if config.return_self:
+            return self
+
     def remove_non_public(self):
         """ Remove non-public observations """
         if self.verbose:
