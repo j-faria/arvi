@@ -86,6 +86,8 @@ class gaia:
         try:
             if star in translate:
                 table = run_query(query=QUERY_ID.format(id=translate[star]))
+            elif hasattr(simbad, 'gaia_id'):
+                table = run_query(query=QUERY_ID.format(id=simbad.gaia_id))
             else:
                 table = run_query(query=QUERY.format(**args))
             results = parse_csv(table)[0]
