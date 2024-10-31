@@ -1,7 +1,15 @@
 __all__ = ['RV']
 
+from importlib.metadata import version, PackageNotFoundError
+
 from .config import config
 from .timeseries import RV
+
+try:
+    __version__ = version("arvi")
+except PackageNotFoundError:
+    # package is not installed
+    pass
 
 ## OLD
 # # the __getattr__ function is always called twice, so we need this
