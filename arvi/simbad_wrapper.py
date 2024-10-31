@@ -100,7 +100,7 @@ class simbad:
         """
         from astropy.coordinates import SkyCoord
 
-        self.star = translate(star, ngc=True)
+        self.star = translate(star, ngc=True, ic=True)
 
         if 'kobe' in self.star.lower():
             fname = os.path.join(DATA_PATH, 'KOBE-translate.csv')
