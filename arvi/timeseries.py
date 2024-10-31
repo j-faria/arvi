@@ -424,7 +424,7 @@ class RV:
                 else:
                     # be careful with bogus values in rhk and rhk_err
                     # --> not just in rhk and rhk_err...
-                    if (bad := data[arr] == -99999).any():
+                    if data[arr].dtype == float and (bad := data[arr] == -99999).any():
                         data[arr][bad] = np.nan
 
                     setattr(s, arr, data[arr][ind])
