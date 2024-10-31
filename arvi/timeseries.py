@@ -1291,6 +1291,7 @@ class RV:
             return
 
         instruments = self._check_instrument(instrument, strict)
+        changed_instruments = []
 
         for inst in instruments:
             m = self.instrument_array == inst
@@ -1303,6 +1304,10 @@ class RV:
                 s = 's' if (n == 0 or n > 1) else ''
                 logger.warning(f'sigma-clip RVs will remove {n} point{s} for {inst}')
 
+            if n > 0:
+                self.mask[ind] = False
+                changed_instruments.append(inst)
+
             # # check if going to remove all observations from one instrument
             # if n in self.NN.values(): # all observations
             #     # insts = np.unique(self.instrument_array[~ind])
@@ -1313,13 +1318,11 @@ class RV:
             #         return self
             #     continue
 
-            self.mask[ind] = False
-
         self._propagate_mask_changes()
 
         if self._did_adjust_means:
             self._did_adjust_means = False
-            self.adjust_means()
+            self.adjust_means(instrument=changed_instruments)
 
         if config.return_self:
             return self
@@ -1467,13 +1470,26 @@ class RV:
             s.vrad += self._meanRV
         self._build_arrays()
 
-    def adjust_means(self, just_rv=False):
-        """ Subtract individual mean RVs from each instrument """
+    def adjust_means(self, just_rv=False, instrument=None, **kwargs):
+        """
+        Subtract individual mean RVs from each instrument or from specific
+        instruments
+        """
         if self._child or self._did_adjust_means:
             return
 
+        # if self.verbose:
+        #     print_as_table = len(self.instruments) > 2 and len(self.instruments) < 7
+        #     rows = [self.instruments]
+        #     row = []
+        #     if print_as_table:
+        #         logger.info('subtracted weighted average from each instrument:')
+    
         others = ('fwhm', 'bispan', )
-        for inst in self.instruments:
+
+        instruments = self._check_instrument(instrument, strict=kwargs.get('strict', False))
+
+        for inst in instruments:
             s = getattr(self, inst)
 
             if s.mtime.size == 0:
@@ -1494,16 +1510,27 @@ class RV:
             s.vrad -= s.rv_mean
 
             if self.verbose:
+                # if print_as_table:
+                #     row.append(f'{s.rv_mean:.3f}')
+                # else:
                 logger.info(f'subtracted weighted average from {inst:10s}: ({s.rv_mean:.3f} {self.units})')
 
             if just_rv:
                 continue
 
             for i, other in enumerate(others):
-                y, ye = getattr(s, other), getattr(s, other + '_err')
+                try:
+                    y, ye = getattr(s, other), getattr(s, other + '_err')
+                except AttributeError:
+                    continue
                 m = wmean(y[s.mask], ye[s.mask])
                 setattr(s, f'{other}_mean', m)
                 setattr(s, other, getattr(s, other) - m)
+
+        # if print_as_table:
+        #     from .utils import pretty_print_table
+        #     rows.append(row)
+        #     pretty_print_table(rows, logger=logger)
 
         self._build_arrays()
         self._did_adjust_means = True
