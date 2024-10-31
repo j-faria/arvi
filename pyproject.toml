@@ -41,6 +41,7 @@ packages = ['arvi']
 
 [tool.setuptools_scm]
 # can be empty if no extra settings are needed, presence enables setuptools-scm
+local_scheme = "no-local-version"
 
 # [project.optional-dependencies]
 # kima = ["kima"]
