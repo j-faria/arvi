@@ -1,14 +1,12 @@
 import os
 from dataclasses import dataclass, field
 from typing import Union
-from functools import partial
+from functools import partial, partialmethod
 from glob import glob
 import warnings
 from copy import deepcopy
 from datetime import datetime, timezone
 import numpy as np
-
-from astropy import units
 
 from .setup_logger import logger
 from .config import config
@@ -20,8 +18,11 @@ from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
-from .utils import strtobool, there_is_internet, timer
+from .utils import strtobool, there_is_internet, timer, chdir
+from .utils import lazy_import
 
+units = lazy_import('astropy.units')
+# from astropy import units
 
 class ExtraFields:
     pass
@@ -261,6 +262,8 @@ class RV:
 
             if self.do_adjust_means:
                 self.adjust_means()
+        
+        self._download_directory = f'{self.star.replace(" ", "")}_downloads'
 
     def __add__(self, other, inplace=False):
         # if not isinstance(other, self.__class__):
@@ -303,7 +306,7 @@ class RV:
         file = f'{star_name}_{ts}.pkl'
         pickle.dump(self, open(file, 'wb'), protocol=0)
         if self.verbose:
-            logger.info(f'Saved snapshot to {file}')
+            logger.info(f'saved snapshot to {file}')
 
     @property
     def N(self) -> int:
@@ -478,8 +481,11 @@ class RV:
 
         dt = datetime.fromtimestamp(float(timestamp))
         if verbose:
-            logger.info(f'Reading snapshot of {star} from {dt}')
-        return pickle.load(open(file, 'rb'))
+            logger.info(f'reading snapshot of {star} from {dt}')
+        
+        s = pickle.load(open(file, 'rb'))
+        s._snapshot = file
+        return s
 
     @classmethod
     def from_rdb(cls, files, star=None, instrument=None, units='ms', **kwargs):
@@ -786,8 +792,17 @@ class RV:
                 )
                 setattr(self, q, arr)
 
+    @property
+    def download_directory(self):
+        """ Directory where to download data """
+        return self._download_directory
+
+    @download_directory.setter
+    def download_directory(self, value):
+        self._download_directory = value
+
     def download_ccf(self, instrument=None, index=None, limit=None,
-                     directory=None, symlink=False, **kwargs):
+                     directory=None, symlink=False, load=True, **kwargs):
         """ Download CCFs from DACE
 
         Args:
@@ -796,17 +811,13 @@ class RV:
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
         """
-        if directory is None:
-            directory = f'{self.star}_downloads'
+        directory = directory or self.download_directory
 
-        if instrument is None:
-            files = [file for file in self.raw_file if file.endswith('.fits')]
-        else:
-            strict = kwargs.pop('strict', False)
-            instrument = self._check_instrument(instrument, strict=strict)
-            files = []
-            for inst in instrument:
-                files += list(getattr(self, inst).raw_file)
+        strict = kwargs.pop('strict', False)
+        instrument = self._check_instrument(instrument, strict=strict)
+        files = []
+        for inst in instrument:
+            files += list(getattr(self, inst).raw_file)
 
         if index is not None:
             index = np.atleast_1d(index)
@@ -822,6 +833,23 @@ class RV:
         else:
             do_download_filetype('CCF', files[:limit], directory, verbose=self.verbose, **kwargs)
 
+        if load:
+            try:
+                from os.path import basename, join
+                from .utils import sanitize_path
+                import iCCF
+                downloaded = [
+                    sanitize_path(join(directory, basename(f).replace('.fits', '_CCF_A.fits')))
+                    for f in files[:limit]
+                ]
+                if self.verbose:
+                    logger.info('loading the CCF(s) into `.CCF` attribute')
+
+                self.CCF = iCCF.from_file(downloaded)
+
+            except (ImportError, ValueError):
+                pass
+
     def download_s1d(self, instrument=None, index=None, limit=None,
                      directory=None, symlink=False, **kwargs):
         """ Download S1Ds from DACE
@@ -832,17 +860,13 @@ class RV:
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
         """
-        if directory is None:
-            directory = f'{self.star}_downloads'
+        directory = directory or self.download_directory
 
-        if instrument is None:
-            files = [file for file in self.raw_file if file.endswith('.fits')]
-        else:
-            strict = kwargs.pop('strict', False)
-            instrument = self._check_instrument(instrument, strict=strict)
-            files = []
-            for inst in instrument:
-                files += list(getattr(self, inst).raw_file)
+        strict = kwargs.pop('strict', False)
+        instrument = self._check_instrument(instrument, strict=strict)
+        files = []
+        for inst in instrument:
+            files += list(getattr(self, inst).raw_file)
 
         if index is not None:
             index = np.atleast_1d(index)
@@ -868,17 +892,13 @@ class RV:
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
         """
-        if directory is None:
-            directory = f'{self.star}_downloads'
+        directory = directory or self.download_directory
 
-        if instrument is None:
-            files = [file for file in self.raw_file if file.endswith('.fits')]
-        else:
-            strict = kwargs.pop('strict', False)
-            instrument = self._check_instrument(instrument, strict=strict)
-            files = []
-            for inst in instrument:
-                files += list(getattr(self, inst).raw_file)
+        strict = kwargs.pop('strict', False)
+        instrument = self._check_instrument(instrument, strict=strict)
+        files = []
+        for inst in instrument:
+            files += list(getattr(self, inst).raw_file)
 
         if index is not None:
             index = np.atleast_1d(index)
@@ -931,8 +951,9 @@ class RV:
         instruments = self._check_instrument(instrument, strict)
 
         if instruments is None:
-            logger.error(f"No data from instrument '{instrument}'")
-            logger.info(f'available: {self.instruments}')
+            if self.verbose:
+                logger.error(f"No data from instrument '{instrument}'")
+                logger.info(f'available: {self.instruments}')
             return
 
         for instrument in instruments:
@@ -994,7 +1015,11 @@ class RV:
             return
 
         if self.verbose:
-            logger.info(f'removing points {index}')
+            inst = np.unique(self.instrument_array[index])
+            if len(index) == 1:
+                logger.info(f'removing point {index[0]} from {inst[0]}')
+            else:
+                logger.info(f'removing points {index} from {inst}')
 
         self.mask[index] = False
         self._propagate_mask_changes()
