@@ -54,12 +54,19 @@ class RV:
     do_adjust_means: bool = field(init=True, repr=False, default=True)
     only_latest_pipeline: bool = field(init=True, repr=False, default=True)
     load_extra_data: Union[bool, str] = field(init=True, repr=False, default=False)
+    check_drs_qc: bool = field(init=True, repr=False, default=True)
     #
+    units = 'm/s'
     _child: bool = field(init=True, repr=False, default=False)
     _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
     _did_sigma_clip: bool = field(init=False, repr=False, default=False)
     _did_adjust_means: bool = field(init=False, repr=False, default=False)
+    _did_simbad_query: bool = field(init=False, repr=False, default=False)
+    _did_gaia_query: bool = field(init=False, repr=False, default=False)
     _raise_on_error: bool = field(init=True, repr=False, default=True)
+    # 
+    _simbad = None
+    _gaia = None
 
     def __repr__(self):
         if self.N == 0:
@@ -70,60 +77,126 @@ class RV:
             nmasked = self.N - self.mtime.size
             return f"RV(star='{self.star}', N={self.N}, masked={nmasked})"
 
+    @property
+    def simbad(self):
+        if self._simbad is not None:
+            return self._simbad
+
+        if self._child:
+            return None
+    
+        if self._did_simbad_query:
+            return None
+
+        if self.verbose:
+            logger.info('querying Simbad...')
+
+        # complicated way to query Simbad with self.__star__ or, if that
+        # fails, try after removing a trailing 'A'
+        for target in set([self.__star__, self.__star__.replace('A', '')]):
+            try:
+                self._simbad = simbad(target)
+                break
+            except ValueError:
+                continue
+        else:
+            if self.verbose:
+                logger.error(f'simbad query for {self.__star__} failed')
+
+        self._did_simbad_query = True
+        return self._simbad
+
+    @property
+    def gaia(self):
+        if self._gaia is not None:
+            return self._gaia
+
+        if self._child:
+            return None
+
+        if self._did_gaia_query:
+            return None
+
+        if self.verbose:
+            logger.info('querying Gaia...')
+
+        # complicated way to query Gaia with self.__star__ or, if that fails,
+        # try after removing a trailing 'A'
+        for target in set([self.__star__, self.__star__.replace('A', '')]):
+            try:
+                self._gaia = gaia(target)
+                break
+            except ValueError:
+                continue
+        else:
+            if self.verbose:
+                logger.error(f'Gaia query for {self.__star__} failed')
+
+        self._did_gaia_query = True
+        return self._gaia
+
+    def __post_init_special_sun(self):
+        import pickle
+        from .extra_data import get_sun_data
+        path = get_sun_data(download=not self._child)
+        self.dace_result = pickle.load(open(path, 'rb'))
+
+
     def __post_init__(self):
         self.__star__ = translate(self.star)
 
-        if not self._child:
-            if config.check_internet and not there_is_internet():
-                raise ConnectionError('There is no internet connection?')
+        if self.star.lower() == 'sun':
+            self.__post_init_special_sun()
+            self.do_secular_acceleration = False
+            self.units = 'km/s'
 
-            # complicated way to query Simbad with self.__star__ or, if that
-            # fails, try after removing a trailing 'A'
-            for target in (self.__star__, self.__star__.replace('A', '')):
-                try:
-                    self.simbad = simbad(target)
-                    break
-                except ValueError:
-                    continue
-            else:
+        else:
+            if not self._child:
+                if config.check_internet and not there_is_internet():
+                    raise ConnectionError('There is no internet connection?')
+
+                # make Simbad and Gaia queries in parallel
+                import concurrent.futures
+                with timer('simbad and gaia queries'):
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                        executor.map(self.__getattribute__, ('simbad', 'gaia'))
+
+                # with timer('simbad query'):
+                #     self.simbad
+                # with timer('gaia query'):
+                #     self.gaia
+
+                # query DACE
                 if self.verbose:
-                    logger.error(f'simbad query for {self.__star__} failed')
-
-            # complicated way to query Gaia with self.__star__ or, if that
-            # fails, try after removing a trailing 'A'
-            for target in (self.__star__, self.__star__.replace('A', '')):
+                    logger.info(f'querying DACE for {self.__star__}...')
                 try:
-                    self.gaia = gaia(target)
-                    break
-                except ValueError:
-                    continue
-            else:
-                if self.verbose:
-                    logger.error(f'Gaia query for {self.__star__} failed')
+                    if hasattr(self, 'simbad') and self.simbad is not None:
+                        mid = self.simbad.main_id
+                    else:
+                        mid = None
 
-            # query DACE
-            if self.verbose:
-                logger.info(f'querying DACE for {self.__star__}...')
-            try:
-                with timer():
-                    mid = self.simbad.main_id if hasattr(self, 'simbad') else None
-                    self.dace_result = get_observations(self.__star__, self.instrument,
-                                                        main_id=mid, verbose=self.verbose)
-            except ValueError as e:
-                # querying DACE failed, should we raise an error?
-                if self._raise_on_error:
-                    raise e
-                else:
-                    self.time = np.array([])
-                    self.instruments = []
-                    self.units = ''
-                    return
+                    with timer():
+                        self.dace_result = get_observations(self.__star__, self.instrument,
+                                                            main_id=mid, verbose=self.verbose)
+                except ValueError as e:
+                    # querying DACE failed, should we raise an error?
+                    if self._raise_on_error:
+                        raise e
+                    else:
+                        self.time = np.array([])
+                        self.instruments = []
+                        self.units = ''
+                        return
 
-            # store the date of the last DACE query
-            time_stamp = datetime.now(timezone.utc)  #.isoformat().split('.')[0]
-            self._last_dace_query = time_stamp
+                # store the date of the last DACE query
+                time_stamp = datetime.now(timezone.utc)  #.isoformat().split('.')[0]
+                self._last_dace_query = time_stamp
 
-        self.units = 'm/s'
+        _replacements = (('-', '_'), ('.', '_'), ('__', '_'))
+        def do_replacements(s):
+            for a, b in _replacements:
+                s = s.replace(a, b)
+            return s
 
         # build children
         if not self._child:
@@ -133,9 +206,9 @@ class RV:
 
             for (inst, pipe, mode), data in arrays:
                 child = RV.from_dace_data(self.star, inst, pipe, mode, data, _child=True,
-                                          verbose=self.verbose)
-                inst = inst.replace('-', '_')
-                pipe = pipe.replace('.', '_').replace('__', '_')
+                                          check_drs_qc=self.check_drs_qc, verbose=self.verbose)
+                inst = do_replacements(inst)
+                pipe = do_replacements(pipe)
                 if self.only_latest_pipeline:
                     # save as self.INST
                     setattr(self, inst, child)
@@ -148,16 +221,14 @@ class RV:
             #! sorted?
             if self.only_latest_pipeline:
                 self.instruments = [
-                    inst.replace('-', '_')
+                    do_replacements(inst)
                     for (inst, _, _), _ in arrays
                 ]
             else:
                 self.instruments = [
-                    inst.replace('-', '_') + '_' + pipe.replace('.', '_').replace('__', '_')
+                    do_replacements(inst) + '_' + do_replacements(pipe)
                     for (inst, pipe, _), _ in arrays
                 ]
-            # self.pipelines =
-
             # all other quantities
             self._build_arrays()
 
@@ -319,6 +390,7 @@ class RV:
     @classmethod
     def from_dace_data(cls, star, inst, pipe, mode, data, **kwargs):
         verbose = kwargs.pop('verbose', False)
+        check_drs_qc = kwargs.pop('check_drs_qc', True)
         s = cls(star, **kwargs)
         #
         ind = np.argsort(data['rjd'])
@@ -354,7 +426,7 @@ class RV:
         s._quantities = np.array(s._quantities)
 
         # mask out drs_qc = False
-        if not s.drs_qc.all():
+        if check_drs_qc and not s.drs_qc.all():
             n = (~s.drs_qc).sum()
             if verbose:
                 logger.warning(f'masking {n} points where DRS QC failed for {inst}')
