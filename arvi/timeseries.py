@@ -1543,16 +1543,77 @@ class RV:
             return self
 
     def add_to_vrad(self, values):
-        """ Add an array of values to the RVs of all instruments """
+        """ Add a value of array of values to the RVs of all instruments """
+        values = np.atleast_1d(values)
+        if values.size == 1:
+            values = np.full_like(self.vrad, values)
+
+        masked = False
         if values.size != self.vrad.size:
-            raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {self.vrad.size}")
+            if values.size == self.mvrad.size:
+                logger.warning('adding to masked RVs only')
+                masked = True
+            else:
+                raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {self.vrad.size}")
+
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            if masked:
+                mask = self.instrument_array[self.mask] == inst
+                s.vrad[s.mask] += values[mask]
+            else:
+                mask = self.instrument_array == inst
+                s.vrad += values[mask]
+        self._build_arrays()
+
+    def add_to_quantity(self, quantity, values):
+        """
+        Add a value of array of values to the given quantity of all instruments
+        """
+        if not hasattr(self, quantity):
+            logger.error(f"cannot find '{quantity}' attribute")
+            return
+        q = getattr(self, quantity)
+
+        values = np.atleast_1d(values)
+        if values.size == 1:
+            values = np.full_like(q, values)
+        if values.size != q.size:
+            raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {q.size}")
 
         for inst in self.instruments:
             s = getattr(self, inst)
             mask = self.instrument_array == inst
-            s.vrad += values[mask]
+            setattr(s, quantity, getattr(s, quantity) + values[mask])
+        self._build_arrays()
+
+    def change_units(self, new_units):
+        possible = {'m/s': 'm/s', 'km/s': 'km/s', 'ms': 'm/s', 'kms': 'km/s'}
+        if new_units not in possible:
+            msg = f"new_units must be one of 'm/s', 'km/s', 'ms', 'kms', got '{new_units}'"
+            raise ValueError(msg)
+        
+        new_units = possible[new_units]
+        if new_units == self.units:
+            return
+
+        if self.verbose:
+            logger.info(f"changing units from {self.units} to {new_units}")
+
+        if new_units == 'm/s' and self.units == 'km/s':
+            factor = 1e3
+        elif new_units == 'km/s' and self.units == 'm/s':
+            factor = 1e-3
+        
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            s.vrad *= factor
+            s.svrad *= factor
+            s.fwhm *= factor
+            s.fwhm_err *= factor
 
         self._build_arrays()
+        self.units = new_units
 
 
     def put_at_systemic_velocity(self):
