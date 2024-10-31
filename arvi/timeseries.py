@@ -386,6 +386,10 @@ class RV:
     def _mtime_sorter(self):
         return np.argsort(self.mtime)
 
+    def _index_from_instrument_index(self, index, instrument):
+        ind = np.where(self.instrument_array == instrument)[0]
+        return ind[getattr(self, instrument).mask][index]
+
     @property
     def _tt(self) -> np.ndarray:
         return np.linspace(self.mtime.min(), self.mtime.max(), 20*self.N)
