@@ -556,12 +556,16 @@ class RV:
                     names = header.split()
 
             if len(names) > 3:
-                kw = dict(skip_header=0, comments='--', names=True, dtype=None, encoding=None)
+                if f.endswith('.rdb'):
+                    kw = dict(skip_header=2, dtype=None, encoding=None)
+                else:
+                    kw = dict(skip_header=0, comments='--', names=True, dtype=None, encoding=None)
                 if '\t' in header:
                     data = np.genfromtxt(f, **kw, delimiter='\t')
                 else:
                     data = np.genfromtxt(f, **kw)
-                # data.dtype.names = names
+                if len(names) == len(data.dtype.names):
+                    data.dtype.names = names
             else:
                 data = np.array([], dtype=np.dtype([]))
 
@@ -673,13 +677,11 @@ class RV:
 
             _s.fwhm = np.array([i.FWHM*1e3 for i in CCFs])
             _s.fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
-
             _quantities.append('fwhm')
             _quantities.append('fwhm_err')
 
             _s.contrast = np.array([i.contrast for i in CCFs])
             _s.contrast_err = np.array([i.contrast_error for i in CCFs])
-
             _quantities.append('contrast')
             _quantities.append('contrast_err')
 
@@ -700,7 +702,6 @@ class RV:
                 if verbose:
                     logger.warning(f'masking {n} points where DRS QC failed for {instrument}')
                 _s.mask &= _s.drs_qc
-            print(_s.mask)
 
             _s._quantities = np.array(_quantities)
             setattr(s, instrument, _s)
