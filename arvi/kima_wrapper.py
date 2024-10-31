@@ -42,12 +42,12 @@ def run_kima(self, run=False, load=False, run_directory=None, priors={}, **kwarg
     model.star_mass = kwargs.pop('star_mass', 1.0)
 
     for k, v in priors.items():
-        print(k, v)
         try:
             if 'conditional' in k:
                 setattr(model.conditional, k.replace('conditional.', ''), v)
             else:
                 setattr(model, k, v)
+
         except AttributeError:
             msg = f'`RVmodel` has no attribute `{k}`, '
             if guess := try_to_guess_prior(model, k):
