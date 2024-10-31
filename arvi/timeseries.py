@@ -423,9 +423,9 @@ class RV:
                     s._quantities.append('ccf_mask')
                 else:
                     # be careful with bogus values in rhk and rhk_err
-                    if arr in ('rhk', 'rhk_err'):
-                        mask99999 = (data[arr] == -99999) | (data[arr] == -99)
-                        data[arr][mask99999] = np.nan
+                    # --> not just in rhk and rhk_err...
+                    if (bad := data[arr] == -99999).any():
+                        data[arr][bad] = np.nan
 
                     setattr(s, arr, data[arr][ind])
                     s._quantities.append(arr)
