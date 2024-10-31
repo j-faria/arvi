@@ -1912,3 +1912,62 @@ def fit_sine(t, y, yerr=None, period='gls', fix_period=False):
 
     xbest, _ = leastsq(f, p0, args=(t, y, yerr))
     return xbest, partial(sine, p=xbest)
+
+
+def fit_n_sines(t, y, yerr=None, n=1, period='gls', fix_period=False):
+    """ Fit N sine curves of the form y = ∑i Ai * sin(2π * t / Pi + φi) + c
+
+    Args:
+        t (ndarray):
+            Time array
+        y (ndarray):
+            Array of observed values
+        yerr (ndarray, optional):
+            Array of uncertainties. Defaults to None.
+        n (int, optional):
+            Number of sine curves to fit. Defaults to 1.
+        period (str or float, optional):
+            Initial guess for periods or 'gls' to get them from Lomb-Scargle
+            periodogram. Defaults to 'gls'.
+        fix_period (bool, optional):
+            Whether to fix the periods. Defaults to False.
+
+    Returns:
+        p (ndarray):
+            Best-fit parameters [A, P, φ, c] or [A, φ, c] for each sine curve
+        f (callable):
+            Function that returns the best-fit curve for input times
+    """
+    from scipy.optimize import leastsq
+    if period == 'gls':
+        from astropy.timeseries import LombScargle
+        # first period guess
+        gls = LombScargle(t, y, yerr)
+        freq, power = gls.autopower()
+        period = [1 / freq[power.argmax()]]
+        yc = y.copy()
+        for i in range(1, n):
+            p, f = fit_sine(t, y, yerr, period=period[i-1], fix_period=True)
+            yc -= f(t)
+            gls = LombScargle(t, yc, yerr)
+            freq, power = gls.autopower()
+            period.append(1 / freq[power.argmax()])
+    else:
+        assert len(period) == n, f'wrong number of periods, expected {n} but got {len(period)}'
+
+    if yerr is None:
+        yerr = np.ones_like(y)
+
+    if fix_period:
+        def sine(t, p):
+            return p[-1] + np.sum([p[2*i] * np.sin(2 * np.pi * t / period[i] + p[2*i+1]) for i in range(n)], axis=0)
+        f = lambda p, t, y, ye: (sine(t, p) - y) / ye
+        p0 = [y.std(), 0.0] * n + [y.mean()]
+    else:
+        def sine(t, p):
+            return p[-1] + np.sum([p[3*i] * np.sin(2 * np.pi * t / p[3*i+1] + p[3*i+2]) for i in range(n)], axis=0)
+        f = lambda p, t, y, ye: (sine(t, p) - y) / ye
+        p0 = np.r_[np.insert([y.std(), 0.0] * n, np.arange(1, 2*n, n), period), y.mean()]
+
+    xbest, _ = leastsq(f, p0, args=(t, y, yerr))
+    return xbest, partial(sine, p=xbest)
