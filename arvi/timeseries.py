@@ -1167,6 +1167,11 @@ class RV:
             self.gaia
             self.gaia.plx
 
+            if self.gaia.plx < 0:
+                if self.verbose:
+                    logger.error('negative Gaia parallax, falling back to Simbad')
+                raise AttributeError
+
             if self.verbose:
                 logger.info('using Gaia information to remove secular acceleration')
 
@@ -1181,10 +1186,11 @@ class RV:
             μ = μα**2 + μδ**2
             sa = (μ * d).to(units.m / units.second / units.year,
                             equivalencies=units.dimensionless_angles())
-
         except AttributeError:
             try:
                 self.simbad
+                if self.simbad is None:
+                    raise AttributeError
             except AttributeError:
                 if self.verbose:
                     logger.error('no information from simbad, cannot remove secular acceleration')
