@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, field
 from typing import Union
-from functools import partial, partialmethod
+from functools import lru_cache, partial, partialmethod
 from glob import glob
 import warnings
 from copy import deepcopy
@@ -713,6 +713,86 @@ class RV:
         if instruments == ['ESPRESSO']:
             from .instrument_specific import divide_ESPRESSO
             divide_ESPRESSO(s)
+        elif instruments == ['HARPS']:
+            from .instrument_specific import divide_HARPS
+            divide_HARPS(s)
+
+        if kwargs.get('do_adjust_means', False):
+            s.adjust_means()
+
+        return s
+
+    @classmethod
+    @lru_cache(maxsize=10)
+    def from_KOBE_file(cls, star, **kwargs):
+        assert 'KOBE' in star, f'{star} is not a KOBE star?'
+        import requests
+        from requests.auth import HTTPBasicAuth
+        from io import BytesIO
+        import tarfile
+        from astropy.io import fits
+        from .config import config
+
+        try:
+            config.kobe_password
+        except KeyError:
+            logger.error('please set arvi.config.kobe_password')
+            return
+
+        tar = None
+        fits_file = f'{star}_RVs.fits'
+        resp = requests.get(f'https://kobe.caha.es/internal/fitsfiles/{fits_file}',
+                            auth=HTTPBasicAuth('kobeteam', config.kobe_password))
+        
+        if resp.status_code != 200:
+            # something went wrong, try to extract the file by downloading the
+            # full tar.gz archive
+            
+            logger.warning(f'could not find "{fits_file}" on server, trying to download full archive')
+            resp = requests.get('https://kobe.caha.es/internal/fitsfiles.tar.gz',
+                                auth=HTTPBasicAuth('kobeteam', config.kobe_password))
+
+            if resp.status_code != 200:
+                logger.error(f'KOBE file not found for {star}')
+                return
+
+            tar = tarfile.open(fileobj=BytesIO(resp.content))
+
+            if fits_file not in tar.getnames():
+                logger.error(f'KOBE file not found for {star}')
+                return
+            
+            hdul = fits.open(tar.extractfile(fits_file))
+
+        else:
+            # found the file on the server, read it directly
+            hdul = fits.open(BytesIO(resp.content))
+
+        s = cls(star, _child=True)
+
+        s.time = hdul[1].data['BJD']
+
+        s.vrad = hdul[1].data['RVc']
+        s.svrad = hdul[1].data['eRVc']
+        s.vrad_preNZP = hdul[1].data['RVd']
+        s.vrad_preNZP_err = hdul[1].data['eRVd']
+
+        s.drift = hdul[1].data['drift']
+        s.drift_err = hdul[1].data['e_drift']
+
+        s.nzp = hdul[1].data['NZP']
+        s.nzp_err = hdul[1].data['eNZP']
+
+        s.berv = hdul[1].data['BERV']
+
+        s.mask = np.full_like(s.time, True, dtype=bool)
+        s.instruments = ['CARMENES']
+
+        s._kobe_result = hdul[1].data
+
+        if tar is not None:
+            tar.close()
+        hdul.close()
 
         return s
 
