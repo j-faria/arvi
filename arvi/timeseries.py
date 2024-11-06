@@ -1779,15 +1779,19 @@ class RV:
                     d = np.c_[
                         _s.time, _s.vrad, _s.svrad,
                         _s.fwhm, _s.fwhm_err,
-                        _s.rhk, _s.rhk_err,
                         _s.bispan, _s.bispan_err,
+                        _s.contrast, _s.contrast_err,
+                        _s.rhk, _s.rhk_err,
+                        _s.berv,
                     ]
                 else:
                     d = np.c_[
                         _s.mtime, _s.mvrad, _s.msvrad,
                         _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
-                        _s.rhk[_s.mask], _s.rhk_err[_s.mask],
                         _s.bispan[_s.mask], _s.bispan_err[_s.mask],
+                        _s.contrast[_s.mask], _s.contrast_err[_s.mask],
+                        _s.rhk[_s.mask], _s.rhk_err[_s.mask],
+                        _s.berv[_s.mask],
                     ]
                 if not save_nans:
                     if np.isnan(d).any():
@@ -1798,9 +1802,11 @@ class RV:
                             logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
 
                 header = '\t'.join(['bjd', 'vrad', 'svrad', 
-                                    'fwhm', 'sfwhm',
-                                    'rhk', 'srhk',
-                                    'bispan', 'sbispan'
+                                    'fwhm', 'sig_fwhm',
+                                    'bispan', 'sig_bispan',
+                                    'contrast', 'sig_contrast',
+                                    'rhk', 'sig_rhk',
+                                    'berv',
                                     ]) 
                 header += '\n'
                 header += '\t'.join(['-' * len(c) for c in header.strip().split('\t')])
