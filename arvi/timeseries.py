@@ -788,6 +788,9 @@ class RV:
         s.mask = np.full_like(s.time, True, dtype=bool)
         s.instruments = ['CARMENES']
 
+        # so meta!
+        setattr(s, 'CARMENES', s)
+
         s._kobe_result = hdul[1].data
 
         if tar is not None:
