@@ -52,9 +52,14 @@ class config:
         if name in config.__setters:
             self.__conf[name] = value
         else:
+            if 'config' not in self.__user_config:
+                self.__user_config.add_section('config')
             self.__user_config.set('config', name, value)
             save_config(self.__user_config)
             # raise NameError(f"unknown configuration name '{name}'")
 
     def show(self):
-        pprint(self.__conf | dict(self.__user_config['config']))
+        if 'config' in self.__user_config:
+            pprint(self.__conf | dict(self.__user_config['config']))
+        else:
+            pprint(self.__conf)
