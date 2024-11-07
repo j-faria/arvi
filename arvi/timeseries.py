@@ -1243,6 +1243,9 @@ class RV:
         mas_yr = units.milliarcsecond / units.year
         mas = units.milliarcsecond
 
+        # store the source of coordinates and parallax, either Gaia or Simbad
+        using = ''
+
         try:
             if force_simbad:
                 raise AttributeError
@@ -1255,8 +1258,7 @@ class RV:
                     logger.error('negative Gaia parallax, falling back to Simbad')
                 raise AttributeError
 
-            if self.verbose:
-                logger.info('using Gaia information to remove secular acceleration')
+            using = 'Gaia'
 
             if epoch is None:
                 # Gaia DR3 epoch (astropy.time.Time('J2016.0', format='jyear_str').jd)
@@ -1284,8 +1286,7 @@ class RV:
                     logger.error('no parallax from simbad, cannot remove secular acceleration')
                 return
 
-            if self.verbose:
-                logger.info('using Simbad information to remove secular acceleration')
+            using = 'Simbad'
 
             if epoch is None:
                 epoch = 55500
@@ -1303,14 +1304,14 @@ class RV:
 
         sa = sa.value
 
-        if self.verbose:
-            logger.info('removing secular acceleration from RVs')
-
         if self.units == 'km/s':
             sa /= 1000
 
+        actually_removed_sa = False
+
         if self._child:
             self.vrad = self.vrad - sa * (self.time - epoch) / 365.25
+            actually_removed_sa = True
         else:
             for inst in self.instruments:
                 s = getattr(self, inst)
@@ -1320,9 +1321,7 @@ class RV:
                 if np.all(s.pub_reference != ''):
                     continue
 
-                if 'HIRES' in inst:  # never remove it from HIRES...
-                    continue
-                if 'NIRPS' in inst:  # never remove it from NIRPS...
+                if 'HIRES' in inst or 'HAMILTON' in inst:
                     continue
 
                 if hasattr(s, '_did_secular_acceleration') and s._did_secular_acceleration:
@@ -1330,7 +1329,13 @@ class RV:
 
                 s.vrad = s.vrad - sa * (s.time - epoch) / 365.25
 
+                actually_removed_sa = True
+
             self._build_arrays()
+
+        if actually_removed_sa and self.verbose:
+            logger.info(f'using {using} information to remove secular acceleration')
+            logger.info('removing secular acceleration from RVs')
 
         self._did_secular_acceleration = True
         self._did_secular_acceleration_epoch = epoch
