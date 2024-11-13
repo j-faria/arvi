@@ -18,7 +18,7 @@ from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
-from .utils import strtobool, there_is_internet, timer, chdir
+from .utils import sanitize_path, strtobool, there_is_internet, timer, chdir
 from .utils import lazy_import
 
 units = lazy_import('astropy.units')
@@ -240,7 +240,8 @@ class RV:
                 else:
                     path = None
                 try:
-                    self.__add__(get_extra_data(self.star, instrument=self.instrument, path=path),
+                    self.__add__(get_extra_data(self.star, instrument=self.instrument,
+                                                path=path, verbose=self.verbose),
                                  inplace=True)
 
                 except FileNotFoundError:
@@ -263,7 +264,9 @@ class RV:
             if self.do_adjust_means:
                 self.adjust_means()
         
-        self._download_directory = f'{self.star.replace(" ", "")}_downloads'
+        _star_no_space = self.star.replace(' ', '')
+        _directory = sanitize_path(_star_no_space)
+        self._download_directory = f'{_directory}_downloads'
 
     def __add__(self, other, inplace=False):
         # if not isinstance(other, self.__class__):
@@ -1715,11 +1718,11 @@ class RV:
         for inst in self.instruments:
             s = getattr(self, inst)
             if s.mask.any():
-                if np.abs(s.mvrad.mean()) < s.mvrad.ptp():
+                if np.abs(s.mvrad.mean()) < np.ptp(s.mvrad):
                     s.vrad += self.simbad.rvz_radvel * 1e3
                     changed = True
             else:  # all observations are masked, use non-masked arrays
-                if np.abs(s.vrad.mean()) < s.vrad.ptp():
+                if np.abs(s.vrad.mean()) < np.ptp(s.vrad):
                     s.vrad += self.simbad.rvz_radvel * 1e3
                     changed = True
         if changed:
@@ -1996,15 +1999,14 @@ def fit_sine(t, y, yerr=None, period='gls', fix_period=False):
     if fix_period:
         def sine(t, p):
             return p[0] * np.sin(2 * np.pi * t / period + p[1]) + p[2]
-        f = lambda p, t, y, ye: (sine(t, p) - y) / ye
-        p0 = [y.ptp(), 0.0, 0.0]
+        p0 = [np.ptp(y), 0.0, 0.0]
     else:
         def sine(t, p):
             return p[0] * np.sin(2 * np.pi * t / p[1] + p[2]) + p[3]
-        f = lambda p, t, y, ye: (sine(t, p) - y) / ye
-        p0 = [y.ptp(), period, 0.0, 0.0]
+        p0 = [np.ptp(y), period, 0.0, 0.0]
 
-    xbest, _ = leastsq(f, p0, args=(t, y, yerr))
+    xbest, _ = leastsq(lambda p, t, y, ye: (sine(t, p) - y) / ye, p0,
+                       args=(t, y, yerr))
     return xbest, partial(sine, p=xbest)
 
 
