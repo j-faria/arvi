@@ -34,10 +34,10 @@ def get_dace_id(star):
 
 def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
     arrays = []
-    instruments = list(result.keys())
+    instruments = [str(i) for i in result.keys()]
 
     for inst in instruments:
-        pipelines = list(result[inst].keys())
+        pipelines = [str(p) for p in result[inst].keys()]
 
         # select ESPRESSO mode, which is defined at the level of the pipeline
         if 'ESPRESSO' in inst:
@@ -55,20 +55,23 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                 pipelines = [pipelines[i]]
 
         if latest_pipeline:
+            if 'NIRPS' in inst and any(['LBL' in p for p in pipelines]):
+                # TODO: correctly load both CCF and LBL
+                pipelines = [pipelines[1]]
+            else:
+                pipelines = [pipelines[0]]
+
             if verbose and len(pipelines) > 1:
                 logger.info(f'selecting latest pipeline ({pipelines[0]}) for {inst}')
 
-            pipelines = [pipelines[0]]
-
         for pipe in pipelines:
-            modes = list(result[inst][pipe].keys())
+            modes = [m for m in result[inst][pipe].keys()]
 
-                
             # select NIRPS mode, which is defined at the level of the mode
-            if 'NIRPS' in inst:
+            if 'NIRPS' in inst and len(modes) > 1:
                 if NIRPS_mode in modes:
                     if verbose:
-                        logger.info(f'selecting mode {NIRPS_mode} for NIRPS')
+                        logger.info(f'selecting mode {NIRPS_mode} for NIRPS - {pipe}')
                     i = modes.index(NIRPS_mode)
                     modes = [modes[i]]
                 else:
