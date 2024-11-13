@@ -90,6 +90,7 @@ def timer(name=None):
 def sanitize_path(path):
     if os.name == 'nt':  # on Windows, be careful with ':' in filename
         path = path.replace(':', '_')
+    path = path.replace('*', '_')
     return path
 
 def pretty_print_table(rows, line_between_rows=True, logger=None):
