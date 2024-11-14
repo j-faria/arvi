@@ -193,7 +193,7 @@ class RV:
                 time_stamp = datetime.now(timezone.utc)  #.isoformat().split('.')[0]
                 self._last_dace_query = time_stamp
 
-        _replacements = (('-', '_'), ('.', '_'), ('__', '_'))
+        _replacements = (('-', '_'), ('.', '_'), (' ', '_'), ('__', '_'))
         def do_replacements(s):
             for a, b in _replacements:
                 s = s.replace(a, b)
@@ -444,7 +444,7 @@ class RV:
 
         s.instruments = [inst]
         s.pipelines = [pipe]
-        s.modes = [mode]
+        s.modes = [str(mode)]
 
         return s
 
@@ -598,29 +598,47 @@ class RV:
             _quantities.append('rhk')
             _quantities.append('rhk_err')
 
-            _s.bispan = np.zeros_like(time)
-            _s.bispan_err = np.full_like(time, np.nan)
+            # try to find BISPAN and uncertainty
+            if (v := find_column(data, ['bispan'])) is not False:
+                _s.bispan = v
+                _s.bispan_err = np.full_like(time, np.nan)
+                if (sv := find_column(data, ['sbispan'])) is not False:
+                    _s.bispan_err = sv
+            else:
+                _s.bispan = np.full_like(time, np.nan)
+                _s.bispan_err = np.full_like(time, np.nan)
+
+            _quantities.append('bispan')
+            _quantities.append('bispan_err')
+
+            # try to find BERV
+            if (v := find_column(data, ['berv', 'HIERARCH ESO QC BERV'])) is not False:
+                _s.berv = v
+            else:
+                _s.berv = np.full_like(time, np.nan)
+            _quantities.append('berv')
 
             # other quantities, but all NaNs
-            for q in ['bispan', 'caindex', 'ccf_asym', 'contrast', 'haindex', 'naindex', 'sindex']:
+            for q in ['caindex', 'ccf_asym', 'contrast', 'haindex', 'naindex', 'sindex']:
                 setattr(_s, q, np.full_like(time, np.nan))
                 setattr(_s, q + '_err', np.full_like(time, np.nan))
                 _quantities.append(q)
                 _quantities.append(q + '_err')
-            for q in ['berv', 'texp']:
+            for q in ['texp', ]:
                 setattr(_s, q, np.full_like(time, np.nan))
                 _quantities.append(q)
             for q in ['ccf_mask', 'date_night', 'prog_id', 'raw_file', 'pub_reference']:
                 setattr(_s, q, np.full(time.size, ''))
                 _quantities.append(q)
-            for q in ['drs_qc']:
+            for q in ['drs_qc', ]:
                 setattr(_s, q, np.full(time.size, True))
                 _quantities.append(q)
 
             _s.extra_fields = ExtraFields()
-            for field in data.dtype.names:
-                if field not in _quantities:
-                    setattr(_s.extra_fields, field, data[field])
+            for name in data.dtype.names:
+                if name not in _quantities:
+                    name_ = name.replace(' ', '_')
+                    setattr(_s.extra_fields, name_, data[name])
                     # _quantities.append(field)
 
             #! end hack
@@ -628,12 +646,12 @@ class RV:
             _s.mask = np.ones_like(time, dtype=bool)
             _s.obs = np.full_like(time, i + 1)
 
-            _s.instruments = [instrument]
+            _s.instruments = [str(instrument)]
             _s._quantities = np.array(_quantities)
             setattr(s, instrument, _s)
 
         s._child = False
-        s.instruments = list(instruments)
+        s.instruments = list(map(str, instruments))
         s._build_arrays()
 
         if kwargs.get('do_adjust_means', False):
@@ -780,16 +798,33 @@ class RV:
         s.vrad_preNZP = hdul[1].data['RVd']
         s.vrad_preNZP_err = hdul[1].data['eRVd']
 
+        s.fwhm = hdul[1].data['FWHM']
+        s.fwhm_err = hdul[1].data['eFWHM']
+
+        s.crx = hdul[1].data['CRX']
+        s.crx_err = hdul[1].data['eCRX']
+        s.dlw = hdul[1].data['DLW']
+        s.dlw_err = hdul[1].data['eDLW']
+        s.contrast = hdul[1].data['CONTRAST']
+        s.contrast_err = hdul[1].data['eCONTRAST']
+        s.bispan = hdul[1].data['BIS']
+        s.bispan_err = hdul[1].data['eBIS']
+
+
         s.drift = hdul[1].data['drift']
         s.drift_err = hdul[1].data['e_drift']
 
         s.nzp = hdul[1].data['NZP']
         s.nzp_err = hdul[1].data['eNZP']
 
+        s.texp = hdul[1].data['ExpTime']
         s.berv = hdul[1].data['BERV']
+        s.units = 'km/s'
 
+        s.obs = np.ones_like(s.time, dtype=int)
         s.mask = np.full_like(s.time, True, dtype=bool)
         s.instruments = ['CARMENES']
+        s._quantities = np.array(['berv', ])
 
         # so meta!
         setattr(s, 'CARMENES', s)
@@ -800,6 +835,7 @@ class RV:
             tar.close()
         hdul.close()
 
+        s._child = False
         return s
 
 
@@ -1189,6 +1225,13 @@ class RV:
         """ Remove observations before a given BJD """
         if (self.time < bjd).any():
             ind = np.where(self.time < bjd)[0]
+            self.remove_point(ind)
+    
+    def remove_between_bjds(self, bjd1, bjd2):
+        """ Remove observations between two BJDs """
+        to_remove = (self.time > bjd1) & (self.time < bjd2)
+        if to_remove.any():
+            ind = np.where(to_remove)[0]
             self.remove_point(ind)
 
     def choose_n_points(self, n, seed=None, instrument=None):
@@ -1700,8 +1743,21 @@ class RV:
             s = getattr(self, inst)
             s.vrad *= factor
             s.svrad *= factor
-            s.fwhm *= factor
-            s.fwhm_err *= factor
+            try:
+                s.fwhm *= factor
+                s.fwhm_err *= factor
+            except AttributeError:
+                pass
+
+            for q in (
+                'bispan',
+                'nzp', 'nzp_err', 'vrad_preNZP', 'vrad_preNZP_err',
+            ):
+                try:
+                    setattr(s, q, getattr(s, q) * factor)
+                    setattr(s, f'{q}_err', getattr(s, f'{q}_err') * factor)
+                except AttributeError:
+                    pass
 
         self._build_arrays()
         self.units = new_units
