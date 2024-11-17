@@ -744,15 +744,17 @@ class RV:
         return s
 
     @classmethod
-    @lru_cache(maxsize=10)
+    @lru_cache(maxsize=60)
     def from_KOBE_file(cls, star, **kwargs):
         assert 'KOBE' in star, f'{star} is not a KOBE star?'
         import requests
         from requests.auth import HTTPBasicAuth
         from io import BytesIO
         import tarfile
+        from time import time as pytime
         from astropy.io import fits
         from .config import config
+        from .utils import get_data_path
 
         try:
             config.kobe_password
@@ -761,23 +763,11 @@ class RV:
             return
 
         tar = None
+        local_targz_file = os.path.join(get_data_path(), 'KOBE_fitsfiles.tar.gz')
         fits_file = f'{star}_RVs.fits'
-        resp = requests.get(f'https://kobe.caha.es/internal/fitsfiles/{fits_file}',
-                            auth=HTTPBasicAuth('kobeteam', config.kobe_password))
-        
-        if resp.status_code != 200:
-            # something went wrong, try to extract the file by downloading the
-            # full tar.gz archive
-            
-            logger.warning(f'could not find "{fits_file}" on server, trying to download full archive')
-            resp = requests.get('https://kobe.caha.es/internal/fitsfiles.tar.gz',
-                                auth=HTTPBasicAuth('kobeteam', config.kobe_password))
 
-            if resp.status_code != 200:
-                logger.error(f'KOBE file not found for {star}')
-                return
-
-            tar = tarfile.open(fileobj=BytesIO(resp.content))
+        if os.path.exists(local_targz_file) and os.path.getmtime(local_targz_file) > pytime() - 60*60*2:
+            tar = tarfile.open(local_targz_file)
 
             if fits_file not in tar.getnames():
                 logger.error(f'KOBE file not found for {star}')
@@ -786,8 +776,36 @@ class RV:
             hdul = fits.open(tar.extractfile(fits_file))
 
         else:
-            # found the file on the server, read it directly
-            hdul = fits.open(BytesIO(resp.content))
+            resp = requests.get(f'https://kobe.caha.es/internal/fitsfiles/{fits_file}',
+                                auth=HTTPBasicAuth('kobeteam', config.kobe_password))
+            
+            if resp.status_code != 200:
+                # something went wrong, try to extract the file by downloading the
+                # full tar.gz archive
+                
+                logger.warning(f'could not find "{fits_file}" on server, trying to download full archive')
+                resp = requests.get('https://kobe.caha.es/internal/fitsfiles.tar.gz',
+                                    auth=HTTPBasicAuth('kobeteam', config.kobe_password))
+
+                if resp.status_code != 200:
+                    logger.error(f'KOBE file not found for {star}')
+                    return
+
+                # save tar.gz file for later
+                with open(local_targz_file, 'wb') as tg:
+                    tg.write(resp.content)
+
+                tar = tarfile.open(fileobj=BytesIO(resp.content))
+
+                if fits_file not in tar.getnames():
+                    logger.error(f'KOBE file not found for {star}')
+                    return
+                
+                hdul = fits.open(tar.extractfile(fits_file))
+
+            else:
+                # found the file on the server, read it directly
+                hdul = fits.open(BytesIO(resp.content))
 
         s = cls(star, _child=True)
 
@@ -830,6 +848,9 @@ class RV:
         setattr(s, 'CARMENES', s)
 
         s._kobe_result = hdul[1].data
+
+        s.mask = s._kobe_result['rvflag']
+        s._propagate_mask_changes()
 
         if tar is not None:
             tar.close()
@@ -1751,7 +1772,7 @@ class RV:
 
             for q in (
                 'bispan',
-                'nzp', 'nzp_err', 'vrad_preNZP', 'vrad_preNZP_err',
+                'nzp', 'vrad_preNZP',
             ):
                 try:
                     setattr(s, q, getattr(s, q) * factor)
