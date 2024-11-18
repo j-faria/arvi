@@ -24,14 +24,15 @@ def load_spectroscopy() -> SpectroscopyClass:
     return default_Spectroscopy
 
 @lru_cache()
-def get_dace_id(star):
+def get_dace_id(star, verbose=True):
     filters = {"obj_id_catname": {"equal": [star]}}
     try:
-        with stdout_disabled(), all_logging_disabled():
+        with all_logging_disabled():
             r = load_spectroscopy().query_database(filters=filters, limit=1)
         return r['obj_id_daceid'][0]
     except KeyError:
-        logger.error(f"Could not find DACE ID for {star}")
+        if verbose:
+            logger.error(f"Could not find DACE ID for {star}")
         raise ValueError from None
 
 def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
