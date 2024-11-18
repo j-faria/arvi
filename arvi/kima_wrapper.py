@@ -42,6 +42,13 @@ def run_kima(self, run=False, load=False, run_directory=None, priors={}, **kwarg
     model.enforce_stability = kwargs.pop('enforce_stability', False)
     model.star_mass = kwargs.pop('star_mass', 1.0)
 
+    if kwargs.pop('gaussian_priors_individual_offsets', False):
+        from kima.pykima.utils import get_gaussian_priors_individual_offsets
+        model.individual_offset_prior = get_gaussian_priors_individual_offsets(data, use_std=True)
+
+    if kwargs.pop('kuma', False):
+        model.conditional.eprior = distributions.Kumaraswamy(0.867, 3.03)
+
     for k, v in priors.items():
         try:
             if 'conditional' in k:
@@ -56,9 +63,10 @@ def run_kima(self, run=False, load=False, run_directory=None, priors={}, **kwarg
             logger.warning(msg)
             return
 
+    if run_directory is None:
+        run_directory = os.getcwd()
+
     if run:
-        if run_directory is None:
-            run_directory = os.getcwd()
         
         # TODO: use signature of kima.run to pop the correct kwargs
         # model_name = model.__class__.__name__
@@ -68,8 +76,9 @@ def run_kima(self, run=False, load=False, run_directory=None, priors={}, **kwarg
         with chdir(run_directory):
             kima.run(model, **kwargs)
         
-        if load:
+    if load:
+        with chdir(run_directory):
             res = kima.load_results(model)
-            return data, model, res
+        return data, model, res
 
     return data, model
