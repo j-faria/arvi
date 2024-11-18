@@ -419,7 +419,7 @@ def do_symlink_filetype(type, raw_files, output_directory, clobber=False, top_le
 
 
 def do_download_filetype(type, raw_files, output_directory, clobber=False,
-                         verbose=True, chunk_size=20):
+                         verbose=True, chunk_size=20, parallel_limit=30):
     """ Download CCFs / S1Ds / S2Ds from DACE """
     raw_files = np.atleast_1d(raw_files)
 
@@ -439,7 +439,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
 
     # avoid an empty chunk
     if chunk_size > n:
-        chunk_size = n
+        chunk_size = n  
 
     if verbose:
         if chunk_size < n:
@@ -451,11 +451,36 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
             msg = f"downloading {n} {type}s into '{output_directory}'..."
             logger.info(msg)
 
-    iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
-    for files in tqdm(iterator, total=len(iterator)):
-        download(files, type, output_directory)
-        extract_fits(output_directory)
+    if n < parallel_limit:
+        iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
+        for files in tqdm(iterator, total=len(iterator)):
+            download(files, type, output_directory, quiet=False)
+            extract_fits(output_directory)
 
+    else:
+        def chunker(it, size):
+            iterator = iter(it)
+            while chunk := list(islice(iterator, size)):
+                yield chunk
+
+        chunks = list(chunker(raw_files, chunk_size))
+        pbar = tqdm(total=len(chunks))
+        it1 = [
+            (files, type, output_directory, f'spectroscopy_download{i+1}.tar.gz', True, pbar)
+            for i, files in enumerate(chunks)
+        ]
+        it2 = [(output_directory, f'spectroscopy_download{i+1}.tar.gz') for i in range(len(chunks))]
+
+        # import multiprocessing as mp
+        # with mp.Pool(4) as pool:
+        from multiprocessing.pool import ThreadPool
+
+        with ThreadPool(4) as pool:
+            pool.starmap(download, it1)
+            pool.starmap(extract_fits, it2)
+            print('')
+
+    sys.stdout.flush()
     logger.info('extracted .fits files')
 
 
