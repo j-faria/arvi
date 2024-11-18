@@ -119,34 +119,56 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
     return arrays
 
-def get_observations_from_instrument(star, instrument, main_id=None):
+def get_observations_from_instrument(star, instrument, main_id=None, verbose=True):
     """ Query DACE for all observations of a given star and instrument
 
     Args:
-        star (str): name of the star
-        instrument (str): instrument name
-        main_id (str, optional): Simbad main id of target to query DACE id. Defaults to None.
+        star (str):
+            name of the star
+        instrument (str):
+            instrument name
+        main_id (str, optional):
+            Simbad main id of target to query DACE id. Defaults to None.
+        verbose (bool, optional):
+            whether to print warnings. Defaults to True.
 
     Raises:
-        ValueError: If query for DACE id fails
+        ValueError:
+            If query for DACE id fails
 
     Returns:
-        dict: dictionary with data from DACE
+        dict:
+            dictionary with data from DACE
     """
+    Spectroscopy = load_spectroscopy()
+    found_dace_id = False
     try:
-        dace_id = get_dace_id(star)
+        dace_id = get_dace_id(star, verbose=verbose)
+        found_dace_id = True
     except ValueError as e:
         if main_id is not None:
-            dace_id = get_dace_id(main_id)
-        else:
-            raise e
+            try:
+                dace_id = get_dace_id(main_id, verbose=verbose)
+                found_dace_id = True
+            except ValueError:
+                pass
+    
+    if not found_dace_id:
+        try:
+            with all_logging_disabled():
+                result = Spectroscopy.get_timeseries(target=star,
+                                                     sorted_by_instrument=True,
+                                                     output_format='numpy')
+                return result
+        except TypeError:
+            msg = f'no {instrument} observations for {star}'
+            raise ValueError(msg) from None
 
-    Spectroscopy = load_spectroscopy()
     filters = {
         "ins_name": {"contains": [instrument]},
         "obj_id_daceid": {"contains": [dace_id]}
     }
-    with stdout_disabled(), all_logging_disabled():
+    with all_logging_disabled():
         result = Spectroscopy.query_database(filters=filters)
     
     if len(result) == 0:
@@ -235,7 +257,7 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
             raise ValueError(msg) from None
     else:
         try:
-            result = get_observations_from_instrument(star, instrument, main_id)
+            result = get_observations_from_instrument(star, instrument, main_id, verbose)
         except ValueError:
             msg = f'no {instrument} observations for {star}'
             raise ValueError(msg) from None
