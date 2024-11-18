@@ -170,3 +170,78 @@ ESPRESSO_GTO = ESPRESSO_GTO_nt(
 ESPRESSO_GTO.WG1.__doc__ = 'RV observations for all WG1 targets. Call ESPRESSO_GTO.WG1() to load them.'
 ESPRESSO_GTO.WG2.__doc__ = 'RV observations for all WG2 targets. Call ESPRESSO_GTO.WG2() to load them.'
 ESPRESSO_GTO.WG3.__doc__ = 'RV observations for all WG3 targets. Call ESPRESSO_GTO.WG3() to load them.'
+
+
+import requests
+
+def _get_NIRPS_GTO_stars(WP=1):
+    from io import StringIO
+    import numpy as np
+
+    url = 'https://www.eso.org/sci/observing/teles-alloc/gto/113/NIRPS/P113_NIRPS-consortium.csv'
+    file = StringIO(requests.get(url).content.decode())
+    stars_P113 = np.loadtxt(file, delimiter=',', usecols=(0,), dtype=str, skiprows=3)
+    
+    url = 'https://www.eso.org/sci/observing/teles-alloc/gto/114/NIRPS/P114_NIRPS-consortium.csv'
+    file = StringIO(requests.get(url).content.decode())
+    stars_P114 = np.loadtxt(file, delimiter=',', usecols=(0,), dtype=str, skiprows=3)
+
+    url = 'https://www.eso.org/sci/observing/teles-alloc/gto/115/NIRPS/P115_NIRPS-consortium.csv'
+    file = StringIO(requests.get(url).content.decode())
+    stars_P115 = np.loadtxt(file, delimiter=',', usecols=(0,), dtype=str, skiprows=3)
+
+    def _get_stars_period(stars, WP):
+        stars = np.delete(stars, stars=='')
+
+        stars = np.char.replace(stars, '_', ' ')
+        stars = np.char.replace(stars, "Proxima Centauri", "Proxima")
+        stars = np.char.replace(stars, "Barnard's star", "GJ699")
+        stars = np.char.replace(stars, "Teegarden's Star", 'Teegarden')
+
+        if WP in (1, 'WP1'):
+            wp1_indices = slice(np.where(stars == 'WP1')[0][0] + 1, np.where(stars == 'WP2')[0][0])
+            return stars[wp1_indices]
+        elif WP == 2:
+            wp2_indices = slice(np.where(stars == 'WP2')[0][0] + 1, np.where(stars == 'WP3')[0][0])
+            return stars[wp2_indices]
+        elif WP == 3:
+            wp3_indices = slice(np.where(stars == 'WP3')[0][0] + 1, np.where(stars == 'Other Science 1')[0][0])
+            return stars[wp3_indices]
+        elif WP == 'OS1':
+            os1_indices = slice(np.where(stars == 'Other Science 1')[0][0] + 1, np.where(stars == 'Other Science 2')[0][0])
+            return stars[os1_indices]
+        elif WP == 'OS2':
+            os2_indices = slice(np.where(stars == 'Other Science 2')[0][0] + 1, None)
+            stars = np.char.replace(stars, 'MMU', 'No')
+            stars = np.char.replace(stars, 'Cl*', '')
+            return stars[os2_indices]
+    
+    stars_P113 = _get_stars_period(stars_P113, WP)
+    stars_P114 = _get_stars_period(stars_P114, WP)
+    stars_P115 = _get_stars_period(stars_P115, WP)
+    return np.union1d(np.union1d(stars_P113, stars_P114), stars_P115)
+
+try:
+    NIRPS_GTO_WP1_stars = _get_NIRPS_GTO_stars(WP=1)
+    NIRPS_GTO_WP2_stars = _get_NIRPS_GTO_stars(WP=2)
+    NIRPS_GTO_WP3_stars = _get_NIRPS_GTO_stars(WP=3)
+    NIRPS_GTO_OS1_stars = _get_NIRPS_GTO_stars(WP='OS1')
+    NIRPS_GTO_OS2_stars = _get_NIRPS_GTO_stars(WP='OS2')
+except requests.ConnectionError:
+    from .setup_logger import logger
+    logger.error('Cannot download NIRPS GTO protected target list')
+else:
+    NIRPS_GTO_nt = namedtuple('NIRPS_GTO', ['WP1', 'WP2', 'WP3', 'OS1', 'OS2'])
+    NIRPS_GTO_nt.__doc__ = 'RV observations for all NIRPS GTO targets. See NIRPS_GTO.WP1, NIRPS_GTO.WP2, ...'
+    NIRPS_GTO = NIRPS_GTO_nt(
+        WP1=LazyRV(NIRPS_GTO_WP1_stars, instrument='NIRPS'),
+        WP2=LazyRV(NIRPS_GTO_WP2_stars, instrument='NIRPS'),
+        WP3=LazyRV(NIRPS_GTO_WP3_stars, instrument='NIRPS'),
+        OS1=LazyRV(NIRPS_GTO_OS1_stars, instrument='NIRPS'),
+        OS2=LazyRV(NIRPS_GTO_OS2_stars, instrument='NIRPS'),
+    )
+    NIRPS_GTO.WP1.__doc__ = 'RV observations for all WP1 targets. Call NIRPS_GTO.WP1() to load them.'
+    NIRPS_GTO.WP2.__doc__ = 'RV observations for all WP2 targets. Call NIRPS_GTO.WP2() to load them.'
+    NIRPS_GTO.WP3.__doc__ = 'RV observations for all WP3 targets. Call NIRPS_GTO.WP3() to load them.'
+    NIRPS_GTO.OS1.__doc__ = 'RV observations for all OS1 targets. Call NIRPS_GTO.OS1() to load them.'
+    NIRPS_GTO.OS2.__doc__ = 'RV observations for all OS2 targets. Call NIRPS_GTO.OS2() to load them.'
