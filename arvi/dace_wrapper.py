@@ -356,9 +356,12 @@ def download(files, type, output_directory, output_filename=None, quiet=True, pb
     if pbar is not None:
         pbar.update()
 
-def extract_fits(output_directory):
+
+def extract_fits(output_directory, filename=None):
     """ Extract fits files from tar.gz file """
-    file = os.path.join(output_directory, 'spectroscopy_download.tar.gz')
+    if filename is None:
+        filename = 'spectroscopy_download.tar.gz'
+    file = os.path.join(output_directory, filename)
     with tarfile.open(file, "r") as tar:
         files = []
         for member in tar.getmembers():
