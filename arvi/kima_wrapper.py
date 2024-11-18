@@ -25,10 +25,11 @@ def run_kima(self, run=False, load=False, run_directory=None, priors={}, **kwarg
     if not kima_available:
         raise ImportError('kima not available, please install with `pip install kima`')
 
-    time = [getattr(self, inst).mtime for inst in self.instruments]
-    vrad = [getattr(self, inst).mvrad for inst in self.instruments]
-    err = [getattr(self, inst).msvrad for inst in self.instruments]
-    data = RVData(time, vrad, err, instruments=self.instruments)
+    instruments = [inst for inst in self.instruments if self.NN[inst] > 1]
+    time = [getattr(self, inst).mtime for inst in instruments]
+    vrad = [getattr(self, inst).mvrad for inst in instruments]
+    err = [getattr(self, inst).msvrad for inst in instruments]
+    data = RVData(time, vrad, err, instruments=instruments)
 
     fix = kwargs.pop('fix', False)
     npmax = kwargs.pop('npmax', 1)
