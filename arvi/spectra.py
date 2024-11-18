@@ -72,7 +72,7 @@ def fit_gaussian_to_line(wave, flux, center_wavelength, around=0.15 * u.angstrom
     ]).T
 
     try:
-        popt, pcov = curve_fit(gaussian, w, f, p0=[-f.ptp(), center_wavelength.value, 0.1, f.max()],
+        popt, pcov = curve_fit(gaussian, w, f, p0=[-np.ptp(f), center_wavelength.value, 0.1, f.max()],
                                bounds=(lower, upper))
     except RuntimeError as e:
         logger.warning(f'fit_gaussian_to_line: {e}')
@@ -115,7 +115,7 @@ def detrend(w, f):
 def build_master(self, limit=None, plot=True):
     files = sorted(glob(f'{self.star}_downloads/*S1D_A.fits'))
     if self.verbose:
-        logger.info(f'Found {len(files)} S1D files')
+        logger.info(f'found {len(files)} S1D files')
 
     files = files[:limit]
 
@@ -168,8 +168,8 @@ def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
     ]
 
     if self.verbose:
-        logger.info(f'Found {len(lines)} lines in linelist')
-        logger.info('Measuring EWs...')
+        logger.info(f'found {len(lines)} lines in linelist')
+        logger.info('measuring EWs...')
 
     EW = []
     pbar = tqdm(linelist)
@@ -183,14 +183,14 @@ def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
     EW = np.array(EW)[~np.isnan(EW)]
 
     if self.verbose:
-        logger.info('Determining stellar parameters (can take a few minutes)...')
+        logger.info('determining stellar parameters (can take a few minutes)...')
 
     callback = lambda p, r, A: print('current parameters:', p)
     result = Korg.Fit.ews_to_stellar_parameters(lines, EW, callback=callback)
     par, stat_err, sys_err = result
 
     if self.verbose:
-        logger.info(f'Best fit stellar parameters:')
+        logger.info(f'best-fit stellar parameters:')
         logger.info(f'  Teff: {par[0]:.0f} ± {sys_err[0]:.0f} K')
         logger.info(f'  logg: {par[1]:.2f} ± {sys_err[1]:.2f} dex')
         logger.info(f'  m/H :  {par[3]:.2f} ± {sys_err[3]:.2f} dex')
