@@ -1,8 +1,9 @@
 import os
 import multiprocessing
-from functools import partial
+from functools import partial, lru_cache
 from itertools import chain
 from collections import namedtuple
+from multiprocessing.pool import ThreadPool
 from tqdm import tqdm
 # import numpy as np
 
@@ -14,9 +15,9 @@ __all__ = ['ESPRESSO_GTO']
 path = os.path.join(os.path.dirname(__file__), 'data')
 
 
-def get_star(star, instrument=None):
+def get_star(star, instrument=None, verbose=False, **kwargs):
     return RV(star, instrument=instrument,
-              _raise_on_error=False, verbose=False, load_extra_data=False)
+              _raise_on_error=False, verbose=verbose, **kwargs)
 
 
 class LazyRV:
@@ -36,21 +37,22 @@ class LazyRV:
     def __repr__(self):
         return f"RV({self.N} stars)"
 
-    def _get(self):
+    def _get(self, **kwargs):
         if self.N > self._parallel_limit:
             # logger.info('Querying DACE...')
-            _get_star = partial(get_star, instrument=self.instrument)
-            with multiprocessing.Pool() as pool:
+            _get_star = partial(get_star, instrument=self.instrument, **kwargs)
+            with ThreadPool(8) as pool:
                 result = list(tqdm(pool.imap(_get_star, self.stars), 
-                                   total=self.N, unit='star', desc='Querying DACE'))
-                # result = pool.map(get_star, self.stars)
+                                   total=self.N, unit='star',
+                                   desc='Querying DACE (can take a while)'))
+                print('')
         else:
             result = []
-            logger.info('Querying DACE...')
+            logger.info('querying DACE...')
             pbar = tqdm(self.stars, total=self.N, unit='star')
             for star in pbar:
                 pbar.set_description(star)
-                result.append(get_star(star, self.instrument))
+                result.append(get_star(star, self.instrument, **kwargs))
 
         return result
 
@@ -73,13 +75,24 @@ class LazyRV:
         #             result.append(None)
         # return result
 
+    def reload(self, **kwargs):
+        self._saved = self._get(**kwargs)
+        return self._saved
+
     def __iter__(self):
         return self._get()
 
-    def __call__(self):
+    def __call__(self, **kwargs):
         if not self._saved:
-            self._saved = self._get()
+            self._saved = self._get(**kwargs)
         return self._saved
+
+    @lru_cache(maxsize=10)
+    def __getitem__(self, index):
+        star = self.stars[index]
+        if self._saved is not None:
+            return self._saved[index]
+        return get_star(star, self.instrument, verbose=True)
 
 
 # sorted by spectral type
