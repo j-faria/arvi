@@ -6,6 +6,11 @@ STARS = {
     "Barnard's": 'GJ699',
     'Ross128': 'Ross  128',
     'Ross 128': 'Ross  128',
+    # 
+    'Teegarden': 'GAT1370',
+    "Teegarden's Star": 'GAT1370',
+    # 
+    "Smethells 20": 'TIC464410508',
 }
 
 
