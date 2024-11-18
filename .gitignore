@@ -2,7 +2,7 @@
 *.pkl
 *.rdb
 arvi/data/KOBE-translate.csv
-
+*_downloads
 
 
 # Byte-compiled / optimized / DLL files
