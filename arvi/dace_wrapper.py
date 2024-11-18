@@ -1,7 +1,9 @@
 import os
+import sys
 import tarfile
 import collections
 from functools import lru_cache
+from itertools import islice
 import numpy as np
 from dace_query import DaceClass
 from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
@@ -55,14 +57,18 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                 pipelines = [pipelines[i]]
 
         if latest_pipeline:
+            npipe = len(pipelines)
             if 'NIRPS' in inst and any(['LBL' in p for p in pipelines]):
                 # TODO: correctly load both CCF and LBL
                 pipelines = [pipelines[1]]
+            if 'HARPS' in inst and pipelines[1] == pipelines[0] + '-EGGS':
+                pipelines = pipelines[:2]
             else:
                 pipelines = [pipelines[0]]
 
-            if verbose and len(pipelines) > 1:
+            if verbose and npipe > 1:
                 logger.info(f'selecting latest pipeline ({pipelines[0]}) for {inst}')
+
 
         for pipe in pipelines:
             modes = [m for m in result[inst][pipe].keys()]
@@ -80,15 +86,25 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
             # HARPS15 observations should not be separated by 'mode' if some are
             # done together with NIRPS
-            if 'HARPS15' in inst and 'HARPS+NIRPS' in modes:
-                m0 = modes[0]
-                data = {
-                    k: np.concatenate([result[inst][pipe][m][k] for m in modes])
-                    for k in result[inst][pipe][m0].keys()
-                }
-                arrays.append(
-                    ((inst, pipe, m0), data)
-                )
+            if 'HARPS15' in inst:
+                if 'HARPS+NIRPS' in modes:
+                    m0 = modes[0]
+                    data = {
+                        k: np.concatenate([result[inst][pipe][m][k] for m in modes])
+                        for k in result[inst][pipe][m0].keys()
+                    }
+                    arrays.append(
+                        ((str(inst), str(pipe), str(m0)), data)
+                    )
+                if 'EGGS+NIRPS' in modes:
+                    m0 = modes[0]
+                    data = {
+                        k: np.concatenate([result[inst][pipe][m][k] for m in modes])
+                        for k in result[inst][pipe][m0].keys()
+                    }
+                    arrays.append(
+                        ((str(inst + '_EGGS'), str(pipe), str(m0)), data)
+                    )
                 continue
 
             for mode in modes:
@@ -97,7 +113,7 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                     raise ValueError
 
                 arrays.append(
-                    ((inst, pipe, mode), result[inst][pipe][mode])
+                    ((str(inst), str(pipe), str(mode)), result[inst][pipe][mode])
                 )
 
     return arrays
