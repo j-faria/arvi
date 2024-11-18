@@ -339,12 +339,22 @@ def check_existing(output_directory, files, type):
 
     return np.array(missing)
 
-def download(files, type, output_directory):
+def download(files, type, output_directory, output_filename=None, quiet=True, pbar=None):
     """ Download files from DACE """
     Spectroscopy = load_spectroscopy()
-    with stdout_disabled(), all_logging_disabled():
+    if isinstance(files, str):
+        files = [files]
+    if quiet:
+        with all_logging_disabled():
+            Spectroscopy.download_files(files, file_type=type.lower(),
+                                        output_directory=output_directory,
+                                        output_filename=output_filename)
+    else:
         Spectroscopy.download_files(files, file_type=type.lower(),
-                                    output_directory=output_directory)
+                                    output_directory=output_directory,
+                                    output_filename=output_filename)
+    if pbar is not None:
+        pbar.update()
 
 def extract_fits(output_directory):
     """ Extract fits files from tar.gz file """
