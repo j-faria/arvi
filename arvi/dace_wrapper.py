@@ -94,19 +94,17 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                         k: np.concatenate([result[inst][pipe][m][k] for m in modes])
                         for k in result[inst][pipe][m0].keys()
                     }
-                    arrays.append(
-                        ((str(inst), str(pipe), str(m0)), data)
-                    )
+                    arrays.append( ((str(inst), str(pipe), str(m0)), data) )
+                    continue
+
                 if 'EGGS+NIRPS' in modes:
                     m0 = modes[0]
                     data = {
                         k: np.concatenate([result[inst][pipe][m][k] for m in modes])
                         for k in result[inst][pipe][m0].keys()
                     }
-                    arrays.append(
-                        ((str(inst + '_EGGS'), str(pipe), str(m0)), data)
-                    )
-                continue
+                    arrays.append( ((str(inst + '_EGGS'), str(pipe), str(m0)), data) )
+                    continue
 
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
