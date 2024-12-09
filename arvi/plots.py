@@ -6,7 +6,7 @@ import numpy as np
 from astropy.timeseries import LombScargle
 
 from .setup_logger import logger
-from . import config
+from .config import config
 from .stats import wmean
 
 from .utils import lazy_import
@@ -123,8 +123,12 @@ def clickable_legend(fig, ax, leg):
                 h = handles[labels.index(artist.get_text())]
                 alpha_text = {None:0.2, 1.0: 0.2, 0.2:1.0}[artist.get_alpha()]
                 alpha_point = {None: 0.0, 1.0: 0.0, 0.2: 1.0}[artist.get_alpha()]
-                h[0].set_alpha(alpha_point)
-                h[2][0].set_alpha(alpha_point)
+                try:
+                    h[0].set_alpha(alpha_point)
+                    h[2][0].set_alpha(alpha_point)
+                except TypeError:
+                    h.set_alpha(alpha_point)
+
                 artist.set_alpha(alpha_text)
                 fig.canvas.draw()
             except ValueError:
@@ -488,14 +492,15 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
 
 
 plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
-plot_bis = partialmethod(plot_quantity, quantity='bispan')
+plot_bispan = partialmethod(plot_quantity, quantity='bispan')
 plot_contrast = partialmethod(plot_quantity, quantity='contrast')
 plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 plot_berv = partialmethod(plot_quantity, quantity='berv')
 
 
 @plot_fast
-def gls(self, ax=None, label=None, fap=True, instrument=None, adjust_means=config.adjust_means_gls,
+def gls(self, ax=None, label=None, fap=True, instrument=None, 
+        adjust_means=config.adjust_means_gls,
         picker=True, **kwargs):
     """
     Calculate and plot the Generalised Lomb-Scargle periodogram of the radial
