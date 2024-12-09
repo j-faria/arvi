@@ -31,6 +31,7 @@ gaia_source.source_id = {id}
 
 translate = {
     'Proxima': '5853498713190525696',
+    'GJ699': '4472832130942575872',
     'LS II +14 13': '4318465066420528000',
 }
 
@@ -81,7 +82,7 @@ class gaia:
         pmra = simbad.pmra
         pmdec = simbad.pmdec
         rv = simbad.rvz_radvel
-        args = dict(ra=ra, dec=dec, plx=plx, pmra=pmra, pmdec=pmdec, rv=rv)          
+        args = dict(ra=ra, dec=dec, plx=plx, pmra=pmra, pmdec=pmdec, rv=rv) 
 
         try:
             if star in translate:
