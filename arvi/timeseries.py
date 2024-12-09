@@ -573,14 +573,17 @@ class RV:
                     names = header.split()
 
             if len(names) > 3:
-                if f.endswith('.rdb'):
-                    kw = dict(skip_header=2, dtype=None, encoding=None)
-                else:
-                    kw = dict(skip_header=0, comments='--', names=True, dtype=None, encoding=None)
+                # if f.endswith('.rdb'):
+                #     kw = dict(skip_header=2, dtype=None, encoding=None)
+                # else:
+                comments = '--'
+                kw = dict(skip_header=2, comments=comments, 
+                          names=names, dtype=None, encoding=None)
                 if '\t' in header:
                     data = np.genfromtxt(f, **kw, delimiter='\t')
                 else:
                     data = np.genfromtxt(f, **kw)
+
                 if len(names) == len(data.dtype.names):
                     data.dtype.names = names
             else:
@@ -594,19 +597,20 @@ class RV:
                 else:
                     _s.fwhm_err = 2 * _s.svrad
             else:
-                _s.fwhm = np.zeros_like(time)
+                _s.fwhm = np.full_like(time, np.nan)
                 _s.fwhm_err = np.full_like(time, np.nan)
 
             _quantities.append('fwhm')
             _quantities.append('fwhm_err')
 
+            # try to find R'HK and uncertainty
             if (v := find_column(data, ['rhk'])) is not False:
                 _s.rhk = v
                 _s.rhk_err = np.full_like(time, np.nan)
                 if (sv := find_column(data, ['srhk', 'rhk_err', 'sig_rhk'])) is not False:
                     _s.rhk_err = sv
             else:
-                _s.rhk = np.zeros_like(time)
+                _s.rhk = np.full_like(time, np.nan)
                 _s.rhk_err = np.full_like(time, np.nan)
 
             _quantities.append('rhk')
@@ -758,8 +762,8 @@ class RV:
         return s
 
     @classmethod
-    @lru_cache(maxsize=60)
-    def from_KOBE_file(cls, star, **kwargs):
+    # @lru_cache(maxsize=60)
+    def from_KOBE_file(cls, star, directory='.', force_download=False, **kwargs):
         assert 'KOBE' in star, f'{star} is not a KOBE star?'
         import requests
         from requests.auth import HTTPBasicAuth
@@ -780,7 +784,14 @@ class RV:
         local_targz_file = os.path.join(get_data_path(), 'KOBE_fitsfiles.tar.gz')
         fits_file = f'{star}_RVs.fits'
 
-        if os.path.exists(local_targz_file) and os.path.getmtime(local_targz_file) > pytime() - 60*60*2:
+        local_exists = os.path.exists(local_targz_file)
+        local_recent = os.path.getmtime(local_targz_file) > pytime() - 60*60*2
+
+        if os.path.exists(os.path.join(directory, fits_file)):
+            logger.info(f'found file "{fits_file}" in "{directory}"')
+            hdul = fits.open(fits_file)
+
+        elif local_exists and local_recent and not force_download:
             tar = tarfile.open(local_targz_file)
 
             if fits_file not in tar.getnames():
@@ -792,6 +803,7 @@ class RV:
         else:
             resp = requests.get(f'https://kobe.caha.es/internal/fitsfiles/{fits_file}',
                                 auth=HTTPBasicAuth('kobeteam', config.kobe_password))
+            logger.info(f'found file "{fits_file}" on server')
             
             if resp.status_code != 200:
                 # something went wrong, try to extract the file by downloading the
