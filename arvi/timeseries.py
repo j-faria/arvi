@@ -70,13 +70,17 @@ class RV:
     _gaia = None
 
     def __repr__(self):
+        ni = len(self.instruments)
         if self.N == 0:
             return f"RV(star='{self.star}', N=0)"
+
+        i = f'{ni} instrument' + ('s' if ni > 1 else '')
+
         if self.time.size == self.mtime.size:
-            return f"RV(star='{self.star}', N={self.N})"
+            return f"RV(star='{self.star}', N={self.N}, {i})"
         else:
             nmasked = self.N - self.mtime.size
-            return f"RV(star='{self.star}', N={self.N}, masked={nmasked})"
+            return f"RV(star='{self.star}', N={self.N}, masked={nmasked}, {i})"
 
     @property
     def simbad(self):
@@ -276,6 +280,10 @@ class RV:
         if np.isin(self.instruments, other.instruments).any():
             logger.error('the two objects share instrument(s), cannot add them')
             return
+
+        if self._did_adjust_means or other._did_adjust_means:
+            self.adjust_means()
+            other.adjust_means()
 
         if inplace:
             #? could it be as simple as this?
@@ -511,17 +519,23 @@ class RV:
         Examples:
             s = RV.from_rdb('star_HARPS.rdb')
         """
+        from glob import glob
+        from os.path import splitext, basename
+
         if isinstance(files, str):
-            files = [files]
+            if '*' in files:
+                files = glob(files)
+            else:
+                files = [files]
 
         if star is None:
-            star_ = np.unique([os.path.splitext(os.path.basename(f))[0].split('_')[0] for f in files])
+            star_ = np.unique([splitext(basename(f))[0].split('_')[0] for f in files])
             if star_.size == 1:
                 logger.info(f'assuming star is {star_[0]}')
                 star = star_[0]
 
         if instrument is None:
-            instruments = np.array([os.path.splitext(f)[0].split('_')[1] for f in files])
+            instruments = np.array([splitext(basename(f))[0].split('_')[1] for f in files])
             logger.info(f'assuming instruments: {instruments}')
         else:
             instruments = np.atleast_1d(instrument)
