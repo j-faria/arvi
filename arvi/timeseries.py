@@ -2016,7 +2016,7 @@ class RV:
                 Postfix to add to the filenames ([star]_[instrument]_[postfix].rdb).
             save_nans (bool, optional)
                 Whether to save NaN values in the indicators, if they exist. If
-                False, the full observation is not saved.
+                False, the full observation which contains NaN values is not saved.
         """
         star_name = self.star.replace(' ', '')
 
@@ -2039,7 +2039,7 @@ class RV:
 
             if full:
                 if save_masked:
-                    d = np.c_[
+                    arrays = [
                         _s.time, _s.vrad, _s.svrad,
                         _s.fwhm, _s.fwhm_err,
                         _s.bispan, _s.bispan_err,
@@ -2048,7 +2048,7 @@ class RV:
                         _s.berv,
                     ]
                 else:
-                    d = np.c_[
+                    arrays = [
                         _s.mtime, _s.mvrad, _s.msvrad,
                         _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
                         _s.bispan[_s.mask], _s.bispan_err[_s.mask],
@@ -2057,12 +2057,13 @@ class RV:
                         _s.berv[_s.mask],
                     ]
                 if not save_nans:
-                    if np.isnan(d).any():
-                        # remove observations where any of the indicators are # NaN
-                        nan_mask = np.isnan(d[:, 3:]).any(axis=1)
-                        d = d[~nan_mask]
-                        if self.verbose:
-                            logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
+                    raise NotImplementedError
+                    # if np.isnan(d).any():
+                    #     # remove observations where any of the indicators are # NaN
+                    #     nan_mask = np.isnan(d[:, 3:]).any(axis=1)
+                    #     d = d[~nan_mask]
+                    #     if self.verbose:
+                    #         logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
 
                 header = '\t'.join(['bjd', 'vrad', 'svrad', 
                                     'fwhm', 'sig_fwhm',
@@ -2076,9 +2077,11 @@ class RV:
 
             else:
                 if save_masked:
-                    d = np.c_[_s.time, _s.vrad, _s.svrad]
+                    arrays = [_s.time, _s.vrad, _s.svrad]
                 else:
-                    d = np.c_[_s.mtime, _s.mvrad, _s.msvrad]
+                    arrays = [_s.mtime, _s.mvrad, _s.msvrad]
+
+                # d = np.stack(arrays, axis=1)
                 header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
 
             file = f'{star_name}_{inst}.rdb'
@@ -2088,7 +2091,17 @@ class RV:
             files.append(file)
             file = os.path.join(directory, file)
 
-            np.savetxt(file, d, fmt='%9.5f', header=header, delimiter='\t', comments='')
+            N = len(arrays[0])
+            with open(file, 'w') as f:
+                f.write(header + '\n')
+                for i in range(N):
+                    for j, a in enumerate(arrays):
+                        f.write(str(a[i]))
+                        if j < len(arrays) - 1:
+                            f.write('\t')
+                    f.write('\n')
+
+            # np.savetxt(file, d, header=header, delimiter='\t', comments='', fmt='%f')
 
             if self.verbose:
                 logger.info(f'saving to {file}')
