@@ -70,7 +70,6 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
             if verbose and npipe > 1:
                 logger.info(f'selecting latest pipeline ({pipelines[0]}) for {inst}')
 
-
         for pipe in pipelines:
             modes = [m for m in result[inst][pipe].keys()]
 
@@ -85,24 +84,19 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                     if verbose:
                         logger.warning(f'no observations for requested NIRPS mode ({NIRPS_mode})')
 
-            # HARPS15 observations should not be separated by 'mode' if some are
-            # done together with NIRPS
-            if 'HARPS15' in inst:
+            # HARPS observations should not be separated by 'mode' if some are
+            # done together with NIRPS, but should be separated by 'EGGS' mode
+            if 'HARPS' in inst:
+                m0 = modes[0]
+                data = {
+                    k: np.concatenate([result[inst][pipe][m][k] for m in modes])
+                    for k in result[inst][pipe][m0].keys()
+                }
                 if 'HARPS+NIRPS' in modes:
-                    m0 = modes[0]
-                    data = {
-                        k: np.concatenate([result[inst][pipe][m][k] for m in modes])
-                        for k in result[inst][pipe][m0].keys()
-                    }
                     arrays.append( ((str(inst), str(pipe), str(m0)), data) )
                     continue
 
-                if 'EGGS+NIRPS' in modes:
-                    m0 = modes[0]
-                    data = {
-                        k: np.concatenate([result[inst][pipe][m][k] for m in modes])
-                        for k in result[inst][pipe][m0].keys()
-                    }
+                if 'EGGS+NIRPS' in modes or 'EGGS' in modes:
                     arrays.append( ((str(inst + '_EGGS'), str(pipe), str(m0)), data) )
                     continue
 
