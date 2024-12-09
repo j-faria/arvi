@@ -1100,6 +1100,39 @@ class RV:
 
     from .instrument_specific import known_issues
 
+    def change_instrument_name(self, old_name, new_name, strict=False):
+        """ Change the name of an instrument
+
+        Args:
+            old_name (str):
+                The old name of the instrument
+            new_name (str):
+                The new name of the instrument, or postfix if `strict` is False
+            strict (bool):
+                Whether to match (each) `instrument` exactly
+        """
+        if new_name == '':
+            if self.verbose:
+                logger.error('new name cannot be empty string')
+            return
+
+        instruments = self._check_instrument(old_name, strict, log=True)
+        if instruments is not None:
+            several = len(instruments) >= 2
+            for instrument in instruments:
+                if several:
+                    new_name_instrument = f'{instrument}_{new_name}'
+                else:
+                    new_name_instrument = new_name
+                if self.verbose:
+                    logger.info(f'Renaming {instrument} to {new_name_instrument}')
+
+                setattr(self, new_name_instrument, getattr(self, instrument))
+                delattr(self, instrument)
+                self.instruments[self.instruments.index(instrument)] = new_name_instrument
+
+            self._build_arrays()
+
 
     def remove_instrument(self, instrument, strict=False):
         """ Remove all observations from one instrument
@@ -1728,8 +1761,52 @@ class RV:
         if config.return_self:
             return self
 
+    def detrend(self, degree=1):
+        """ Detrend the RVs of all instruments """
+        instrument_indices = np.unique_inverse(self.instrument_array).inverse_indices
+        def fun(p, t, degree, ninstruments, just_model=False, index=None):
+            polyp, offsets = p[:degree], p[-ninstruments:]
+            polyp = np.r_[polyp, 0.0]
+            if index is None:
+                model = offsets[instrument_indices] + np.polyval(polyp, t)
+            else:
+                model = offsets[index] + np.polyval(polyp, t)
+            if just_model:
+                return model
+            return self.mvrad - model
+        coef = np.polyfit(self.mtime, self.mvrad, degree)
+        x0 = np.append(coef, [0.0] * (len(self.instruments) - 1))
+        print(x0)
+        fun(x0, self.mtime, degree, len(self.instruments))
+        from scipy.optimize import leastsq
+        xbest, _ = leastsq(fun, x0, args=(self.mtime, degree, len(self.instruments)))
+
+        fig, ax = self.plot()
+        ax.remove()
+        ax = fig.add_subplot(2, 1, 1)
+        self.plot(ax=ax)
+        for i, inst in enumerate(self.instruments):
+            s = getattr(self, inst)
+            ax.plot(s.time, fun(xbest, s.time, degree, len(self.instruments), just_model=True, index=i),
+                    color=f'C{i}')
+        ax.set_title('original', loc='left', fontsize=10)
+        ax.set_title(f'coefficients: {xbest[:degree]}', loc='right', fontsize=10)
+
+        self.add_to_vrad(-fun(xbest, self.time, degree, len(self.instruments), just_model=True))
+        ax = fig.add_subplot(2, 1, 2)
+        self.plot(ax=ax)
+        ax.set_title('detrended', loc='left', fontsize=10)
+
+        # axs[0].plot(self.time, fun(xbest, self.time, degree, len(self.instruments), just_model=True))
+        # axs[1].errorbar(self.mtime, fun(xbest, self.mtime, degree, len(self.instruments)), self.msvrad, fmt='o')
+
+        return
+        
+
+
+
     def add_to_vrad(self, values):
-        """ Add a value of array of values to the RVs of all instruments """
+        """ Add a value or array of values to the RVs of all instruments """
         values = np.atleast_1d(values)
         if values.size == 1:
             values = np.full_like(self.vrad, values)
@@ -1754,7 +1831,7 @@ class RV:
 
     def add_to_quantity(self, quantity, values):
         """
-        Add a value of array of values to the given quantity of all instruments
+        Add a value or array of values to the given quantity of all instruments
         """
         if not hasattr(self, quantity):
             logger.error(f"cannot find '{quantity}' attribute")
@@ -1772,6 +1849,75 @@ class RV:
             mask = self.instrument_array == inst
             setattr(s, quantity, getattr(s, quantity) + values[mask])
         self._build_arrays()
+
+    def replace_vrad(self, values):
+        """ Replace the RVs of all instruments with a value or array of values """
+        values = np.atleast_1d(values)
+        if values.size == 1:
+            values = np.full_like(self.vrad, values)
+
+        masked = False
+        if values.size != self.vrad.size:
+            if values.size == self.mvrad.size:
+                logger.warning('adding to masked RVs only')
+                masked = True
+            else:
+                raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {self.vrad.size}")
+
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            if masked:
+                mask = self.instrument_array[self.mask] == inst
+                s.vrad[s.mask] = values[mask]
+            else:
+                mask = self.instrument_array == inst
+                s.vrad = values[mask]
+        self._build_arrays()
+
+    def replace_svrad(self, values):
+        """ Replace the RV uncertainties of all instruments with a value or array of values """
+        values = np.atleast_1d(values)
+        if values.size == 1:
+            values = np.full_like(self.svrad, values)
+
+        masked = False
+        if values.size != self.svrad.size:
+            if values.size == self.msvrad.size:
+                logger.warning('adding to masked RV uncertainties only')
+                masked = True
+            else:
+                raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {self.svrad.size}")
+
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            if masked:
+                mask = self.instrument_array[self.mask] == inst
+                s.svrad[s.mask] = values[mask]
+            else:
+                mask = self.instrument_array == inst
+                s.svrad = values[mask]
+        self._build_arrays()
+
+    def replace_quantity(self, quantity, values):
+        """ Replace the given quantity of all instruments by a value or array of values """
+        if not hasattr(self, quantity):
+            logger.error(f"cannot find '{quantity}' attribute")
+            return
+        q = getattr(self, quantity)
+
+        values = np.atleast_1d(values)
+        if values.size == 1:
+            values = np.full_like(q, values)
+        if values.size != q.size:
+            raise ValueError(f"incompatible sizes: len(values) must equal self.N, got {values.size} != {q.size}")
+
+        for inst in self.instruments:
+            s = getattr(self, inst)
+            mask = self.instrument_array == inst
+            setattr(s, quantity, values[mask])
+        self._build_arrays()
+
+
 
     def change_units(self, new_units):
         possible = {'m/s': 'm/s', 'km/s': 'km/s', 'ms': 'm/s', 'kms': 'km/s'}
@@ -1840,20 +1986,18 @@ class RV:
         """ Sort instruments by first or last observation date.
 
         Args:
-            by_first_observation (bool, optional):
+            by_first_observation (bool, optional, default=True):
                 Sort by first observation date.
-            by_last_observation (bool, optional):
-                Sort by last observation data.
+            by_last_observation (bool, optional, default=False):
+                Sort by last observation date.
         """
         if by_last_observation:
             by_first_observation = False
         if by_first_observation:
-            fun = lambda i: getattr(self, i).time.min()
-            self.instruments = sorted(self.instruments, key=fun)
+            self.instruments = sorted(self.instruments, key=lambda i: getattr(self, i).time.min())
             self._build_arrays()
         if by_last_observation:
-            fun = lambda i: getattr(self, i).time.max()
-            self.instruments = sorted(self.instruments, key=fun)
+            self.instruments = sorted(self.instruments, key=lambda i: getattr(self, i).time.max())
             self._build_arrays()
 
 
