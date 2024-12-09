@@ -1009,12 +1009,17 @@ class RV:
 
         if load:
             try:
-                from os.path import basename, join
+                from os.path import basename, join, exists
                 from .utils import sanitize_path
                 import iCCF
                 downloaded = [
                     sanitize_path(join(directory, basename(f).replace('.fits', '_CCF_A.fits')))
                     for f in files[:limit]
+                ]
+                downloaded = [
+                    skysub 
+                    if exists(skysub := f.replace('CCF_A.fits', 'CCF_SKYSUB_A.fits')) else f
+                    for f in downloaded
                 ]
                 if self.verbose:
                     logger.info('loading the CCF(s) into `.CCF` attribute')
