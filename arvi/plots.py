@@ -716,7 +716,7 @@ def gls_quantity(self, quantity, ax=None, fap=True, instrument=None,
 
 
 gls_fwhm = partialmethod(gls_quantity, quantity='fwhm')
-gls_bis = partialmethod(gls_quantity, quantity='bispan')
+gls_bispan = partialmethod(gls_quantity, quantity='bispan')
 gls_rhk = partialmethod(gls_quantity, quantity='rhk')
 
 
