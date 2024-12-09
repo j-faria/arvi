@@ -1077,8 +1077,8 @@ class RV:
             do_download_filetype('S2D', files[:limit], directory, verbose=self.verbose, **kwargs)
 
 
-    from .plots import plot, plot_fwhm, plot_bis, plot_rhk, plot_berv, plot_quantity
-    from .plots import gls, gls_fwhm, gls_bis, gls_rhk, window_function
+    from .plots import plot, plot_fwhm, plot_bispan, plot_contrast, plot_rhk, plot_berv, plot_quantity
+    from .plots import gls, gls_fwhm, gls_bispan, gls_rhk, gls_quantity, window_function
     from .reports import report
 
     from .instrument_specific import known_issues
