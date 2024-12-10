@@ -276,6 +276,11 @@ class RV:
         # if not isinstance(other, self.__class__):
         #     raise TypeError('unsupported operand type(s) for +: '
         #                     f"'{self.__class__.__name__}' and '{other.__class__.__name__}'")
+        if other is None:
+            if inplace:
+                return
+            else:
+                return deepcopy(self)
 
         if np.isin(self.instruments, other.instruments).any():
             logger.error('the two objects share instrument(s), cannot add them')
@@ -527,6 +532,10 @@ class RV:
                 files = glob(files)
             else:
                 files = [files]
+
+        if len(files) == 0:
+            logger.error('no files found')
+            return
 
         if star is None:
             star_ = np.unique([splitext(basename(f))[0].split('_')[0] for f in files])
