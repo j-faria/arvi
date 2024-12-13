@@ -25,7 +25,10 @@ units = lazy_import('astropy.units')
 # from astropy import units
 
 class ExtraFields:
-    pass
+    @property
+    def fields(self):
+        return list(self.__dict__.keys())
+
 
 @dataclass
 class RV:
@@ -663,8 +666,9 @@ class RV:
 
             _s.extra_fields = ExtraFields()
             for name in data.dtype.names:
-                if name not in _quantities:
-                    name_ = name.replace(' ', '_')
+                # don't repeat some quantities
+                if name not in _quantities + ['bjd', 'rjd', 'vrad', 'svrad']:
+                    name_ = name.replace(' ', '_').replace('-', '_')
                     setattr(_s.extra_fields, name_, data[name])
                     # _quantities.append(field)
 
