@@ -568,7 +568,7 @@ class RV:
             has_col = np.array([name in data.dtype.fields for name in names])
             if any(has_col):
                 col = np.where(has_col)[0][0]
-                return data[names[col]]
+                return np.atleast_1d(data[names[col]])
             return False
 
         for i, (f, instrument) in enumerate(zip(files, instruments)):
@@ -596,13 +596,16 @@ class RV:
                 # if f.endswith('.rdb'):
                 #     kw = dict(skip_header=2, dtype=None, encoding=None)
                 # else:
-                comments = '--'
-                kw = dict(skip_header=2, comments=comments, 
+                comments = '#'
+                kw = dict(skip_header=2, comments=comments,
                           names=names, dtype=None, encoding=None)
                 if '\t' in header:
                     data = np.genfromtxt(f, **kw, delimiter='\t')
                 else:
                     data = np.genfromtxt(f, **kw)
+                
+                # if data.ndim in (0, 1):
+                #     data = data.reshape(-1, 1)
 
                 if len(names) == len(data.dtype.names):
                     data.dtype.names = names
