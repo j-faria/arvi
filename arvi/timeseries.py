@@ -530,6 +530,8 @@ class RV:
         from glob import glob
         from os.path import splitext, basename
 
+        verbose = kwargs.pop('verbose', True)
+
         if isinstance(files, str):
             if '*' in files:
                 files = glob(files)
@@ -537,18 +539,21 @@ class RV:
                 files = [files]
 
         if len(files) == 0:
-            logger.error('no files found')
+            if verbose:
+                logger.error('no files found')
             return
 
         if star is None:
             star_ = np.unique([splitext(basename(f))[0].split('_')[0] for f in files])
             if star_.size == 1:
-                logger.info(f'assuming star is {star_[0]}')
-                star = star_[0]
+                star = star_[0].replace('-', '_')
+                if verbose:
+                    logger.info(f'assuming star is {star}')
 
         if instrument is None:
             instruments = np.array([splitext(basename(f))[0].split('_')[1] for f in files])
-            logger.info(f'assuming instruments: {instruments}')
+            if verbose:
+                logger.info(f'assuming instruments: {instruments}')
         else:
             instruments = np.atleast_1d(instrument)
 
@@ -568,6 +573,9 @@ class RV:
 
         for i, (f, instrument) in enumerate(zip(files, instruments)):
             data = np.loadtxt(f, skiprows=2, usecols=range(3), unpack=True)
+            if data.ndim == 1:
+                data = data.reshape(-1, 1)
+
             _s = cls(star, _child=True, **kwargs)
             time = data[0]
             _s.time = time
