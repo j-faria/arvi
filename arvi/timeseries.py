@@ -1305,10 +1305,9 @@ class RV:
 
     def remove_single_observations(self):
         """ Remove instruments for which there is a single observation """
-        instruments = deepcopy(self.instruments)
-        for inst in instruments:
-            if getattr(self, inst).mtime.size == 1:
-                self.remove_instrument(inst)
+        singles = [i for i in self.instruments if getattr(self, i).mtime.size == 1]
+        for inst in singles:
+            self.remove_instrument(inst, strict=True)
 
     def remove_prog_id(self, prog_id):
         """ Remove observations from a given program ID """
