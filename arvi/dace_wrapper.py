@@ -11,16 +11,33 @@ from .setup_logger import logger
 from .utils import create_directory, all_logging_disabled, stdout_disabled, tqdm
 
 
-def load_spectroscopy() -> SpectroscopyClass:
+def load_spectroscopy(user=None) -> SpectroscopyClass:
     from .config import config
+    # requesting as public
     if config.request_as_public:
         with all_logging_disabled():
             dace = DaceClass(dace_rc_config_path='none')
         return SpectroscopyClass(dace_instance=dace)
+    # DACERC environment variable is set, should point to a dacerc file with credentials
     if 'DACERC' in os.environ:
         dace = DaceClass(dace_rc_config_path=os.environ['DACERC'])
         return SpectroscopyClass(dace_instance=dace)
-    # elif os.path.exists(os.path.expanduser('~/.dacerc')):
+    # user provided, should be a section in ~/.dacerc
+    if user is not None:
+        import configparser
+        import tempfile
+        config = configparser.ConfigParser()
+        config.read(os.path.expanduser('~/.dacerc'))
+        if user not in config.sections():
+            raise ValueError(f'Section for user "{user}" not found in ~/.dacerc')
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+            new_config = configparser.ConfigParser()
+            new_config['user'] = config[user]
+            new_config.write(f)
+        dace = DaceClass(dace_rc_config_path=f.name)
+        logger.info(f'using credentials for user {user} in ~/.dacerc')
+        return SpectroscopyClass(dace_instance=dace)
+    # default
     return default_Spectroscopy
 
 @lru_cache()
@@ -111,7 +128,7 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
     return arrays
 
-def get_observations_from_instrument(star, instrument, main_id=None, verbose=True):
+def get_observations_from_instrument(star, instrument, user=None, main_id=None, verbose=True):
     """ Query DACE for all observations of a given star and instrument
 
     Args:
@@ -119,6 +136,8 @@ def get_observations_from_instrument(star, instrument, main_id=None, verbose=Tru
             name of the star
         instrument (str):
             instrument name
+        user (str, optional):
+            DACERC user name. Defaults to None.
         main_id (str, optional):
             Simbad main id of target to query DACE id. Defaults to None.
         verbose (bool, optional):
@@ -132,7 +151,7 @@ def get_observations_from_instrument(star, instrument, main_id=None, verbose=Tru
         dict:
             dictionary with data from DACE
     """
-    Spectroscopy = load_spectroscopy()
+    Spectroscopy = load_spectroscopy(user)
     found_dace_id = False
     try:
         dace_id = get_dace_id(star, verbose=verbose)
@@ -233,9 +252,9 @@ def get_observations_from_instrument(star, instrument, main_id=None, verbose=Tru
     # print([r[k1][k2].keys() for k1 in r.keys() for k2 in r[k1].keys()])
     return r
 
-def get_observations(star, instrument=None, main_id=None, verbose=True):
+def get_observations(star, instrument=None, user=None, main_id=None, verbose=True):
     if instrument is None:
-        Spectroscopy = load_spectroscopy()
+        Spectroscopy = load_spectroscopy(user)
         try:
             with stdout_disabled(), all_logging_disabled():
                 result = Spectroscopy.get_timeseries(target=star,
@@ -249,7 +268,7 @@ def get_observations(star, instrument=None, main_id=None, verbose=True):
             raise ValueError(msg) from None
     else:
         try:
-            result = get_observations_from_instrument(star, instrument, main_id, verbose)
+            result = get_observations_from_instrument(star, instrument, user, main_id, verbose)
         except ValueError:
             msg = f'no {instrument} observations for {star}'
             raise ValueError(msg) from None
@@ -333,6 +352,12 @@ def check_existing(output_directory, files, type):
         if type in f
     ]
 
+    if type == 'S2D':
+        existing = [
+            f.partition('.fits')[0] for f in os.listdir(output_directory)
+            if 'e2ds' in f
+        ]   
+
     # also check for lowercase type
     existing += [
         f.partition('.fits')[0] for f in os.listdir(output_directory)
@@ -345,7 +370,8 @@ def check_existing(output_directory, files, type):
     
     # remove type of file (e.g. _CCF_A)
     existing = [f.partition('_')[0] for f in existing]
-    
+    existing = np.unique(existing)
+
     missing = []
     for file in files:
         if any(other in file for other in existing):
@@ -354,9 +380,9 @@ def check_existing(output_directory, files, type):
 
     return np.array(missing)
 
-def download(files, type, output_directory, output_filename=None, quiet=True, pbar=None):
+def download(files, type, output_directory, output_filename=None, user=None, quiet=True, pbar=None):
     """ Download files from DACE """
-    Spectroscopy = load_spectroscopy()
+    Spectroscopy = load_spectroscopy(user)
     if isinstance(files, str):
         files = [files]
     if quiet:
@@ -433,7 +459,7 @@ def do_symlink_filetype(type, raw_files, output_directory, clobber=False, top_le
             logger.warning(f'file not found: {file}')
 
 
-def do_download_filetype(type, raw_files, output_directory, clobber=False,
+def do_download_filetype(type, raw_files, output_directory, clobber=False, user=None,
                          verbose=True, chunk_size=20, parallel_limit=30):
     """ Download CCFs / S1Ds / S2Ds from DACE """
     raw_files = np.atleast_1d(raw_files)
@@ -469,7 +495,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
     if n < parallel_limit:
         iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
         for files in tqdm(iterator, total=len(iterator)):
-            download(files, type, output_directory, quiet=False)
+            download(files, type, output_directory, quiet=False, user=user)
             extract_fits(output_directory)
 
     else:
@@ -481,7 +507,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False,
         chunks = list(chunker(raw_files, chunk_size))
         pbar = tqdm(total=len(chunks))
         it1 = [
-            (files, type, output_directory, f'spectroscopy_download{i+1}.tar.gz', True, pbar)
+            (files, type, output_directory, f'spectroscopy_download{i+1}.tar.gz', user, True, pbar)
             for i, files in enumerate(chunks)
         ]
         it2 = [(output_directory, f'spectroscopy_download{i+1}.tar.gz') for i in range(len(chunks))]
