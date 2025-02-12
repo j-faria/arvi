@@ -1,0 +1,6 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: ".github/workflows/" # Location of the directory containing the GitHub Actions workflows
+    schedule:
+      interval: "weekly" # Check for updates weekly
