@@ -59,6 +59,7 @@ class RV:
     only_latest_pipeline: bool = field(init=True, repr=False, default=True)
     load_extra_data: Union[bool, str] = field(init=True, repr=False, default=False)
     check_drs_qc: bool = field(init=True, repr=False, default=True)
+    user: bool = field(init=True, repr=False, default=None)
     #
     units = 'm/s'
     _child: bool = field(init=True, repr=False, default=False)
@@ -185,7 +186,7 @@ class RV:
 
                     with timer():
                         self.dace_result = get_observations(self.__star__, self.instrument,
-                                                            main_id=mid, verbose=self.verbose)
+                                                            user=self.user, main_id=mid, verbose=self.verbose)
                 except ValueError as e:
                     # querying DACE failed, should we raise an error?
                     if self._raise_on_error:
@@ -1029,7 +1030,8 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('CCF', files[:limit], directory, verbose=self.verbose, **kwargs)
+            do_download_filetype('CCF', files[:limit], directory, 
+                                 verbose=self.verbose, user=self.user, **kwargs)
 
         if load:
             try:
@@ -1083,7 +1085,8 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('S1D', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('S1D', files[:limit], directory, verbose=self.verbose, **kwargs)
+            do_download_filetype('S1D', files[:limit], directory, 
+                                 verbose=self.verbose, user=self.user, **kwargs)
 
     def download_s2d(self, instrument=None, index=None, limit=None,
                      directory=None, symlink=False, **kwargs):
@@ -1115,7 +1118,9 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('S2D', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('S2D', files[:limit], directory, verbose=self.verbose, **kwargs)
+            do_download_filetype('S2D', files[:limit], directory, 
+                                 verbose=self.verbose, user=self.user, **kwargs)
+
 
 
     from .plots import plot, plot_fwhm, plot_bispan, plot_contrast, plot_rhk, plot_berv, plot_quantity
