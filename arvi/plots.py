@@ -471,13 +471,16 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
 
     ax.minorticks_on()
 
+    delta = 'Δ' if self._did_adjust_means else ''
+
     ylabel = {
         quantity.lower(): quantity,
-        'fwhm': f'FWHM [{self.units}]',
-        'bispan': f'BIS [{self.units}]',
+        'fwhm': f'{delta}FWHM [{self.units}]',
+        'bispan': f'{delta}BIS [{self.units}]',
         'rhk': r"$\log$ R'$_{HK}$",
         'berv': 'BERV [km/s]',
     }
+
     ax.set_ylabel(ylabel[quantity.lower()])
 
     if remove_50000:
@@ -591,7 +594,10 @@ def gls(self, ax=None, label=None, fap=True, instrument=None,
         ax.semilogx(1/freq, power, picker=picker, label=label, **kwargs)
 
     if fap:
-        ax.axhline(gls.false_alarm_level(0.01),
+        fap_level = 0.01
+        if isinstance(fap, float):
+            fap_level = fap
+        ax.axhline(gls.false_alarm_level(fap_level),
                    color='k', alpha=0.2, zorder=-1)
 
     ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
@@ -698,12 +704,18 @@ def gls_quantity(self, quantity, ax=None, fap=True, instrument=None,
     else:
         fig = ax.figure
 
+    spp = kwargs.get('samples_per_peak', 5)
+
     gls = LombScargle(t, y, ye)
-    freq, power = gls.autopower(maximum_frequency=1.0)
-    ax.semilogx(1/freq, power, picker=picker)
+    freq, power = gls.autopower(maximum_frequency=1.0, samples_per_peak=spp)
+
+    ax.semilogx(1/freq, power, picker=picker, **kwargs)
 
     if fap:
-        ax.axhline(gls.false_alarm_level(0.01),
+        fap_level = 0.01
+        if isinstance(fap, float):
+            fap_level = fap
+        ax.axhline(gls.false_alarm_level(fap_level),
                    color='k', alpha=0.2, zorder=-1)
 
     ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
