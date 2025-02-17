@@ -310,6 +310,10 @@ class RV:
             new_self._build_arrays()
             return new_self
 
+    def __iter__(self):
+        for inst in self.instruments:
+            yield getattr(self, inst)
+
 
     def reload(self):
         self._did_secular_acceleration = False
@@ -512,7 +516,8 @@ class RV:
         return s
 
     @classmethod
-    def from_rdb(cls, files, star=None, instrument=None, units='ms', **kwargs):
+    def from_rdb(cls, files, star=None, instrument=None, units='ms', 
+                 header_skip=2, **kwargs):
         """ Create an RV object from an rdb file or a list of rdb files
 
         Args:
@@ -524,6 +529,8 @@ class RV:
                 Name of the instrument(s). If None, try to infer it from file name
             units (str, optional):
                 Units of the radial velocities. Defaults to 'ms'.
+            header_skip (int, optional):
+                Number of lines to skip in the header. Defaults to 2.
 
         Examples:
             s = RV.from_rdb('star_HARPS.rdb')
@@ -566,14 +573,14 @@ class RV:
         s = cls(star, _child=True, **kwargs)
 
         def find_column(data, names):
-            has_col = np.array([name in data.dtype.fields for name in names])
+            has_col = np.array([name.casefold() in data.dtype.fields for name in names])
             if any(has_col):
                 col = np.where(has_col)[0][0]
                 return np.atleast_1d(data[names[col]])
             return False
 
         for i, (f, instrument) in enumerate(zip(files, instruments)):
-            data = np.loadtxt(f, skiprows=2, usecols=range(3), unpack=True)
+            data = np.loadtxt(f, skiprows=header_skip, usecols=range(3), unpack=True)
             if data.ndim == 1:
                 data = data.reshape(-1, 1)
 
@@ -615,11 +622,13 @@ class RV:
 
             # try to find FWHM and uncertainty
             if (v := find_column(data, ['fwhm'])) is not False:  # walrus !!
-                _s.fwhm = v
+                _s.fwhm = v * factor
                 if (sv := find_column(data, ['sfwhm', 'fwhm_err', 'sig_fwhm'])) is not False:
-                    _s.fwhm_err = sv
+                    _s.fwhm_err = sv * factor
+                    logger.debug('found columns for FWHM and uncertainty') if verbose else None
                 else:
                     _s.fwhm_err = 2 * _s.svrad
+                    logger.debug('found column for FWHM') if verbose else None
             else:
                 _s.fwhm = np.full_like(time, np.nan)
                 _s.fwhm_err = np.full_like(time, np.nan)
@@ -633,6 +642,7 @@ class RV:
                 _s.rhk_err = np.full_like(time, np.nan)
                 if (sv := find_column(data, ['srhk', 'rhk_err', 'sig_rhk'])) is not False:
                     _s.rhk_err = sv
+                    logger.debug('found columns for logRhk and uncertainty') if verbose else None
             else:
                 _s.rhk = np.full_like(time, np.nan)
                 _s.rhk_err = np.full_like(time, np.nan)
@@ -641,11 +651,11 @@ class RV:
             _quantities.append('rhk_err')
 
             # try to find BISPAN and uncertainty
-            if (v := find_column(data, ['bispan'])) is not False:
-                _s.bispan = v
+            if (v := find_column(data, ['bis', 'bispan'])) is not False:
+                _s.bispan = v * factor
                 _s.bispan_err = np.full_like(time, np.nan)
-                if (sv := find_column(data, ['sbispan'])) is not False:
-                    _s.bispan_err = sv
+                if (sv := find_column(data, ['sbispan', 'sig_bispan', 'bispan_err'])) is not False:
+                    _s.bispan_err = sv * factor
             else:
                 _s.bispan = np.full_like(time, np.nan)
                 _s.bispan_err = np.full_like(time, np.nan)
@@ -660,18 +670,57 @@ class RV:
                 _s.berv = np.full_like(time, np.nan)
             _quantities.append('berv')
 
-            # other quantities, but all NaNs
-            for q in ['caindex', 'ccf_asym', 'contrast', 'haindex', 'naindex', 'sindex']:
-                setattr(_s, q, np.full_like(time, np.nan))
-                setattr(_s, q + '_err', np.full_like(time, np.nan))
+            # other quantities
+            msg = ''
+
+            for q, possible in {
+                'caindex': ['caindex', 'ca', 'caII'],
+                'ccf_asym': ['ccf_asym'],
+                'contrast': ['contrast'],
+                'haindex': ['haindex', 'ha', 'halpha'],
+                'heindex': ['heindex', 'he', 'heII'],
+                'naindex': ['naindex', 'na'],
+                'sindex': ['sindex', 's_mw'],
+            }.items():
+                # try to find columns for each quantity
+                if (v := find_column(data, possible)) is not False:
+                    msg += f'{q}, '
+                    setattr(_s, q, v)
+                    # try to find uncertainty column for each quantity
+                    possible_errors = ['s' + p for p in possible] + ['sig_' + p for p in possible] + [p + '_err' for p in possible]
+                    if (sv := find_column(data, possible_errors)) is not False:
+                        setattr(_s, q + '_err', sv)
+                    else:
+                        setattr(_s, q + '_err', np.full_like(time, np.nan))
+                else:
+                    setattr(_s, q, np.full_like(time, np.nan))
+                    setattr(_s, q + '_err', np.full_like(time, np.nan))
                 _quantities.append(q)
                 _quantities.append(q + '_err')
+
+            if verbose and msg != '':
+                if msg.endswith(', '):
+                    msg = msg[:-2]
+                logger.debug('found columns for ' + msg)
+
+
+            # more values
             for q in ['texp', ]:
-                setattr(_s, q, np.full_like(time, np.nan))
+                if (v := find_column(data, q)) is not False:
+                    setattr(_s, q, v)
+                else:
+                    setattr(_s, q, np.full_like(time, np.nan))
                 _quantities.append(q)
+
+            # strings
             for q in ['ccf_mask', 'date_night', 'prog_id', 'raw_file', 'pub_reference']:
-                setattr(_s, q, np.full(time.size, ''))
+                if (v := find_column(data, q)) is not False:
+                    setattr(_s, q, v)
+                else:
+                    setattr(_s, q, np.full(time.size, ''))
                 _quantities.append(q)
+
+            # booleans
             for q in ['drs_qc', ]:
                 setattr(_s, q, np.full(time.size, True))
                 _quantities.append(q)
