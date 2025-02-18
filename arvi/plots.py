@@ -502,8 +502,8 @@ plot_berv = partialmethod(plot_quantity, quantity='berv')
 
 
 @plot_fast
-def gls(self, ax=None, label=None, fap=True, instrument=None, 
-        adjust_means=config.adjust_means_gls,
+def gls(self, ax=None, label=None, instrument=None, 
+        fap=True, fap_method='baluev', adjust_means=config.adjust_means_gls,
         picker=True, **kwargs):
     """
     Calculate and plot the Generalised Lomb-Scargle periodogram of the radial
@@ -515,11 +515,15 @@ def gls(self, ax=None, label=None, fap=True, instrument=None,
             created.
         label (str):
             The label to use for the plot.
-        fap (bool):
-            Whether to show the false alarm probability. Default is True.
         instrument (str or list):
             Which instruments' data to include in the periodogram. Default is
             all instruments.
+        fap (bool or float):
+            Whether to show the false alarm probability. A value (not a
+            percentage) can be provided to display a given FAP. Default is True.
+        fap_method (str):
+            Method used to estimate the FAP, passed directly to
+            `astropy.timeseries.LombScargle`. Default is 'baluev'.
         adjust_means (bool):
             Whether to adjust (subtract) the weighted means of each instrument.
             Default is `config.adjust_means_gls`.
@@ -597,8 +601,14 @@ def gls(self, ax=None, label=None, fap=True, instrument=None,
         fap_level = 0.01
         if isinstance(fap, float):
             fap_level = fap
-        ax.axhline(gls.false_alarm_level(fap_level),
-                   color='k', alpha=0.2, zorder=-1)
+
+        fap = gls.false_alarm_level(fap_level, method=fap_method)
+
+        if fap > 0.05 and fap_method == 'baluev':
+            logger.warning('FAP is high (>5%), the analytical estimate may be underestimated. Using the bootstrap method instead.')
+            fap = gls.false_alarm_level(fap_level, method='bootstrap')
+
+        ax.axhline(fap, color='k', alpha=0.2, zorder=-1)
 
     ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
     ax.minorticks_on()
@@ -640,8 +650,32 @@ def gls(self, ax=None, label=None, fap=True, instrument=None,
 
 
 # @plot_fast
-def gls_quantity(self, quantity, ax=None, fap=True, instrument=None,
+def gls_quantity(self, quantity, ax=None, instrument=None,
+                 fap=True, fap_method='baluev',
                  adjust_means=True, picker=True, **kwargs):
+    """
+    Calculate and plot the Generalised Lomb-Scargle periodogram of the given
+    quantity (e.g. fwhm, rhk, etc.)
+
+    Args:
+        quantity (str):
+            The quantity to calculate for which to compute the periodogram.
+        ax (matplotlib.axes.Axes):
+            The matplotlib axes to plot on. If None, a new figure will be
+            created.
+        instrument (str or list):
+            Which instruments' data to include in the periodogram. Default is
+            all instruments.
+        fap (bool or float):
+            Whether to show the false alarm probability. A value (not a
+            percentage) can be provided to display a given FAP. Default is True.
+        fap_method (str):
+            Method used to estimate the FAP, passed directly to
+            `astropy.timeseries.LombScargle`. Default is 'baluev'.
+        adjust_means (bool):
+            Whether to adjust (subtract) the weighted means of each instrument.
+            Default is `config.adjust_means_gls`.
+    """
 
     if not hasattr(self, quantity):
         if self.verbose:
@@ -715,8 +749,14 @@ def gls_quantity(self, quantity, ax=None, fap=True, instrument=None,
         fap_level = 0.01
         if isinstance(fap, float):
             fap_level = fap
-        ax.axhline(gls.false_alarm_level(fap_level),
-                   color='k', alpha=0.2, zorder=-1)
+
+        fap = gls.false_alarm_level(fap_level, method=fap_method)
+
+        if fap > 0.05 and fap_method == 'baluev':
+            logger.warning('FAP is high (>5%), the analytical estimate may be underestimated. Using the bootstrap method instead.')
+            fap = gls.false_alarm_level(fap_level, method='bootstrap')
+
+        ax.axhline(fap, color='k', alpha=0.2, zorder=-1)
 
     ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
     ax.minorticks_on()
