@@ -765,13 +765,19 @@ class RV:
         if isinstance(files, str):
             files = [files]
 
-        CCFs = iCCF.from_file(files)
+        hdu_number = kwargs.pop('hdu_number', 1)
+        data_index = kwargs.pop('data_index', -1)
+        CCFs = iCCF.from_file(files, hdu_number=hdu_number, data_index=data_index)
 
         if not isinstance(CCFs, list):
             CCFs = [CCFs]
 
-        objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
-        if objects.size != 1:
+        try:
+            objects = [i.OBJECT for i in CCFs]
+        except AttributeError:
+            objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
+
+        if len(objects) != 1:
             logger.warning(f'found {objects.size} different stars in the CCF files, '
                            'choosing the first one')
         star = objects[0]
@@ -808,7 +814,7 @@ class RV:
 
             _s.mask = np.full_like(_s.time, True, dtype=bool)
 
-            _s.drs_qc = np.array([i.HDU[0].header['HIERARCH ESO QC SCIRED CHECK'] for i in CCFs], dtype=bool)
+            _s.drs_qc = np.array([i.HDU[0].header['*QC SCIRED CHECK'][0] for i in CCFs], dtype=bool)
             # mask out drs_qc = False
             if not _s.drs_qc.all():
                 n = (~ _s.drs_qc).sum()
