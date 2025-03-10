@@ -35,7 +35,7 @@ s = RV('HD1234', instrument='ESPRESSO')
 
 #### Current version
 
-![PyPI - Version](https://img.shields.io/pypi/v/arvi)
+[![PyPI - Version](https://img.shields.io/pypi/v/arvi?color=32c854)](https://pypi.org/project/arvi/)
 
 #### Actions
 
