@@ -865,7 +865,7 @@ class RV:
         fits_file = f'{star}_RVs.fits'
 
         local_exists = os.path.exists(local_targz_file)
-        local_recent = os.path.getmtime(local_targz_file) > pytime() - 60*60*2
+        local_recent = local_exists and os.path.getmtime(local_targz_file) > pytime() - 60*60*2
 
         if os.path.exists(os.path.join(directory, fits_file)):
             logger.info(f'found file "{fits_file}" in "{directory}"')
