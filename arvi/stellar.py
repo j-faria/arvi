@@ -1,5 +1,30 @@
-
 import numpy as np
+
+# from Table 5 of Pecaut & Mamajek (2013, ApJS, 208, 9; http://adsabs.harvard.edu/abs/2013ApJS..208....9P)
+# https://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt
+EFFECTIVE_TEMPERATURES = {
+    'F0': 7220, 'F1': 7020, 'F2': 6820, 'F3': 6750, 'F4': 6670, 'F5': 6550, 'F6': 6350, 'F7': 6280, 'F8': 6180, 'F9': 6050,
+    'G0': 5930, 'G1': 5860, 'G2': 5770, 'G3': 5720, 'G4': 5680, 'G5': 5660, 'G6': 5600, 'G7': 5550, 'G8': 5480, 'G9': 5380,
+    'K0': 5270, 'K1': 5170, 'K2': 5100, 'K3': 4830, 'K4': 4600, 'K5': 4440, 'K6': 4300, 'K7': 4100, 'K8': 3990, 'K9': 3930,
+    'M0': 3850, 'M1': 3660, 'M2': 3560, 'M3': 3430, 'M4': 3210, 'M5': 3060, 'M6': 2810, 'M7': 2680, 'M8': 2570, 'M9': 2380,
+}
+
+def teff_to_sptype(teff):
+    """
+    Estimate the spectral type from the effective temperature, using the
+    Pecaut & Mamajek (2013) table.
+
+    Args:
+        teff (float): Effective temperature
+
+    Returns:
+        str: Spectral type
+    """
+    teffs = list(EFFECTIVE_TEMPERATURES.values())
+    sptypes = list(EFFECTIVE_TEMPERATURES.keys())
+    i = np.argmin(np.abs(np.array(teffs) - teff))
+    return sptypes[i]
+
 
 class prot_age_result:
     prot_n84 = None #: float | np.ndarray
