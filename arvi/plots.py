@@ -137,8 +137,8 @@ def clickable_legend(fig, ax, leg):
 
 # @plot_fast
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
-         remove_50000=False, tooltips=False, show_legend=True, label=None,
-         N_in_label=False, versus_n=False, show_histogram=False, bw=False, **kwargs):
+         remove_50000=False, tooltips=True, show_title=False, show_legend=True, label=None, 
+         jitter=None, N_in_label=False, versus_n=False, show_histogram=False, bw=False, **kwargs):
     """ Plot the RVs
 
     Args:
@@ -154,6 +154,8 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             Whether to subtract 50000 from time. Defaults to False.
         tooltips (bool, optional):
             Show information upon clicking a point. Defaults to True.
+        show_title (bool, optional):
+            Show the star name in the plot title. Defaults to False.
         show_legend (bool, optional):
             Show legend. Defaults to True.
         N_in_label (bool, optional):
@@ -370,6 +372,9 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             ax.set_xlabel('BJD - 2450000 [days]')
         else:
             ax.set_xlabel('BJD - 2400000 [days]')
+
+    if show_title:
+        ax.set_title(self.star, loc='right')
 
     # from matplotlib.backend_tools import ToolBase, ToolToggleBase
     # tm = fig.canvas.manager.toolmanager
