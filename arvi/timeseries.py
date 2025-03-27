@@ -414,9 +414,9 @@ class RV:
         ind = np.where(self.instrument_array == instrument)[0]
         return ind[getattr(self, instrument).mask][index]
 
-    @property
-    def _tt(self) -> np.ndarray:
-        return np.linspace(self.mtime.min(), self.mtime.max(), 20*self.N)
+    # @property
+    def _tt(self, f=20) -> np.ndarray:
+        return np.linspace(self.mtime.min(), self.mtime.max(), f*self.N)
 
     @classmethod
     def from_dace_data(cls, star, inst, pipe, mode, data, **kwargs):
@@ -773,7 +773,7 @@ class RV:
             CCFs = [CCFs]
 
         try:
-            objects = [i.OBJECT for i in CCFs]
+            objects = np.unique([i.OBJECT for i in CCFs])
         except AttributeError:
             objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
 
@@ -883,7 +883,6 @@ class RV:
         else:
             resp = requests.get(f'https://kobe.caha.es/internal/fitsfiles/{fits_file}',
                                 auth=HTTPBasicAuth('kobeteam', config.kobe_password))
-            logger.info(f'found file "{fits_file}" on server')
             
             if resp.status_code != 200:
                 # something went wrong, try to extract the file by downloading the
@@ -910,6 +909,7 @@ class RV:
                 hdul = fits.open(tar.extractfile(fits_file))
 
             else:
+                logger.info(f'found file "{fits_file}" on server')
                 # found the file on the server, read it directly
                 hdul = fits.open(BytesIO(resp.content))
 
@@ -1736,7 +1736,7 @@ class RV:
 
             if snew.verbose and len(bad_quantities) > 0:
                 logger.warning(f"{inst}, skipping non-float quantities in binning:")
-                logger.warning(' ' + str(bad_quantities))
+                logger.warning(' ' + str(list(map(str, bad_quantities))))
                 for bq in bad_quantities:
                     s._quantities = np.delete(s._quantities, s._quantities==bq)
                     delattr(s, bq)  #! careful here
@@ -1745,7 +1745,7 @@ class RV:
             s.mask = np.full(tb.shape, True)
 
         if snew.verbose and len(all_bad_quantities) > 0:
-            logger.warning('\nnew object will not have these non-float quantities')
+            logger.warning('\nnew object will not have these quantities')
 
         for q in np.unique(all_bad_quantities):
             delattr(snew, q)
@@ -2161,13 +2161,13 @@ class RV:
                     #     if self.verbose:
                     #         logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
 
-                header = '\t'.join(['bjd', 'vrad', 'svrad', 
+                header = '\t'.join(['rjd', 'vrad', 'svrad', 
                                     'fwhm', 'sig_fwhm',
                                     'bispan', 'sig_bispan',
                                     'contrast', 'sig_contrast',
                                     'rhk', 'sig_rhk',
                                     'berv',
-                                    ]) 
+                                    ])
                 header += '\n'
                 header += '\t'.join(['-' * len(c) for c in header.strip().split('\t')])
 
@@ -2178,7 +2178,7 @@ class RV:
                     arrays = [_s.mtime, _s.mvrad, _s.msvrad]
 
                 # d = np.stack(arrays, axis=1)
-                header = 'bjd\tvrad\tsvrad\n---\t----\t-----'
+                header = 'rjd\tvrad\tsvrad\n---\t----\t-----'
 
             file = f'{star_name}_{inst}.rdb'
             if postfix is not None:
@@ -2311,7 +2311,11 @@ class RV:
             self.star_mass = float(input('stellar mass (Msun): '))
         if not hasattr(self, 'lum'):
             self.lum = float(input('luminosity (Lsun): '))
-        return getHZ_period(self.simbad.teff, self.star_mass, 1.0, self.lum)
+        if hasattr(self, 'teff'):
+            teff = self.teff
+        else:
+            teff = self.simbad.teff
+        return getHZ_period(teff, self.star_mass, 1.0, self.lum)
 
 
     @property
