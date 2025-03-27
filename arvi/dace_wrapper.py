@@ -322,7 +322,6 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
     from re import match
     def custom_sort_key(s):
         s = s[0]
-        print(s)
         # Check for version number pattern (e.g., 3.2.5 or 3.2.5-EGGS)
         version_match = match(r'^(\d+(?:\.\d+)*)(?:-(.*))?$', s)
         if version_match:
