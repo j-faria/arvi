@@ -15,6 +15,7 @@ def load_spectroscopy(user=None) -> SpectroscopyClass:
     from .config import config
     # requesting as public
     if config.request_as_public:
+        logger.warning('requesting DACE data as public')
         with all_logging_disabled():
             dace = DaceClass(dace_rc_config_path='none')
         return SpectroscopyClass(dace_instance=dace)
@@ -300,26 +301,52 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
             msg = f'no {instrument} observations for {star}'
         raise ValueError(msg)
 
-    # sort pipelines, being extra careful with HARPS pipeline names
-    # (i.e. ensure that 3.x.x > 3.5)
+    # # sort pipelines, being extra careful with HARPS pipeline names
+    # # (i.e. ensure that 3.x.x > 3.5)
+    # from re import match
+    # def cmp(a, b):
+    #     if a[0] in ('3.5', '3.5 EGGS') or 'EGGS' in a[0] and match(r'3.\d.\d', b[0]):
+    #         return -1
+    #     if b[0] in ('3.5', '3.5 EGGS') or 'EGGS' in b[0] and match(r'3.\d.\d', a[0]):
+    #         return 1
+
+    #     if a[0] == b[0]:
+    #         return 0
+    #     elif a[0] > b[0]:
+    #         return 1
+    #     else:
+    #         return -1
+
+    # sort pipelines, must be extra careful with HARPS/HARPN pipeline version numbers
+    # got here with the help of DeepSeek
     from re import match
-    def cmp(a, b):
-        if a[0] in ('3.5', '3.5 EGGS') or 'EGGS' in a[0] and match(r'3.\d.\d', b[0]):
-            return -1
-        if b[0] in ('3.5', '3.5 EGGS') or 'EGGS' in b[0] and match(r'3.\d.\d', a[0]):
-            return 1
-
-        if a[0] == b[0]:
-            return 0
-        elif a[0] > b[0]:
-            return 1
+    def custom_sort_key(s):
+        s = s[0]
+        # Check if the string starts with a 4-digit year
+        year_match = match(r'^(\d{4})', s)
+        if year_match:
+            year = int(year_match.group(1))
+            # The rest of the string is treated as a suffix
+            rest = s[4:]
+            # Key: (is_year, year, rest) to ensure year-based sorting
+            return (0, year, rest)
         else:
-            return -1
+            # Fall back to the previous logic for non-year strings
+            # split into numeric part and suffix
+            parts = s.split('-', 1)  # Split on the first hyphen (assuming suffix starts after '-')
+            numeric_part = parts[0]
+            suffix = parts[1] if len(parts) > 1 else ''
+            # split the numeric part into segments and convert to integers for proper numeric comparison
+            numeric_segments = list(map(int, numeric_part.split('.')))
+            # the key is (-len(numeric_segments), numeric_segments (reversed for descending), has_suffix (1 if suffix else 0)
+            # we negate numeric_segments to sort in descending order
+            has_suffix = 1 if suffix else 0
+            return ([-x for x in numeric_segments], -has_suffix)
 
-    from functools import cmp_to_key
+    # from functools import cmp_to_key
     new_result = {}
     for inst in instruments:
-        new_result[inst] = dict(sorted(result[inst].items(), key=cmp_to_key(cmp), reverse=True))
+        new_result[inst] = dict(sorted(result[inst].items(), key=custom_sort_key, reverse=True))
 
     if verbose:
         logger.info('RVs available from')
