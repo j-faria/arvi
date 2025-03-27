@@ -10,7 +10,9 @@ try:
 except ImportError:
     ufloat = lambda x, y: x
 
+from .stellar import EFFECTIVE_TEMPERATURES, teff_to_sptype
 from .translations import translate
+from .setup_logger import logger
 
 DATA_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(DATA_PATH, 'data')
@@ -71,15 +73,15 @@ class Measurements:
     bibcode: list
 
 
-def run_query(query):
-    url = 'http://simbad.u-strasbg.fr/simbad/sim-tap/sync'
+def run_query(query, SIMBAD_URL='http://simbad.u-strasbg.fr'):
+    url = f'{SIMBAD_URL}/simbad/sim-tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='text/plain', phase='run')
     try:
         response = requests.post(url, data=data, timeout=2)
     except requests.ReadTimeout as err:
-        raise IndexError(err)
+        raise IndexError(err) from None
     except requests.ConnectionError as err:
-        raise IndexError(err)
+        raise IndexError(err) from None
     return response.content.decode()
 
 def parse_table1(table, cols=None, values=None):
@@ -120,14 +122,6 @@ def parse_value(value, err=None, prec=None):
     return v
 
 
-effective_temperatures = {
-    'F0': 7350, 'F2': 7050, 'F3': 6850, 'F5': 6700, 'F6': 6550, 'F7': 6400, 'F8': 6300, 
-    'G0': 6050, 'G1': 5930, 'G2': 5800, 'G5': 5660, 'G8': 5440,
-    'K0': 5240, 'K1': 5110, 'K2': 4960, 'K3': 4800, 'K4': 4600, 'K5': 4400, 'K7': 4000,
-    'M0': 3750, 'M1': 3700, 'M2': 3600, 'M3': 3500, 'M4': 3400, 'M5': 3200, 'M6': 3100, 'M7': 2900, 'M8': 2700,
-}
-
-
 class simbad:
     """
     A very simple wrapper around a TAP query to simbad for a given target. This
@@ -146,7 +140,7 @@ class simbad:
         V (float): V magnitude
         ids (list): list of identifiers
     """
-    def __init__(self, star:str):
+    def __init__(self, star:str, _debug=False):
         """
         Args:
             star (str): The name of the star to query simbad
@@ -173,12 +167,18 @@ class simbad:
 
         try:
             table1 = run_query(query=QUERY.format(star=self.star))
+            if _debug:
+                print('table1:', table1)
             cols, values = parse_table1(table1)
 
             table2 = run_query(query=BV_QUERY.format(star=self.star))
+            if _debug:
+                print('table2:', table2)
             cols, values = parse_table1(table2, cols, values)
 
             table3 = run_query(query=IDS_QUERY.format(star=self.star))
+            if _debug:
+                print('table3:', table3)
             line = table3.splitlines()[2]
             self.ids = line.replace('"', '').replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').split('|')
 
@@ -203,9 +203,8 @@ class simbad:
 
             self.measurements = Measurements(_teff, _logg, _feh, _bibcode)
 
-
         except IndexError:
-            raise ValueError(f'simbad query for {star} failed')
+            raise ValueError(f'simbad query for {star} failed') from None
 
         try:
             self.gaia_id = int([i for i in self.ids if 'Gaia DR3' in i][0]
@@ -242,10 +241,14 @@ class simbad:
                 raise IndexError
             else:
                 self.teff = data['teff']
+                self.sweetcat = data
 
         except IndexError:
-            if self.sp_type[:2] in effective_temperatures:
-                self.teff = effective_temperatures[self.sp_type[:2]]
+            if self.sp_type == '':
+                self.teff = int(np.mean(self.measurements.teff))
+                self.sp_type = teff_to_sptype(self.teff)
+            elif self.sp_type[:2] in EFFECTIVE_TEMPERATURES:
+                self.teff = EFFECTIVE_TEMPERATURES[self.sp_type[:2]]
 
     def __repr__(self):
         V = self.V
