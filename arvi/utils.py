@@ -197,6 +197,18 @@ def ESPRESSO_cryostat_issues():
     return np.array(file_roots)
 
 
+def get_ra_sexagesimal(ra):
+    """ Convert RA in degrees to sexagesimal string representation. """
+    from astropy.coordinates import Angle
+    from astropy import units as u
+    return Angle(ra, unit=u.deg).to(u.hourangle).to_string(sep=':', pad=True)
+
+def get_dec_sexagesimal(dec):
+    """ Convert DEC in degrees to sexagesimal string representation. """
+    from astropy.coordinates import Angle
+    from astropy import units as u
+    return Angle(dec, unit=u.deg).to_string(sep=':', pad=True)
+
 def get_max_berv_span(self, n=None):
     """
     Return the indices of the n observations which maximize the BERV span.

@@ -2,11 +2,24 @@ import os, sys
 import numpy as np
 
 from .setup_logger import logger
+from .utils import ESPRESSO_ADC_issues, ESPRESSO_cryostat_issues
 
+
+# HARPS started operations in October 1st, 2003
+# https://www.eso.org/sci/facilities/lasilla/instruments/harps/news.html
+HARPS_start = 52913
 
 # HARPS fiber upgrade (28 May 2015)
 # https://www.eso.org/sci/facilities/lasilla/instruments/harps/news/harps_upgrade_2015.html
 HARPS_technical_intervention = 57170
+
+# From Lo Curto et al. (2015), The Messenger, vol. 162, p. 9-15  
+# On **19 May 2015** HARPS stopped operations and the instrument was opened.
+# Installation and alignment of the fibre link lasted roughly one week. On 29
+# May, the vacuum vessel was closed and evacuated for the last time. Finally, a
+# formal commissioning of the new fibre took place, finishing on **3 June**,
+# when the instrument was handed back to Science Operations.
+HARPS_technical_intervention_range = (57161, 57176)
 
 # ESPRESSO fiber link upgrade (1 July 2019)
 ESPRESSO_technical_intervention = 58665
@@ -86,10 +99,78 @@ def divide_HARPS(self):
         logger.info(f'divided HARPS into {self.instruments}')
     
 
+def check(self, instrument):
+    instruments = self._check_instrument(instrument)
+    if instruments is None:
+        if self.verbose:
+            logger.error(f"HARPS_fiber_commissioning: no data from {instrument}")
+        return None
+    return instruments
+
+
+# HARPS commissioning
+def HARPS_commissioning(self, mask=True, plot=True):
+    """ Identify and optionally mask points during HARPS commissioning (HARPS).
+
+    Args:
+        mask (bool, optional):
+            Whether to mask out the points.
+        plot (bool, optional):
+            Whether to plot the masked points.
+    """
+    if check(self, 'HARPS') is None:
+        return
+
+    affected = self.time < HARPS_start
+    total_affected = affected.sum()
+
+    if self.verbose:
+        n = total_affected
+        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
+                     "during HARPS commissioning")
+
+    if mask:
+        self.mask[affected] = False
+        self._propagate_mask_changes()
+
+        if plot:
+            self.plot(show_masked=True)
+
+    return affected
+
+
+# HARPS fiber commissioning
+def HARPS_fiber_commissioning(self, mask=True, plot=True):
+    """ Identify and optionally mask points affected by fiber commissioning (HARPS).
+
+    Args:
+        mask (bool, optional):
+            Whether to mask out the points.
+        plot (bool, optional):
+            Whether to plot the masked points.
+    """
+    if check(self, 'HARPS') is None:
+        return
+
+    affected = (self.time >= HARPS_technical_intervention_range[0]) & (self.time <= HARPS_technical_intervention_range[1])
+    total_affected = affected.sum()
+
+    if self.verbose:
+        n = total_affected
+        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
+                     "during the HARPS fiber commissioning period")
+
+    if mask:
+        self.mask[affected] = False
+        self._propagate_mask_changes()
+
+        if plot:
+            self.plot(show_masked=True)
+
+    return affected
+
 
 # ESPRESSO ADC issues
-from .utils import ESPRESSO_ADC_issues
-
 def ADC_issues(self, mask=True, plot=True, check_headers=False):
     """ Identify and optionally mask points affected by ADC issues (ESPRESSO).
 
@@ -137,8 +218,6 @@ def ADC_issues(self, mask=True, plot=True, check_headers=False):
     return intersect
 
 # ESPRESSO cryostat issues
-from .utils import ESPRESSO_cryostat_issues
-
 def blue_cryostat_issues(self, mask=True, plot=True):
     """ Identify and mask points affected by blue cryostat issues (ESPRESSO).
 
@@ -221,7 +300,7 @@ def qc_scired_issues(self, plot=False, **kwargs):
 
 
 def known_issues(self, mask=True, plot=False, **kwargs):
-    """ Identify and optionally mask known instrumental issues (ADC and blue cryostat for ESPRESSO)
+    """ Identify and optionally mask known instrumental issues.
 
     Args:
         mask (bool, optional): Whether to mask out the points.
@@ -230,18 +309,28 @@ def known_issues(self, mask=True, plot=False, **kwargs):
     try:
         adc = ADC_issues(self, mask, plot, **kwargs)
     except IndexError:
-        # logger.error(e)
         logger.error('are the data binned? cannot proceed to mask these points...')
 
     try:
         cryostat = blue_cryostat_issues(self, mask, plot)
     except IndexError:
-        # logger.error(e)
         logger.error('are the data binned? cannot proceed to mask these points...')
 
-    if adc is None and cryostat is None:
-        return
     try:
-        return adc | cryostat
+        harps_comm = HARPS_commissioning(self, mask, plot)
+    except IndexError:
+        logger.error('are the data binned? cannot proceed to mask these points...')
+
+    try:
+        harps_fibers = HARPS_fiber_commissioning(self, mask, plot)
+    except IndexError:
+        logger.error('are the data binned? cannot proceed to mask these points...')
+
+    # if None in (adc, cryostat, harps_comm, harps_fibers):
+    #     return
+
+    try:
+        # return adc | cryostat
+        return np.logical_or.reduce((adc, cryostat, harps_comm, harps_fibers))
     except UnboundLocalError:
         return
