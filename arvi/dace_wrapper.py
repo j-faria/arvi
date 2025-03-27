@@ -322,26 +322,28 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
     from re import match
     def custom_sort_key(s):
         s = s[0]
-        # Check if the string starts with a 4-digit year
+        print(s)
+        # Check for version number pattern (e.g., 3.2.5 or 3.2.5-EGGS)
+        version_match = match(r'^(\d+(?:\.\d+)*)(?:-(.*))?$', s)
+        if version_match:
+            version_parts = tuple(map(int, version_match.group(1).split('.')))
+            suffix = version_match.group(2)
+            
+            if suffix is not None:
+                # Suffixed versions: sort in ascending order (3.2.5-HR11 < 3.3.1-HR11)
+                return (0, 0, version_parts, suffix)
+            else:
+                # Unsuffixed versions: sort in descending order (3.5 > 3.2.5)
+                return (0, 1, tuple(-x for x in version_parts))
+        
+        # Check for scientific reference pattern (e.g., 2004A&A...)
         year_match = match(r'^(\d{4})', s)
         if year_match:
             year = int(year_match.group(1))
-            # The rest of the string is treated as a suffix
-            rest = s[4:]
-            # Key: (is_year, year, rest) to ensure year-based sorting
-            return (0, year, rest)
-        else:
-            # Fall back to the previous logic for non-year strings
-            # split into numeric part and suffix
-            parts = s.split('-', 1)  # Split on the first hyphen (assuming suffix starts after '-')
-            numeric_part = parts[0]
-            suffix = parts[1] if len(parts) > 1 else ''
-            # split the numeric part into segments and convert to integers for proper numeric comparison
-            numeric_segments = list(map(int, numeric_part.split('.')))
-            # the key is (-len(numeric_segments), numeric_segments (reversed for descending), has_suffix (1 if suffix else 0)
-            # we negate numeric_segments to sort in descending order
-            has_suffix = 1 if suffix else 0
-            return ([-x for x in numeric_segments], -has_suffix)
+            return (1, year)
+        
+        # For all other strings, sort alphabetically
+        return (2, s)
 
     # from functools import cmp_to_key
     new_result = {}
