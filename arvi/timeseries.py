@@ -1056,7 +1056,7 @@ class RV:
         self._download_directory = value
 
     def download_ccf(self, instrument=None, index=None, limit=None,
-                     directory=None, symlink=False, load=True, **kwargs):
+                     directory=None, clobber=False, symlink=False, load=True, **kwargs):
         """ Download CCFs from DACE
 
         Args:
@@ -1064,6 +1064,7 @@ class RV:
             index (int): Specific index of point for which to download data (0-based)
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
+            clobber (bool): Whether to overwrite existing files.
         """
         directory = directory or self.download_directory
 
@@ -1085,7 +1086,7 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('CCF', files[:limit], directory, 
+            do_download_filetype('CCF', files[:limit], directory, clobber=clobber,
                                  verbose=self.verbose, user=self.user, **kwargs)
 
         if load:
@@ -1111,7 +1112,7 @@ class RV:
                 pass
 
     def download_s1d(self, instrument=None, index=None, limit=None,
-                     directory=None, symlink=False, **kwargs):
+                     directory=None, clobber=False, apply_mask=True, symlink=False, **kwargs):
         """ Download S1Ds from DACE
 
         Args:
@@ -1119,6 +1120,8 @@ class RV:
             index (int): Specific index of point for which to download data (0-based)
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
+            clobber (bool): Whether to overwrite existing files.
+            apply_mask (bool): Apply mask to the observations before downloading.
         """
         directory = directory or self.download_directory
 
@@ -1126,7 +1129,11 @@ class RV:
         instrument = self._check_instrument(instrument, strict=strict)
         files = []
         for inst in instrument:
-            files += list(getattr(self, inst).raw_file)
+            _s = getattr(self, inst)
+            if apply_mask:
+                files += list(_s.raw_file[_s.mask])
+            else:
+                files += list(_s.raw_file)
 
         if index is not None:
             index = np.atleast_1d(index)
@@ -1140,11 +1147,11 @@ class RV:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('S1D', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('S1D', files[:limit], directory, 
+            do_download_filetype('S1D', files[:limit], directory, clobber=clobber,
                                  verbose=self.verbose, user=self.user, **kwargs)
 
     def download_s2d(self, instrument=None, index=None, limit=None,
-                     directory=None, symlink=False, **kwargs):
+                     directory=None, clobber=False, symlink=False, **kwargs):
         """ Download S2Ds from DACE
 
         Args:
@@ -1152,6 +1159,7 @@ class RV:
             index (int): Specific index of point for which to download data (0-based)
             limit (int): Maximum number of files to download.
             directory (str): Directory where to store data.
+            clobber (bool): Whether to overwrite existing files.
         """
         directory = directory or self.download_directory
 
@@ -1777,12 +1785,16 @@ class RV:
             s.vrad += self._meanRV
         self._build_arrays()
 
-    def adjust_means(self, just_rv=False, instrument=None, **kwargs):
+    def adjust_means(self, just_rv=False, exclude_rv=False, instrument=None, **kwargs):
         """
-        Subtract individual mean RVs from each instrument or from specific
-        instruments
+        Subtract individual weighted mean RV from each instrument or from
+        specific instruments
         """
         if self._child or self._did_adjust_means:
+            return
+
+        if just_rv and exclude_rv:
+            logger.error('cannot use `just_rv` and `exclude_rv` at the same time')
             return
 
         # if self.verbose:
@@ -1813,14 +1825,12 @@ class RV:
                 s.vrad = np.zeros_like(s.time)
                 continue
 
-            s.rv_mean = wmean(s.mvrad, s.msvrad)
-            s.vrad -= s.rv_mean
+            if not exclude_rv:
+                s.rv_mean = wmean(s.mvrad, s.msvrad)
+                s.vrad -= s.rv_mean
 
-            if self.verbose:
-                # if print_as_table:
-                #     row.append(f'{s.rv_mean:.3f}')
-                # else:
-                logger.info(f'subtracted weighted average from {inst:10s}: ({s.rv_mean:.3f} {self.units})')
+                if self.verbose:
+                    logger.info(f'subtracted weighted average from {inst:10s}: ({s.rv_mean:.3f} {self.units})')
 
             if just_rv:
                 continue
@@ -1833,6 +1843,9 @@ class RV:
                 m = wmean(y[s.mask], ye[s.mask])
                 setattr(s, f'{other}_mean', m)
                 setattr(s, other, getattr(s, other) - m)
+
+        if self.verbose:
+            logger.info(f'subtracted weighted averages from {others}')
 
         # if print_as_table:
         #     from .utils import pretty_print_table
