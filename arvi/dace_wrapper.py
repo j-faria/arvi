@@ -47,7 +47,7 @@ def get_dace_id(star, verbose=True):
     try:
         with all_logging_disabled():
             r = load_spectroscopy().query_database(filters=filters, limit=1)
-        return r['obj_id_daceid'][0]
+        return str(r['obj_id_daceid'][0])
     except KeyError:
         if verbose:
             logger.error(f"Could not find DACE ID for {star}")
@@ -323,24 +323,17 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
     def custom_sort_key(s):
         s = s[0]
         # Check for version number pattern (e.g., 3.2.5 or 3.2.5-EGGS)
-        version_match = match(r'^(\d+(?:\.\d+)*)(?:-(.*))?$', s)
+        version_match = match(r'^(\d+(?:\.\d+)*)(?:[-\s](.*))?$', s)
         if version_match:
-            version_parts = tuple(map(int, version_match.group(1).split('.')))
-            suffix = version_match.group(2)
-            
-            if suffix is not None:
-                # Suffixed versions: sort in ascending order (3.2.5-HR11 < 3.3.1-HR11)
-                return (0, 0, version_parts, suffix)
-            else:
-                # Unsuffixed versions: sort in descending order (3.5 > 3.2.5)
-                return (0, 1, tuple(-x for x in version_parts))
-        
+            version_parts = list(map(int, version_match.group(1).split('.')))
+            if len(version_parts) == 2:
+                version_parts.insert(1, -1)
+            return (0, 1, version_parts)
         # Check for scientific reference pattern (e.g., 2004A&A...)
         year_match = match(r'^(\d{4})', s)
         if year_match:
             year = int(year_match.group(1))
             return (1, year)
-        
         # For all other strings, sort alphabetically
         return (2, s)
 
