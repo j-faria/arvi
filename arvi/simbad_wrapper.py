@@ -183,6 +183,8 @@ class simbad:
             self.ids = line.replace('"', '').replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').split('|')
 
             table4 = run_query(query=FILTERS_QUERY.format(star=self.star))
+            if _debug:
+                print('table4:\n', table4)
             for row in table4.splitlines()[2:]:
                 filter_name, mag, mag_err, bibcode = row.replace('"', '').split('|')
                 filter_name = filter_name.strip()
@@ -193,6 +195,9 @@ class simbad:
 
             # measurements table
             table5 = run_query(query=MEAS_QUERY.format(star=self.star))
+            if _debug:
+                print('table5:\n', table5)
+
             _teff, _logg, _feh, _bibcode = [], [], [], []
             for row in table5.splitlines()[2:]:
                 teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
@@ -245,8 +250,9 @@ class simbad:
 
         except IndexError:
             if self.sp_type == '':
-                self.teff = int(np.mean(self.measurements.teff))
-                self.sp_type = teff_to_sptype(self.teff)
+                if len(self.measurements.teff) > 0:
+                    self.teff = int(np.mean(self.measurements.teff))
+                    self.sp_type = teff_to_sptype(self.teff)
             elif self.sp_type[:2] in EFFECTIVE_TEMPERATURES:
                 self.teff = EFFECTIVE_TEMPERATURES[self.sp_type[:2]]
 
