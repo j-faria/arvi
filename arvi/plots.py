@@ -583,10 +583,15 @@ def gls(self, ax=None, label=None, instrument=None,
     maximum_frequency = kwargs.pop('maximum_frequency', 1.0)
     minimum_frequency = kwargs.pop('minimum_frequency', None)
     samples_per_peak = kwargs.pop('samples_per_peak', 10)
+    kw = {
+        'maximum_frequency': maximum_frequency,
+        'minimum_frequency': minimum_frequency,
+        'samples_per_peak': samples_per_peak
+    }
 
-    freq, power = gls.autopower(maximum_frequency=maximum_frequency,
-                                minimum_frequency=minimum_frequency,
-                                samples_per_peak=samples_per_peak)
+    freq, power = gls.autopower(**kw)
+
+    show_peak_fap = kwargs.pop('show_peak_fap', False)
 
     if ax is None:
         fig, ax = plt.subplots(1, 1, constrained_layout=True)
@@ -605,13 +610,21 @@ def gls(self, ax=None, label=None, instrument=None,
         if isinstance(fap, float):
             fap_level = fap
 
-        fap = gls.false_alarm_level(fap_level, method=fap_method)
+        fap = gls.false_alarm_level(fap_level, method=fap_method, **kw)
 
-        if fap > 0.05 and fap_method == 'baluev':
-            logger.warning('FAP is high (>5%), the analytical estimate may be underestimated. Using the bootstrap method instead.')
-            fap = gls.false_alarm_level(fap_level, method='bootstrap')
+        # if fap > 0.05 and fap_method == 'baluev':
+        #     logger.warning('FAP is high (>5%), the analytical estimate may be underestimated. Using the bootstrap method instead.')
+        #     fap = gls.false_alarm_level(fap_level, method='bootstrap')
 
         ax.axhline(fap, color='k', alpha=0.2, zorder=-1)
+
+    if show_peak_fap:
+        peak_per = 1/freq[np.argmax(power)]
+        peak_power = np.max(power)
+        peak_fap = gls.false_alarm_probability(peak_power, method=fap_method, **kw)
+        ax.plot(peak_per, peak_power, 'o', color='r', zorder=1)
+        ax.annotate(f'{peak_per:1.3f} days\nFAP: {peak_fap:1.1e}', (peak_per, peak_power), 
+                    va='top', textcoords='offset points', xytext=(10, 0), zorder=1)
 
     ax.set(xlabel='Period [days]', ylabel='Normalized power', ylim=(0, None))
     ax.minorticks_on()
@@ -741,10 +754,17 @@ def gls_quantity(self, quantity, ax=None, instrument=None,
     else:
         fig = ax.figure
 
-    spp = kwargs.get('samples_per_peak', 5)
+    maximum_frequency = kwargs.pop('maximum_frequency', 1.0)
+    minimum_frequency = kwargs.pop('minimum_frequency', None)
+    samples_per_peak = kwargs.pop('samples_per_peak', 10)
+    kw = {
+        'maximum_frequency': maximum_frequency,
+        'minimum_frequency': minimum_frequency,
+        'samples_per_peak': samples_per_peak
+    }
 
     gls = LombScargle(t, y, ye)
-    freq, power = gls.autopower(maximum_frequency=1.0, samples_per_peak=spp)
+    freq, power = gls.autopower(**kw)
 
     ax.semilogx(1/freq, power, picker=picker, **kwargs)
 
@@ -753,11 +773,11 @@ def gls_quantity(self, quantity, ax=None, instrument=None,
         if isinstance(fap, float):
             fap_level = fap
 
-        fap = gls.false_alarm_level(fap_level, method=fap_method)
+        fap = gls.false_alarm_level(fap_level, method=fap_method, **kw)
 
-        if fap > 0.05 and fap_method == 'baluev':
-            logger.warning('FAP is high (>5%), the analytical estimate may be underestimated. Using the bootstrap method instead.')
-            fap = gls.false_alarm_level(fap_level, method='bootstrap')
+        # if fap > 0.05 and fap_method == 'baluev':
+        #     logger.warning('FAP is high (>5%), the analytical estimate may be underestimated. Using the bootstrap method instead.')
+        #     fap = gls.false_alarm_level(fap_level, method='bootstrap', **kw)
 
         ax.axhline(fap, color='k', alpha=0.2, zorder=-1)
 
