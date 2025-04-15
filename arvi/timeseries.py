@@ -69,6 +69,7 @@ class RV:
     _did_simbad_query: bool = field(init=False, repr=False, default=False)
     _did_gaia_query: bool = field(init=False, repr=False, default=False)
     _raise_on_error: bool = field(init=True, repr=False, default=True)
+    __masked_numbers: bool = field(init=False, repr=False, default=False)
     # 
     _simbad = None
     _gaia = None
@@ -78,13 +79,16 @@ class RV:
         if self.N == 0:
             return f"RV(star='{self.star}', N=0)"
 
-        i = f'{ni} instrument' + ('s' if ni > 1 else '')
+        if self._child:
+            i = ''
+        else:
+            i = f', {ni} instrument' + ('s' if ni > 1 else '')
 
         if self.time.size == self.mtime.size:
-            return f"RV(star='{self.star}', N={self.N}, {i})"
+            return f"RV(star='{self.star}', N={self.N}{i})"
         else:
             nmasked = self.N - self.mtime.size
-            return f"RV(star='{self.star}', N={self.N}, masked={nmasked}, {i})"
+            return f"RV(star='{self.star}', N={self.N}, masked={nmasked}{i})"
 
     @property
     def simbad(self):
@@ -241,7 +245,6 @@ class RV:
             # all other quantities
             self._build_arrays()
 
-
             if self.load_extra_data:
                 if isinstance(self.load_extra_data, str):
                     path = self.load_extra_data
@@ -314,6 +317,16 @@ class RV:
         for inst in self.instruments:
             yield getattr(self, inst)
 
+    @property
+    def _masked_numbers(self):
+        return self.__masked_numbers
+
+    @_masked_numbers.setter
+    def _masked_numbers(self, value):
+        self.__masked_numbers = value
+        if not self._child:
+            for s in self:
+                s._masked_numbers = value
 
     def reload(self):
         self._did_secular_acceleration = False
@@ -335,19 +348,35 @@ class RV:
     @property
     def N(self) -> int:
         """Total number of observations"""
+        if self._masked_numbers:
+            return self.mtime.size
         return self.time.size
 
     @property
     def NN(self):
         """ Total number of observations per instrument """
+        if self._child:
+            return {self.instruments[0]: self.N}
         return {inst: getattr(self, inst).N for inst in self.instruments}
 
     @property
     def N_nights(self) -> int:
         """ Number of individual nights """
-        if self.mtime.size == 0:
-            return 0
-        return binRV(self.mtime, None, None, binning_bins=True).size - 1
+        def get_nights(t):
+            return binRV(t, None, None, binning_bins=True).size - 1
+
+        if self._masked_numbers:
+            if self._child:
+                return get_nights(self.mtime)
+            else:
+                return sum([get_nights(s.mtime) for s in self])
+        else:
+            if self._child:
+                return get_nights(self.time)
+            else:
+                return sum([get_nights(s.time) for s in self])
+        # return binRV(_t, None, None, binning_bins=True).size - 1
+        # return sum(list(self.NN.values()))
 
     @property
     def NN_nights(self):
@@ -516,8 +545,8 @@ class RV:
         return s
 
     @classmethod
-    def from_rdb(cls, files, star=None, instrument=None, units='ms', 
-                 header_skip=2, **kwargs):
+    def from_rdb(cls, files, star=None, instrument=None, instrument_suffix=None,
+                 units='ms', header_skip=2, **kwargs):
         """ Create an RV object from an rdb file or a list of rdb files
 
         Args:
@@ -567,6 +596,9 @@ class RV:
 
         if instruments.size == 1 and len(files) > 1:
             instruments = np.repeat(instruments, len(files))
+
+        if instrument_suffix is not None:
+            instruments = [i + instrument_suffix for i in instruments]
 
         factor = 1e3 if units == 'kms' else 1.0
 
@@ -744,6 +776,8 @@ class RV:
 
         s._child = False
         s.instruments = list(map(str, instruments))
+        s.filenames = list(map(str, files))
+
         s._build_arrays()
 
         if kwargs.get('do_adjust_means', False):
