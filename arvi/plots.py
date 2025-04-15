@@ -230,13 +230,13 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
                 _label = label
 
         if versus_n:
-            container = ax.errorbar(np.arange(1, s.mtime.size + 1), s.mvrad, s.msvrad,
-                                    label=_label, picker=True, marker=next(markers), zorder=next(zorders),
-                                    **kwargs)
+            x = np.arange(1, s.mtime.size + 1)
         else:
-            container = ax.errorbar(s.mtime - time_offset, s.mvrad, s.msvrad,
-                                    label=_label, picker=True, marker=next(markers), zorder=next(zorders),
-                                    **kwargs)
+            x = s.mtime - time_offset
+
+        container = ax.errorbar(x, s.mvrad, s.msvrad, label=_label, 
+                                picker=True, marker=next(markers), zorder=next(zorders), **kwargs)
+
 
         containers[inst] = list(container)
 
@@ -355,8 +355,6 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
                     _ = fig.canvas.mpl_connect('key_press_event', on_press)
 
         plt.connect('pick_event', on_pick_point)
-
-
 
 
     if show_histogram:
