@@ -73,7 +73,7 @@ class gaia:
         plx (float): parallax
         radial_velocity (float): radial velocity
     """
-    def __init__(self, star:str, simbad=None):
+    def __init__(self, star:str, simbad=None, _debug=False):
         """
         Args:
             star (str): The name of the star to query simbad
@@ -83,6 +83,8 @@ class gaia:
         if simbad is None:
             from .simbad_wrapper import simbad as Simbad
             simbad = Simbad(star)
+            if _debug:
+                print(simbad)
 
         ra = simbad.ra
         dec = simbad.dec
@@ -95,10 +97,14 @@ class gaia:
         try:
             if star in translate:
                 table = run_query(query=QUERY_ID.format(id=translate[star]))
-            elif hasattr(simbad, 'gaia_id'):
+            elif hasattr(simbad, 'gaia_id') and simbad.gaia_id is not None:
                 table = run_query(query=QUERY_ID.format(id=simbad.gaia_id))
             else:
                 table = run_query(query=QUERY.format(**args))
+            
+            if _debug:
+                print('table:', table)
+
             results = parse_csv(table)[0]
         except IndexError:
             raise ValueError(f'Gaia query for {star} failed')
