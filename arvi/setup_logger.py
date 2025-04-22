@@ -1,7 +1,16 @@
 import sys
 from loguru import logger
 
-logger.remove()
+try:
+    import marimo as mo
+    if mo.running_in_notebook():
+        raise ImportError
+except (ImportError, ModuleNotFoundError):
+    pass
+else:
+    logger.remove()
+
+
 logger.configure(extra={"indent": ""})
 logger.add(
     sys.stdout,
