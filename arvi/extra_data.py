@@ -12,16 +12,20 @@ refs = {
 
 def get_extra_data(star, instrument=None, path=None, verbose=True,
                    check_for_kms=True):
+    
     if path is None:
         path = os.path.dirname(__file__)
         path = os.path.join(path, 'data', 'extra')
+        metadata = json.load(open(os.path.join(path, 'metadata.json'), 'r'))
+        # print(metadata)
+    else:
+        metadata = {}
 
-    metadata = json.load(open(os.path.join(path, 'metadata.json'), 'r'))
-    # print(metadata)
-
-    files = glob(os.path.join(path, star.replace(' ', '') + '*.rdb'))
+    files = glob(os.path.join(path, star + '*.rdb'))
+    files += glob(os.path.join(path, star.replace(' ', '') + '*.rdb'))
     files = [f for f in files if os.path.isfile(f)]
-    files = [f for f in files if not os.path.basename(f).endswith('.zip')]
+    files = [f for f in files if not f.endswith('_actin.rdb')]
+    files = list(set(files))
 
     if len(files) == 0:
         raise FileNotFoundError

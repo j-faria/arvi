@@ -15,6 +15,7 @@ from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observa
 from .simbad_wrapper import simbad
 from .gaia_wrapper import gaia
 from .exofop_wrapper import exofop
+from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
