@@ -14,7 +14,7 @@ from .translations import translate
 from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observations, get_arrays
 from .simbad_wrapper import simbad
 from .gaia_wrapper import gaia
-from .extra_data import get_extra_data
+from .exofop_wrapper import exofop
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
@@ -68,11 +68,13 @@ class RV:
     _did_adjust_means: bool = field(init=False, repr=False, default=False)
     _did_simbad_query: bool = field(init=False, repr=False, default=False)
     _did_gaia_query: bool = field(init=False, repr=False, default=False)
+    _did_toi_query: bool = field(init=False, repr=False, default=False)
     _raise_on_error: bool = field(init=True, repr=False, default=True)
     __masked_numbers: bool = field(init=False, repr=False, default=False)
     # 
     _simbad = None
     _gaia = None
+    _toi = None
 
     def __repr__(self):
         ni = len(self.instruments)
@@ -148,6 +150,26 @@ class RV:
         self._did_gaia_query = True
         return self._gaia
 
+    @property
+    def toi(self):
+        if self._toi is not None:
+            return self._toi
+
+        if 'TOI' not in self.__star__ or 'TIC' not in self.__star__ or self._child or self._did_toi_query:
+            return None
+
+        if self.verbose:
+            logger.info('querying ExoFOP...')
+
+        try:
+            self._toi = exofop(self.__star__)
+        except ValueError:
+            if self.verbose:
+                logger.error(f'ExoFOP query for {self.__star__} failed')
+
+        self._did_toi_query = True
+        return self._toi
+
     def __post_init_special_sun(self):
         import pickle
         from .extra_data import get_sun_data
@@ -172,7 +194,7 @@ class RV:
                 import concurrent.futures
                 with timer('simbad and gaia queries'):
                     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                        executor.map(self.__getattribute__, ('simbad', 'gaia'))
+                        executor.map(self.__getattribute__, ('simbad', 'gaia', 'toi'))
 
                 # with timer('simbad query'):
                 #     self.simbad
