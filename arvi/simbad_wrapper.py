@@ -170,46 +170,52 @@ class simbad:
             if _debug:
                 print('table1:', table1)
             cols, values = parse_table1(table1)
+        except IndexError:
+            raise ValueError(f'simbad query for {star} failed') from None
 
+        try:
             table2 = run_query(query=BV_QUERY.format(star=self.star))
             if _debug:
                 print('table2:', table2)
             cols, values = parse_table1(table2, cols, values)
+        except IndexError:
+            self.B = self.V = np.nan
 
+        try:
             table3 = run_query(query=IDS_QUERY.format(star=self.star))
             if _debug:
                 print('table3:', table3)
             line = table3.splitlines()[2]
             self.ids = line.replace('"', '').replace('    ', ' ').replace('   ', ' ').replace('  ', ' ').split('|')
-
-            table4 = run_query(query=FILTERS_QUERY.format(star=self.star))
-            if _debug:
-                print('table4:\n', table4)
-            for row in table4.splitlines()[2:]:
-                filter_name, mag, mag_err, bibcode = row.replace('"', '').split('|')
-                filter_name = filter_name.strip()
-                try:
-                    setattr(self, '_' + filter_name, ufloat(float(mag), float(mag_err)))
-                except ValueError:
-                    setattr(self, '_' + filter_name, float(mag))
-
-            # measurements table
-            table5 = run_query(query=MEAS_QUERY.format(star=self.star))
-            if _debug:
-                print('table5:\n', table5)
-
-            _teff, _logg, _feh, _bibcode = [], [], [], []
-            for row in table5.splitlines()[2:]:
-                teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
-                _bibcode.append(bibcode)
-                _teff.append(parse_value(teff))
-                _logg.append(parse_value(log_g, prec=log_g_prec))
-                _feh.append(parse_value(fe_h, prec=fe_h_prec))
-
-            self.measurements = Measurements(_teff, _logg, _feh, _bibcode)
-
         except IndexError:
-            raise ValueError(f'simbad query for {star} failed') from None
+            self.ids = []
+
+        table4 = run_query(query=FILTERS_QUERY.format(star=self.star))
+        if _debug:
+            print('table4:\n', table4)
+        for row in table4.splitlines()[2:]:
+            filter_name, mag, mag_err, bibcode = row.replace('"', '').split('|')
+            filter_name = filter_name.strip()
+            try:
+                setattr(self, '_' + filter_name, ufloat(float(mag), float(mag_err)))
+            except ValueError:
+                setattr(self, '_' + filter_name, float(mag))
+
+        # measurements table
+        table5 = run_query(query=MEAS_QUERY.format(star=self.star))
+        if _debug:
+            print('table5:\n', table5)
+
+        _teff, _logg, _feh, _bibcode = [], [], [], []
+        for row in table5.splitlines()[2:]:
+            teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
+            _bibcode.append(bibcode)
+            _teff.append(parse_value(teff))
+            _logg.append(parse_value(log_g, prec=log_g_prec))
+            _feh.append(parse_value(fe_h, prec=fe_h_prec))
+
+        self.measurements = Measurements(_teff, _logg, _feh, _bibcode)
+
 
         try:
             self.gaia_id = int([i for i in self.ids if 'Gaia DR3' in i][0]
