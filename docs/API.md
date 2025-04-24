@@ -13,14 +13,14 @@ toc: false
         group_by_category: true
 
 
-## Other packages
+## Sub-packages
 
-The following are mostly internal packages with which a user may not need to
-interact directly.
+The following are mostly internal packages and functions with which a user may
+not need to interact directly.
 
-??? example "`simbad` API"
+??? example "`arvi.simbad` API"
 
-    ::: arvi.simbad_wrapper.simbad
+    ::: arvi.simbad
         handler: python
         options:
             show_root_heading: true

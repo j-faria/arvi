@@ -35,7 +35,7 @@ s = RV('HD1234', instrument='ESPRESSO')
 ```
 
 
-Read more in the [detailed analysis](detailed) page.
+Read more in the [detailed walkthrough](detailed) page.
 
 
 
