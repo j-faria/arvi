@@ -42,6 +42,7 @@ jobs:
           pip install mkdocs mkdocs-material 
           pip install "mkdocstrings[crystal,python]" mkdocs-autorefs mkdocstrings-python
           pip install mkdocs-git-revision-date-localized-plugin
+          pip install mkdocs-jupyter
 
       - name: Build with Mkdocs
         run: |
