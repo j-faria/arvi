@@ -38,4 +38,7 @@ s = RV('HD1234', instrument='ESPRESSO')
 Read more in the [detailed walkthrough](detailed) page.
 
 
+??? Question "Why is it called 'arvi' ?"
 
+    I thought saying "from arvi import RV" sounded funny.  
+    Turns out it's actually quite a mouthful which always requires further explanation...
