@@ -5,13 +5,15 @@ import collections
 from functools import lru_cache
 from itertools import islice
 import numpy as np
-from dace_query import DaceClass
-from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
 from .setup_logger import logger
 from .utils import create_directory, all_logging_disabled, stdout_disabled, tqdm
 
 
-def load_spectroscopy(user=None) -> SpectroscopyClass:
+def load_spectroscopy(user=None):
+    with all_logging_disabled():
+        from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
+        from dace_query import DaceClass
+
     from .config import config
     # requesting as public
     if config.request_as_public:
@@ -39,6 +41,8 @@ def load_spectroscopy(user=None) -> SpectroscopyClass:
         logger.info(f'using credentials for user {user} in ~/.dacerc')
         return SpectroscopyClass(dace_instance=dace)
     # default
+    if not os.path.exists(os.path.expanduser('~/.dacerc')):
+        logger.warning('requesting DACE data as public (no .dacerc file found)')
     return default_Spectroscopy
 
 @lru_cache()
@@ -153,6 +157,7 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
             dictionary with data from DACE
     """
     Spectroscopy = load_spectroscopy(user)
+
     found_dace_id = False
     try:
         dace_id = get_dace_id(star, verbose=verbose)
@@ -256,6 +261,7 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
 def get_observations(star, instrument=None, user=None, main_id=None, verbose=True):
     if instrument is None:
         Spectroscopy = load_spectroscopy(user)
+
         try:
             with stdout_disabled(), all_logging_disabled():
                 result = Spectroscopy.get_timeseries(target=star,
