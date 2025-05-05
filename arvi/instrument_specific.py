@@ -307,38 +307,40 @@ def qc_scired_issues(self, plot=False, **kwargs):
     return affected
 
 
-def known_issues(self, mask=True, plot=False, **kwargs):
-    """ Identify and optionally mask known instrumental issues.
+class ISSUES:
+    def known_issues(self, mask=True, plot=False, **kwargs):
+        """ Identify and optionally mask known instrumental issues.
 
-    Args:
-        mask (bool, optional): Whether to mask out the points.
-        plot (bool, optional): Whether to plot the masked points.
-    """
-    try:
-        adc = ADC_issues(self, mask, plot, **kwargs)
-    except IndexError:
-        logger.error('are the data binned? cannot proceed to mask these points...')
+        Args:
+            mask (bool, optional): Whether to mask out the points.
+            plot (bool, optional): Whether to plot the masked points.
+        """
+        logger = setup_logger()
+        try:
+            adc = ADC_issues(self, mask, plot, **kwargs)
+        except IndexError:
+            logger.error('are the data binned? cannot proceed to mask these points...')
 
-    try:
-        cryostat = blue_cryostat_issues(self, mask, plot)
-    except IndexError:
-        logger.error('are the data binned? cannot proceed to mask these points...')
+        try:
+            cryostat = blue_cryostat_issues(self, mask, plot)
+        except IndexError:
+            logger.error('are the data binned? cannot proceed to mask these points...')
 
-    try:
-        harps_comm = HARPS_commissioning(self, mask, plot)
-    except IndexError:
-        logger.error('are the data binned? cannot proceed to mask these points...')
+        try:
+            harps_comm = HARPS_commissioning(self, mask, plot)
+        except IndexError:
+            logger.error('are the data binned? cannot proceed to mask these points...')
 
-    try:
-        harps_fibers = HARPS_fiber_commissioning(self, mask, plot)
-    except IndexError:
-        logger.error('are the data binned? cannot proceed to mask these points...')
+        try:
+            harps_fibers = HARPS_fiber_commissioning(self, mask, plot)
+        except IndexError:
+            logger.error('are the data binned? cannot proceed to mask these points...')
 
-    # if None in (adc, cryostat, harps_comm, harps_fibers):
-    #     return
+        # if None in (adc, cryostat, harps_comm, harps_fibers):
+        #     return
 
-    try:
-        # return adc | cryostat
-        return np.logical_or.reduce((adc, cryostat, harps_comm, harps_fibers))
-    except UnboundLocalError:
-        return
+        try:
+            # return adc | cryostat
+            return np.logical_or.reduce((adc, cryostat, harps_comm, harps_fibers))
+        except UnboundLocalError:
+            return

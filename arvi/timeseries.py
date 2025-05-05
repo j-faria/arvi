@@ -21,6 +21,8 @@ from .extra_data import get_extra_data
 from .stats import wmean, wrms
 from .binning import bin_ccf_mask, binRV
 from .HZ import getHZ_period
+from .instrument_specific import ISSUES
+from .reports import REPORTS
 from .utils import sanitize_path, strtobool, there_is_internet, timer, chdir
 from .utils import lazy_import
 
@@ -33,8 +35,8 @@ class ExtraFields:
         return list(self.__dict__.keys())
 
 
-@dataclass
-class RV:
+@dataclass(order=False)
+class RV(ISSUES, REPORTS):
     """
     A class holding RV observations
 
