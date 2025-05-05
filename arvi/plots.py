@@ -5,7 +5,7 @@ import numpy as np
 
 from astropy.timeseries import LombScargle
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 from .config import config
 from .stats import wmean
 
@@ -172,6 +172,7 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
         Figure: the figure
         Axes: the axis
     """
+    logger = setup_logger()
     if self.N == 0:
         if self.verbose:
             logger.error('no data to plot')
@@ -406,6 +407,7 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
 def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
                   time_offset=0, remove_50000=False, tooltips=False, show_legend=True,
                   N_in_label=False, **kwargs):
+    logger = setup_logger()
     if self.N == 0:
         if self.verbose:
             logger.error('no data to plot')
@@ -531,6 +533,7 @@ def gls(self, ax=None, label=None, instrument=None,
             Whether to adjust (subtract) the weighted means of each instrument.
             Default is `config.adjust_means_gls`.
     """
+    logger = setup_logger()
     if self.N == 0:
         if self.verbose:
             logger.error('no data to compute gls')
@@ -692,7 +695,7 @@ def gls_quantity(self, quantity, ax=None, instrument=None,
             Whether to adjust (subtract) the weighted means of each instrument.
             Default is `config.adjust_means_gls`.
     """
-
+    logger = setup_logger()
     if not hasattr(self, quantity):
         if self.verbose:
             logger.error(f"cannot find '{quantity}' attribute")
@@ -812,6 +815,8 @@ def window_function(self, ax1=None, ax2=None, instrument=None, crosshair=False, 
         crosshair (bool):
             If True, a crosshair will be drawn on the plot.
     """
+    logger = setup_logger()
+
     if self.N == 0:
         if self.verbose:
             logger.error('no data to compute window function')

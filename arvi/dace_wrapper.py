@@ -5,11 +5,13 @@ import collections
 from functools import lru_cache
 from itertools import islice
 import numpy as np
-from .setup_logger import logger
+
+from .setup_logger import setup_logger
 from .utils import create_directory, all_logging_disabled, stdout_disabled, tqdm
 
 
 def load_spectroscopy(user=None):
+    logger = setup_logger()
     with all_logging_disabled():
         from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
         from dace_query import DaceClass
@@ -47,6 +49,7 @@ def load_spectroscopy(user=None):
 
 @lru_cache()
 def get_dace_id(star, verbose=True):
+    logger = setup_logger()
     filters = {"obj_id_catname": {"equal": [star]}}
     try:
         with all_logging_disabled():
@@ -58,6 +61,7 @@ def get_dace_id(star, verbose=True):
         raise ValueError from None
 
 def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
+    logger = setup_logger()
     arrays = []
     instruments = [str(i) for i in result.keys()]
 
@@ -259,6 +263,7 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
     return r
 
 def get_observations(star, instrument=None, user=None, main_id=None, verbose=True):
+    logger = setup_logger()
     if instrument is None:
         Spectroscopy = load_spectroscopy(user)
 
@@ -444,6 +449,7 @@ def extract_fits(output_directory, filename=None):
 
 
 def do_symlink_filetype(type, raw_files, output_directory, clobber=False, top_level=None, verbose=True):
+    logger = setup_logger()
     terminations = {
         'CCF': '_CCF_A.fits',
         'S1D': '_S1D_A.fits',
@@ -489,6 +495,7 @@ def do_symlink_filetype(type, raw_files, output_directory, clobber=False, top_le
 def do_download_filetype(type, raw_files, output_directory, clobber=False, user=None,
                          verbose=True, chunk_size=20, parallel_limit=30):
     """ Download CCFs / S1Ds / S2Ds from DACE """
+    logger = setup_logger()
     raw_files = np.atleast_1d(raw_files)
 
     create_directory(output_directory)

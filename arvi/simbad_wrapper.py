@@ -1,9 +1,8 @@
 import os
-import numpy as np
 import requests
 from dataclasses import dataclass
 
-import pysweetcat
+import numpy as np
 
 try:
     from uncertainties import ufloat
@@ -12,7 +11,6 @@ except ImportError:
 
 from .stellar import EFFECTIVE_TEMPERATURES, teff_to_sptype
 from .translations import translate
-from .setup_logger import logger
 
 DATA_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(DATA_PATH, 'data')
@@ -146,6 +144,7 @@ class simbad:
             star (str): The name of the star to query simbad
         """
         from astropy.coordinates import SkyCoord
+        import pysweetcat
 
         self.star = translate(star, ngc=True, ic=True)
 

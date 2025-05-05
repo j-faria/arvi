@@ -21,7 +21,7 @@ except ImportError:
     tqdm = lambda x, *args, **kwargs: x
     trange = lambda *args, **kwargs: range(*args, **kwargs)
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 from .config import config
 
 
@@ -70,6 +70,8 @@ def all_logging_disabled():
 @contextmanager
 def timer(name=None):
     """ A simple context manager to time a block of code """
+    logger = setup_logger()
+
     if not config.debug:
         yield
         return

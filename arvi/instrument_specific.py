@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 from .utils import ESPRESSO_ADC_issues, ESPRESSO_cryostat_issues
 
 
@@ -27,6 +27,7 @@ ESPRESSO_technical_intervention = 58665
 
 def divide_ESPRESSO(self):
     """ Split ESPRESSO data into separate sub ESP18 and ESP19 subsets """
+    logger = setup_logger()
     if self._check_instrument('ESPRESSO', strict=False) is None:
         return
     if 'ESPRESSO18' in self.instruments and 'ESPRESSO19' in self.instruments:
@@ -64,6 +65,7 @@ def divide_ESPRESSO(self):
 
 def divide_HARPS(self):
     """ Split HARPS data into separate sub HARPS03 and HARPS15 subsets """
+    logger = setup_logger()
     if self._check_instrument('HARPS', strict=False) is None:
         return
     if 'HARPS03' in self.instruments and 'HARPS15' in self.instruments:
@@ -100,6 +102,7 @@ def divide_HARPS(self):
     
 
 def check(self, instrument):
+    logger = setup_logger()
     instruments = self._check_instrument(instrument)
     if instruments is None:
         if self.verbose:
@@ -118,6 +121,7 @@ def HARPS_commissioning(self, mask=True, plot=True):
         plot (bool, optional):
             Whether to plot the masked points.
     """
+    logger = setup_logger()
     if check(self, 'HARPS') is None:
         return
 
@@ -149,6 +153,7 @@ def HARPS_fiber_commissioning(self, mask=True, plot=True):
         plot (bool, optional):
             Whether to plot the masked points.
     """
+    logger = setup_logger()
     if check(self, 'HARPS') is None:
         return
 
@@ -182,6 +187,7 @@ def ADC_issues(self, mask=True, plot=True, check_headers=False):
         check_headers (bool, optional):
             Whether to (double-)check the headers for missing/zero keywords.
     """
+    logger = setup_logger()
     instruments = self._check_instrument('ESPRESSO')
     
     if instruments is None:
@@ -225,6 +231,7 @@ def blue_cryostat_issues(self, mask=True, plot=True):
         mask (bool, optional): Whether to mask out the points.
         plot (bool, optional): Whether to plot the masked points.
     """
+    logger = setup_logger()
     instruments = self._check_instrument('ESPRESSO')
     
     if instruments is None:
@@ -259,6 +266,7 @@ def qc_scired_issues(self, plot=False, **kwargs):
     Args:
         plot (bool, optional): Whether to plot the masked points.
     """
+    logger = setup_logger()
     from .headers import get_headers
 
     instruments = self._check_instrument('ESPRESSO')

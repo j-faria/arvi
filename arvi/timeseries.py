@@ -1,14 +1,16 @@
 import os
 from dataclasses import dataclass, field
 from typing import Union
-from functools import lru_cache, partial, partialmethod
+from functools import partial, partialmethod
 from glob import glob
 import warnings
 from copy import deepcopy
 from datetime import datetime, timezone
 import numpy as np
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
+logger = setup_logger()
+
 from .config import config
 from .translations import translate
 from .dace_wrapper import do_download_filetype, do_symlink_filetype, get_observations, get_arrays

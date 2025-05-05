@@ -3,8 +3,7 @@ from glob import glob
 import json
 
 from numpy import full
-from .setup_logger import logger
-from . import timeseries
+from .setup_logger import setup_logger
 
 refs = {
     'HD86226': 'Teske et al. 2020 (AJ, 160, 2)'
@@ -12,7 +11,8 @@ refs = {
 
 def get_extra_data(star, instrument=None, path=None, verbose=True,
                    check_for_kms=True):
-    
+    from . import timeseries
+    logger = setup_logger()
     if path is None:
         path = os.path.dirname(__file__)
         path = os.path.join(path, 'data', 'extra')

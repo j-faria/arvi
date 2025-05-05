@@ -1,6 +1,6 @@
 import numpy as np
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 
 ###############################################################################
 # the following is mostly a copy of the scipy implementation of
@@ -390,6 +390,7 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
 
 
 def bin_ccf_mask(time, ccf_mask):
+    logger = setup_logger()
     indices = binRV(time, None, binning_indices=True)
     indices = np.r_[indices, time.size]
     bmask = []
