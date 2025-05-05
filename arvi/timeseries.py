@@ -1249,9 +1249,9 @@ class RV(ISSUES, REPORTS):
 
     from .plots import plot, plot_fwhm, plot_bispan, plot_contrast, plot_rhk, plot_berv, plot_quantity
     from .plots import gls, gls_fwhm, gls_bispan, gls_rhk, gls_quantity, window_function
-    from .reports import report
 
-    from .instrument_specific import known_issues
+    # from .reports import report
+    # from .instrument_specific import known_issues
 
     def change_instrument_name(self, old_name, new_name, strict=False):
         """ Change the name of an instrument
