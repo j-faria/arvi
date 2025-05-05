@@ -4,9 +4,10 @@ import time
 import importlib.resources as resources
 import numpy as np
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 
 def get_toi_list(verbose=True):
+    logger = setup_logger()
     toi_list = resources.files('arvi') / 'data' / 'exofop_toi_list.csv'
     now = time.time()
     download = not toi_list.exists() or toi_list.stat().st_mtime < now - 48 * 60 * 60
