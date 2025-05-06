@@ -45,10 +45,16 @@ class config:
             # return {'return_self': 'help!'}
             return {}
 
-        if self.__user_config.has_option('config', name):
-            self.__conf[name] = self.__user_config.get('config', name)
+        try:
+            if self.__user_config.has_option('config', name):
+                value = self.__user_config.get('config', name)
+                value = True if value == 'True' else value
+                value = False if value == 'False' else value
+                self.__conf[name] = value
 
-        return self.__conf[name]
+            return self.__conf[name]
+        except KeyError:
+            raise KeyError(f"unknown config option '{name}'")
 
     def __setattr__(self, name, value):
         if name in config.__setters:
@@ -56,7 +62,7 @@ class config:
         else:
             if 'config' not in self.__user_config:
                 self.__user_config.add_section('config')
-            self.__user_config.set('config', name, value)
+            self.__user_config.set('config', name, str(value))
             save_config(self.__user_config)
             # raise NameError(f"unknown configuration name '{name}'")
 
