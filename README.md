@@ -1,5 +1,5 @@
 <p align="center">
-  <img width = "140" src="https://github.com/j-faria/arvi/blob/main/docs/logo/logo.png?raw=true"/>
+  <img width = "140" src="https://raw.githubusercontent.com/j-faria/arvi/refs/heads/main/docs/logo/logo.png"/>
 </p>
 
 This package sits alongside [DACE](https://dace.unige.ch/) to help with the
