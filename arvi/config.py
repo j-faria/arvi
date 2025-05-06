@@ -31,6 +31,8 @@ class config:
         'check_internet': False,
         # make all DACE requests without using a .dacerc file
         'request_as_public': False,
+        # enable from arvi import star_name
+        'fancy_import': True,
         # debug
         'debug': False,
     }
