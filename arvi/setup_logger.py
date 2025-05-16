@@ -6,7 +6,7 @@ def setup_logger():
         import marimo as mo
         if mo.running_in_notebook():
             raise NotImplementedError
-    except NotImplementedError:
+    except (NotImplementedError, AttributeError):
         pass
     except (ImportError, ModuleNotFoundError):
         logger.remove()
