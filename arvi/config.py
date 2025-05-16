@@ -8,6 +8,7 @@ def get_config_path():
 
 def get_config():
     config = configparser.ConfigParser()
+    config.add_section('config')
     if (path := get_config_path()).exists():
         config.read(path)
     return config
@@ -33,6 +34,8 @@ class config:
         'request_as_public': False,
         # enable from arvi import star_name
         'fancy_import': True,
+        # use the 'dark_background' matplotlib theme
+        'dark_plots': False,
         # debug
         'debug': False,
     }

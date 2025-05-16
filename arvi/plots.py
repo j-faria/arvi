@@ -13,10 +13,12 @@ from .utils import lazy_import
 plt = lazy_import('matplotlib.pyplot')
 
 
-def plot_fast(func):
+def plot_settings(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        with plt.style.context('fast'):
+        # with plt.style.context('fast'):
+        theme = 'dark_background' if config.dark_plots else 'fast'
+        with plt.style.context(theme):
             return func(*args, **kwargs)
     return wrapper
 
@@ -135,7 +137,7 @@ def clickable_legend(fig, ax, leg):
                 pass
     return on_pick_legend
 
-# @plot_fast
+@plot_settings
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
          remove_50000=False, tooltips=True, show_title=False, show_legend=True, label=None, 
          jitter=None, N_in_label=False, versus_n=False, show_histogram=False, bw=False, **kwargs):
@@ -403,7 +405,7 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
     return fig, ax
 
 
-@plot_fast
+# @plot_fast
 def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
                   time_offset=0, remove_50000=False, tooltips=False, show_legend=True,
                   N_in_label=False, **kwargs):
@@ -506,7 +508,88 @@ plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 plot_berv = partialmethod(plot_quantity, quantity='berv')
 
 
-@plot_fast
+def plot_xy(self, x, y, ax=None, instrument=None, show_legend=True, **kwargs):
+    logger = setup_logger()
+    if self.N == 0:
+        if self.verbose:
+            logger.error('no data to plot')
+        return
+
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, constrained_layout=True)
+    else:
+        fig = ax.figure
+
+    kwargs.setdefault('marker', 'o')
+    kwargs.setdefault('ls', '')
+    kwargs.setdefault('capsize', 0)
+    kwargs.setdefault('ms', 4)
+
+    instruments = self._check_instrument(instrument)
+
+    for inst in instruments:
+        s = self if self._child else getattr(self, inst)
+        label = inst
+
+        missing = False
+        try:
+            xdata = getattr(s, x).copy()
+        except AttributeError:
+            missing = True
+        try:
+            e_xdata = getattr(s, x + '_err').copy()
+        except AttributeError:
+            e_xdata = np.zeros_like(xdata)
+
+        try:
+            ydata = getattr(s, y).copy()
+        except AttributeError:
+            missing = True
+        try:
+            e_ydata = getattr(s, y + '_err').copy()
+        except AttributeError:
+            e_ydata = np.zeros_like(ydata)
+
+        if missing:
+            lines, *_ = ax.errorbar([], [], [],
+                                    label=label, picker=True, **kwargs)
+            continue
+
+        ax.errorbar(xdata[s.mask], ydata[s.mask], e_xdata[s.mask], e_ydata[s.mask],
+                    label=label, **kwargs)
+
+    # if show_masked:
+    #     ax.errorbar(self.time[~self.mask] - time_offset,
+    #                 getattr(self, quantity)[~self.mask],
+    #                 getattr(self, quantity + '_err')[~self.mask],
+    #                 label='masked', fmt='x', ms=10, color='k', zorder=-2)
+
+    if show_legend:
+        leg = ax.legend()
+        on_pick_legend = clickable_legend(fig, ax, leg)
+        plt.connect('pick_event', on_pick_legend)
+
+    ax.minorticks_on()
+
+    delta = 'Δ' if self._did_adjust_means else ''
+
+    # ylabel = {
+    #     quantity.lower(): quantity,
+    #     'fwhm': f'{delta}FWHM [{self.units}]',
+    #     'bispan': f'{delta}BIS [{self.units}]',
+    #     'rhk': r"$\log$ R'$_{HK}$",
+    #     'berv': 'BERV [km/s]',
+    # }
+
+    # ax.set_ylabel(ylabel[quantity.lower()])
+
+    if config.return_self:
+        return self
+    else:
+        return fig, ax
+
+
+# @plot_fast
 def gls(self, ax=None, label=None, instrument=None, 
         fap=True, fap_method='baluev', adjust_means=config.adjust_means_gls,
         picker=True, **kwargs):
