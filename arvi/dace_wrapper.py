@@ -47,8 +47,9 @@ def load_spectroscopy(user=None):
         logger.warning('requesting DACE data as public (no .dacerc file found)')
     return default_Spectroscopy
 
-@lru_cache()
-def get_dace_id(star, verbose=True):
+
+@lru_cache(maxsize=1024)
+def get_dace_id(star, verbose=True, raise_error=False):
     logger = setup_logger()
     filters = {"obj_id_catname": {"equal": [star]}}
     try:
@@ -58,7 +59,10 @@ def get_dace_id(star, verbose=True):
     except KeyError:
         if verbose:
             logger.error(f"Could not find DACE ID for {star}")
+        if not raise_error:
+            return None
         raise ValueError from None
+
 
 def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
     logger = setup_logger()
@@ -70,7 +74,6 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
         # select ESPRESSO mode, which is defined at the level of the pipeline
         if 'ESPRESSO' in inst:
-
             find_mode = [ESPRESSO_mode in pipe for pipe in pipelines]
             # the mode was not found
             if not any(find_mode):
@@ -164,12 +167,12 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
 
     found_dace_id = False
     try:
-        dace_id = get_dace_id(star, verbose=verbose)
+        dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
         found_dace_id = True
     except ValueError as e:
         if main_id is not None:
             try:
-                dace_id = get_dace_id(main_id, verbose=verbose)
+                dace_id = get_dace_id(main_id, verbose=verbose, raise_error=True)
                 found_dace_id = True
             except ValueError:
                 pass
