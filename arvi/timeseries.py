@@ -55,7 +55,7 @@ class RV(ISSUES, REPORTS):
             Information on the target from Simbad
     """
     star: str
-    instrument: list = field(init=True, repr=False, default=None)
+    instrument: Union[str, list] = field(init=True, repr=False, default=None)
     verbose: bool = field(init=True, repr=False, default=True)
     do_maxerror: Union[bool, float] = field(init=True, repr=False, default=False)
     do_secular_acceleration: bool = field(init=True, repr=False, default=True)
