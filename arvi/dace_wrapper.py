@@ -164,7 +164,6 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
             dictionary with data from DACE
     """
     Spectroscopy = load_spectroscopy(user)
-
     found_dace_id = False
     try:
         dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
@@ -187,11 +186,16 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
         except TypeError:
             msg = f'no {instrument} observations for {star}'
             raise ValueError(msg) from None
-
-    filters = {
-        "ins_name": {"contains": [instrument]},
-        "obj_id_daceid": {"contains": [dace_id]}
-    }
+    if (isinstance(instrument, str)):
+        filters = {
+            "ins_name": {"contains": [instrument]},
+            "obj_id_daceid": {"contains": [dace_id]}
+        }
+    elif (isinstance(instrument, list)):
+        filters = {
+            "ins_name": {"contains": instrument},
+            "obj_id_daceid": {"contains": [dace_id]}
+        }
     with all_logging_disabled():
         result = Spectroscopy.query_database(filters=filters)
     
@@ -306,8 +310,10 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
 
     if instrument is not None:
         # select only the provided instrument (if it's there)
-        instruments = [inst for inst in instruments if instrument in inst]
-
+        if (isinstance(instrument, str)):
+            instruments = [inst for inst in instruments if instrument in inst]
+        elif (isinstance(instrument, list)):
+            instruments = [inst for inst in instruments if any(i in inst for i in instrument)]
     if len(instruments) == 0:
         if instrument is None:
             msg = f'no observations for {star}'
