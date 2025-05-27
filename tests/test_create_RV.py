@@ -19,3 +19,10 @@ def test_from_rdb(change_test_dir):
     assert (s.bispan == 0).all()
     assert isnan(s.rhk).all()
 
+
+def test_list_instruments():
+    from arvi import RV, config
+    config.request_as_public = True
+    _ = RV('HD28185', instrument='CORALIE')
+    _ = RV('HD28185', instrument=['CORALIE'])
+    _ = RV('HD28185', instrument=['CORALIE', 'HRS'])
