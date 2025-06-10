@@ -86,6 +86,11 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
                 i = [i for i, pipe in enumerate(pipelines) if ESPRESSO_mode in pipe][0]
                 pipelines = [pipelines[i]]
 
+        # select NIRPS mode
+        if 'NIRPS' in inst:
+            if any(this_mode := [p for p in pipelines if NIRPS_mode in p]):
+                pipelines = this_mode
+
         if latest_pipeline:
             npipe = len(pipelines)
             if 'NIRPS' in inst and any(['LBL' in p for p in pipelines]):
@@ -165,17 +170,18 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
     """
     Spectroscopy = load_spectroscopy(user)
     found_dace_id = False
-    try:
-        dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
-        found_dace_id = True
-    except ValueError as e:
-        if main_id is not None:
-            try:
-                dace_id = get_dace_id(main_id, verbose=verbose, raise_error=True)
-                found_dace_id = True
-            except ValueError:
-                pass
-    
+    with timer('simbad query'):
+        try:
+            dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
+            found_dace_id = True
+        except ValueError as e:
+            if main_id is not None:
+                try:
+                    dace_id = get_dace_id(main_id, verbose=verbose, raise_error=True)
+                    found_dace_id = True
+                except ValueError:
+                    pass
+
     if not found_dace_id:
         try:
             with all_logging_disabled():
@@ -306,7 +312,7 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
             result[inst] = dict(result[inst])
     #
 
-    instruments = list(result.keys())
+    instruments = list(map(str, result.keys()))
 
     if instrument is not None:
         # select only the provided instrument (if it's there)
@@ -394,7 +400,7 @@ def check_existing(output_directory, files, type):
     ]
 
     if type == 'S2D':
-        existing = [
+        existing += [
             f.partition('.fits')[0] for f in os.listdir(output_directory)
             if 'e2ds' in f
         ]   
@@ -512,7 +518,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
     # check existing files to avoid re-downloading
     if not clobber:
         raw_files = check_existing(output_directory, raw_files, type)
-
+    
     n = raw_files.size
 
     # any file left to download?
