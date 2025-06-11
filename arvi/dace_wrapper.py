@@ -343,30 +343,53 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
     #     else:
     #         return -1
 
-    # sort pipelines, must be extra careful with HARPS/HARPN pipeline version numbers
-    # got here with the help of DeepSeek
-    from re import match
-    def custom_sort_key(s):
-        s = s[0]
-        # Check for version number pattern (e.g., 3.2.5 or 3.2.5-EGGS)
-        version_match = match(r'^(\d+(?:\.\d+)*)(?:[-\s](.*))?$', s)
-        if version_match:
-            version_parts = list(map(int, version_match.group(1).split('.')))
-            if len(version_parts) == 2:
-                version_parts.insert(1, -1)
-            return (0, 1, version_parts)
-        # Check for scientific reference pattern (e.g., 2004A&A...)
-        year_match = match(r'^(\d{4})', s)
-        if year_match:
-            year = int(year_match.group(1))
-            return (1, year)
-        # For all other strings, sort alphabetically
-        return (2, s)
+    # # sort pipelines, must be extra careful with HARPS/HARPN pipeline version numbers
+    # # got here with the help of DeepSeek
+    # # from functools import cmp_to_key
+    # from re import match
+    # def custom_sort_key(s):
+    #     s = s[0]
+    #     # Check for version number pattern (e.g., 3.2.5 or 3.2.5-EGGS)
+    #     version_match = match(r'^(\d+(?:\.\d+)*)(?:[-\s](.*))?$', s)
+    #     if version_match:
+    #         version_parts = list(map(int, version_match.group(1).split('.')))
+    #         if len(version_parts) == 2:
+    #             version_parts.insert(1, -1)
+    #         # if version_match.group(2) and 'LBL' in version_match.group(2):
+    #         #     version_parts.append(-1)
+    #         # else:
+    #         #     version_parts.append(0)
+    #         if version_match.group(2) is None:
+    #             version_parts.append('')
+    #         else:
+    #             version_parts.append(version_match.group(2))
+    #         return (0, 1, version_parts)
+    #     # Check for scientific reference pattern (e.g., 2004A&A...)
+    #     year_match = match(r'^(\d{4})', s)
+    #     if year_match:
+    #         year = int(year_match.group(1))
+    #         return (1, year)
+    #     # For all other strings, sort alphabetically
+    #     return (2, s)
 
-    # from functools import cmp_to_key
+    def custom_key(val):
+        key = 0
+        key -= 2 if val == '3.5' else 0
+        key -= 1 if 'EGGS' in val else 0
+        key -= 1 if ('UHR' in val or 'MR' in val) else 0
+        key -= 1 if 'LBL' in val else 0
+        return str(key) if key != 0 else val
+
     new_result = {}
     for inst in instruments:
-        new_result[inst] = dict(sorted(result[inst].items(), key=custom_sort_key, reverse=True))
+        # new_result[inst] = dict(
+        #     sorted(result[inst].items(), key=custom_sort_key, reverse=True)
+        # )
+        # WARNING: not the same as reverse=True (not sure why)
+        sorted_keys = sorted(result[inst].keys(), key=custom_key)[::-1]
+        new_result[inst] = {}
+        for key in sorted_keys:
+            new_result[inst][key] = result[inst][key]
 
     if verbose:
         logger.info('RVs available from')
