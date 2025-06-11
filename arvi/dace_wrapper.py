@@ -7,7 +7,7 @@ from itertools import islice
 import numpy as np
 
 from .setup_logger import setup_logger
-from .utils import create_directory, all_logging_disabled, stdout_disabled, tqdm
+from .utils import create_directory, all_logging_disabled, stdout_disabled, timer, tqdm
 
 
 def load_spectroscopy(user=None):
