@@ -5,7 +5,7 @@ from .setup_logger import setup_logger
 from .utils import ESPRESSO_ADC_issues, ESPRESSO_cryostat_issues
 
 
-# HARPS started operations in October 1st, 2003
+# HARPS started operations on October 1st, 2003
 # https://www.eso.org/sci/facilities/lasilla/instruments/harps/news.html
 HARPS_start = 52913
 
@@ -20,6 +20,11 @@ HARPS_technical_intervention = 57170
 # formal commissioning of the new fibre took place, finishing on **3 June**,
 # when the instrument was handed back to Science Operations.
 HARPS_technical_intervention_range = (57161, 57176)
+
+
+# ESPRESSO started operations on October 1st, 2018
+# see Pepe et al. (2021, A&A 645, A96)
+ESPRESSO_start = 58392
 
 # ESPRESSO fiber link upgrade (1 July 2019)
 ESPRESSO_technical_intervention = 58665
@@ -113,7 +118,7 @@ def check(self, instrument):
 
 # HARPS commissioning
 def HARPS_commissioning(self, mask=True, plot=True):
-    """ Identify and optionally mask points during HARPS commissioning (HARPS).
+    """ Identify and optionally mask points during HARPS commissioning.
 
     Args:
         mask (bool, optional):
@@ -164,6 +169,38 @@ def HARPS_fiber_commissioning(self, mask=True, plot=True):
         n = total_affected
         logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
                      "during the HARPS fiber commissioning period")
+
+    if mask:
+        self.mask[affected] = False
+        self._propagate_mask_changes()
+
+        if plot:
+            self.plot(show_masked=True)
+
+    return affected
+
+
+# ESPRESSO commissioning
+def ESPRESSO_commissioning(self, mask=True, plot=True):
+    """ Identify and optionally mask points during ESPRESSO commissioning.
+
+    Args:
+        mask (bool, optional):
+            Whether to mask out the points.
+        plot (bool, optional):
+            Whether to plot the masked points.
+    """
+    logger = setup_logger()
+    if check(self, 'ESPRESSO') is None:
+        return
+
+    affected = self.time < ESPRESSO_start
+    total_affected = affected.sum()
+
+    if self.verbose:
+        n = total_affected
+        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
+                     "during ESPRESSO commissioning")
 
     if mask:
         self.mask[affected] = False
@@ -316,31 +353,25 @@ class ISSUES:
             plot (bool, optional): Whether to plot the masked points.
         """
         logger = setup_logger()
-        try:
-            adc = ADC_issues(self, mask, plot, **kwargs)
-        except IndexError:
-            logger.error('are the data binned? cannot proceed to mask these points...')
+
+        functions = (
+            ESPRESSO_commissioning,
+            ADC_issues,
+            blue_cryostat_issues,
+            HARPS_commissioning,
+            HARPS_fiber_commissioning
+        )
+        results = []
+
+        for fun in functions:
+            try:
+                results.append(fun(self, mask, plot, **kwargs))
+            except IndexError:
+                logger.error('are the data binned? cannot proceed to mask these points...')
+        
+        results = list(filter(lambda x: x is not None, results))
 
         try:
-            cryostat = blue_cryostat_issues(self, mask, plot)
-        except IndexError:
-            logger.error('are the data binned? cannot proceed to mask these points...')
-
-        try:
-            harps_comm = HARPS_commissioning(self, mask, plot)
-        except IndexError:
-            logger.error('are the data binned? cannot proceed to mask these points...')
-
-        try:
-            harps_fibers = HARPS_fiber_commissioning(self, mask, plot)
-        except IndexError:
-            logger.error('are the data binned? cannot proceed to mask these points...')
-
-        # if None in (adc, cryostat, harps_comm, harps_fibers):
-        #     return
-
-        try:
-            # return adc | cryostat
-            return np.logical_or.reduce((adc, cryostat, harps_comm, harps_fibers))
+            return np.logical_or.reduce(results)
         except UnboundLocalError:
             return
