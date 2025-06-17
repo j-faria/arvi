@@ -1376,7 +1376,7 @@ class RV(ISSUES, REPORTS):
             instrument_index = self.obs[index]
             np.array(self.instruments)[instrument_index - 1]
         except IndexError:
-            logger.errors(f'index {index} is out of bounds for N={self.N}')
+            logger.error(f'index {index} is out of bounds for N={self.N}')
             return
 
         if self.verbose:
@@ -1408,7 +1408,7 @@ class RV(ISSUES, REPORTS):
             instrument_index = self.obs[index]
             np.array(self.instruments)[instrument_index - 1]
         except IndexError:
-            logger.errors(f'index {index} is out of bounds for N={self.N}')
+            logger.error(f'index {index} is out of bounds for N={self.N}')
             return
 
         if self.verbose:
