@@ -288,7 +288,7 @@ class RV(ISSUES, REPORTS):
                 # all other quantities
                 self._build_arrays()
 
-                self.actin = get_actin_data(self, verbose=self.verbose)
+                # self.actin = get_actin_data(self, verbose=self.verbose)
 
 
         # check for SOPHIE observations
