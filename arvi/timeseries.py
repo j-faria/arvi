@@ -64,7 +64,8 @@ class RV(ISSUES, REPORTS):
     only_latest_pipeline: bool = field(init=True, repr=False, default=True)
     load_extra_data: Union[bool, str] = field(init=True, repr=False, default=False)
     check_drs_qc: bool = field(init=True, repr=False, default=True)
-    user: bool = field(init=True, repr=False, default=None)
+    check_sophie_archive: bool = field(init=True, repr=False, default=False)
+    user: bool | None = field(init=True, repr=False, default=None)
     #
     units = 'm/s'
     _child: bool = field(init=True, repr=False, default=False)
