@@ -288,6 +288,21 @@ class RV(ISSUES, REPORTS):
                 # all other quantities
                 self._build_arrays()
 
+                self.actin = get_actin_data(self, verbose=self.verbose)
+
+
+        # check for SOPHIE observations
+        cond = not self._child
+        cond = cond and self.instrument is None
+        cond = cond and self.check_sophie_archive
+        if cond:
+            try:
+                from arvi.sophie_wrapper import query_sophie_archive
+                self.__add__(query_sophie_archive(self.star, verbose=self.verbose),
+                             inplace=True)
+            except Exception as e:
+                print(e)
+
         # do clip_maxerror, secular_acceleration, sigmaclip, adjust_means
         if not self._child:
             if self.do_maxerror:
