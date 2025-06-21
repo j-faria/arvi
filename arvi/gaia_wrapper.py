@@ -3,8 +3,6 @@ from io import StringIO
 from csv import DictReader
 import requests
 
-from astropy.coordinates import SkyCoord
-
 DATA_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(DATA_PATH, 'data')
 
@@ -78,6 +76,8 @@ class gaia:
         Args:
             star (str): The name of the star to query simbad
         """
+        from astropy.coordinates import SkyCoord
+
         self.star = star
 
         if simbad is None:
