@@ -1,6 +1,7 @@
 import os
 import requests
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 
@@ -62,6 +63,23 @@ SELECT basic.OID FROM basic
 JOIN ident ON oidref = oid 
 WHERE id = '{star}';
 """
+
+HD_GJ_HIP_QUERY = """
+SELECT id2.id
+FROM ident AS id1 JOIN ident AS id2 USING(oidref)
+WHERE id1.id = '{star}' AND id2.id LIKE '{name}%';
+"""
+
+def find_identifier(identifier, star):
+    response = run_query(HD_GJ_HIP_QUERY.format(name=identifier, star=star))
+    if identifier in response:
+        return response.split('"')[1]
+    raise ValueError(f'no {identifier} identifier found for "{star}"')
+
+find_HD = partial(find_identifier, 'HD')
+find_GJ = partial(find_identifier, 'GJ')
+find_HIP = partial(find_identifier, 'HIP')
+
 
 @dataclass
 class Measurements:
