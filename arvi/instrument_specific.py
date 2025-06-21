@@ -107,14 +107,7 @@ def divide_HARPS(self):
     
 
 def check(self, instrument):
-    logger = setup_logger()
-    instruments = self._check_instrument(instrument)
-    if instruments is None:
-        if self.verbose:
-            logger.error(f"HARPS_fiber_commissioning: no data from {instrument}")
-        return None
-    return instruments
-
+    return self._check_instrument(instrument)
 
 # HARPS commissioning
 def HARPS_commissioning(self, mask=True, plot=True):
