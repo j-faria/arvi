@@ -572,7 +572,7 @@ class RV(ISSUES, REPORTS):
         return s
 
     @classmethod
-    def from_arrays(cls, star, time, vrad, svrad, inst, *args, **kwargs):
+    def from_arrays(cls, star, time, vrad, svrad, inst, **kwargs):
         s = cls(star, _child=True)
         time, vrad, svrad = map(np.atleast_1d, (time, vrad, svrad))
 
@@ -588,10 +588,13 @@ class RV(ISSUES, REPORTS):
         s.vrad = vrad
         s.svrad = svrad
         # mask
-        s.mask = kwargs.get('mask', np.full_like(s.time, True, dtype=bool))
+        s.mask = kwargs.pop('mask', np.full_like(s.time, True, dtype=bool))
+
+        for k, v in kwargs.items():
+            setattr(s, k, np.atleast_1d(v))
 
         s.instruments = [inst]
-        s._quantities = np.array([])
+        s._quantities = np.array(list(kwargs.keys()))
 
         return s
 
@@ -635,37 +638,68 @@ class RV(ISSUES, REPORTS):
                 Number of lines to skip in the header. Defaults to 2.
 
         Examples:
-            s = RV.from_rdb('star_HARPS.rdb')
+            >>> s = RV.from_rdb('star_HARPS.rdb')
         """
         from glob import glob
         from os.path import splitext, basename
 
         verbose = kwargs.pop('verbose', True)
 
+        file_object = False
+
         if isinstance(files, str):
             if '*' in files:
                 files = glob(files)
             else:
                 files = [files]
+        elif isinstance(files, list):
+            pass
+        else:
+            file_object = hasattr(files, 'read')
+            files = [files]
 
-        if len(files) == 0:
-            if verbose:
-                logger.error('no files found')
-            return
+        # if len(files) == 0:
+        #     if verbose:
+        #         logger.error('no files found')
+        #     return
+        def get_star_name(file):
+            return splitext(basename(file))[0].split('_')[0].replace('-', '_')
+        
+        def get_instrument(file):
+            return splitext(basename(file))[0].split('_')[1]
 
-        if star is None:
-            star_ = np.unique([splitext(basename(f))[0].split('_')[0] for f in files])
-            if star_.size == 1:
-                star = star_[0].replace('-', '_')
+        if file_object:
+            if star is None:
+                try:
+                    star = get_star_name(files[0].name)
+                except Exception:
+                    star ='unknown'
                 if verbose:
                     logger.info(f'assuming star is {star}')
 
-        if instrument is None:
-            instruments = np.array([splitext(basename(f))[0].split('_')[1] for f in files])
-            if verbose:
-                logger.info(f'assuming instruments: {instruments}')
+            if instrument is None:
+                try:
+                    instrument = get_instrument(files[0].name)
+                except Exception:
+                    instrument = 'unknown'
+                if verbose:
+                    logger.info(f'assuming instrument is {instrument}')
+
+            instruments = np.array([instrument])
         else:
-            instruments = np.atleast_1d(instrument)
+            if star is None:
+                star = np.unique([get_star_name(f) for f in files])[0]
+                if verbose:
+                    logger.info(f'assuming star is {star}')
+            else:
+                star = 'unknown'
+
+            if instrument is None:
+                instruments = np.array([splitext(basename(f))[0].split('_')[1] for f in files])
+                if verbose:
+                    logger.info(f'assuming instruments: {instruments}')
+            else:
+                instruments = np.atleast_1d(instrument)
 
         if instruments.size == 1 and len(files) > 1:
             instruments = np.repeat(instruments, len(files))
@@ -698,12 +732,16 @@ class RV(ISSUES, REPORTS):
             _quantities = []
 
             #! hack
-            with open(f) as ff:
-                header = ff.readline().strip()
-                if '\t' in header:
-                    names = header.split('\t')
-                else:
-                    names = header.split()
+            if file_object:
+                header = f.readline().strip()
+            else:
+                with open(f) as ff:
+                    header = ff.readline().strip()
+
+            if '\t' in header:
+                names = header.split('\t')
+            else:
+                names = header.split()
 
             if len(names) > 3:
                 # if f.endswith('.rdb'):
@@ -716,7 +754,7 @@ class RV(ISSUES, REPORTS):
                     data = np.genfromtxt(f, **kw, delimiter='\t')
                 else:
                     data = np.genfromtxt(f, **kw)
-                
+
                 # if data.ndim in (0, 1):
                 #     data = data.reshape(-1, 1)
 
@@ -860,7 +898,22 @@ class RV(ISSUES, REPORTS):
 
     @classmethod
     def from_ccf(cls, files, star=None, instrument=None, **kwargs):
-        """ Create an RV object from a CCF file or a list of CCF files """
+        """ Create an RV object from a CCF file or a list of CCF files
+
+        !!! Note
+            This function relies on the `iCCF` package
+
+        Args:
+            files (str or list):
+                CCF file or list of CCF files
+            star (str):
+                Star name. If not provided, it will be inferred from the header
+                of the CCF file
+            instrument (str):
+                Instrument name. If not provided, it will be inferred from the
+                header of the CCF file
+        
+        """
         try:
             import iCCF
         except ImportError:
@@ -885,7 +938,7 @@ class RV(ISSUES, REPORTS):
             objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
 
         if len(objects) != 1:
-            logger.warning(f'found {objects.size} different stars in the CCF files, '
+            logger.warning(f'found {objects.size} different stars in the CCF files ({objects}), '
                            'choosing the first one')
         star = objects[0]
 
@@ -911,8 +964,21 @@ class RV(ISSUES, REPORTS):
             _quantities.append('contrast')
             _quantities.append('contrast_err')
 
+            _s.bispan = np.array([i.BIS*1e3 for i in CCFs])
+            _s.bispan_err = np.array([i.BISerror*1e3 for i in CCFs])
+            _quantities.append('bispan')
+            _quantities.append('bispan_err')
+
+            _s.rhk = np.full_like(time, np.nan)
+            _s.rhk_err = np.full_like(time, np.nan)
+            _quantities.append('rhk')
+            _quantities.append('rhk_err')
+
             _s.texp = np.array([i.HDU[0].header['EXPTIME'] for i in CCFs])
             _quantities.append('texp')
+
+            _s.berv = np.array([i.HDU[0].header['HIERARCH ESO QC BERV'] for i in CCFs])
+            _quantities.append('berv')
 
             _s.date_night = np.array([
                 i.HDU[0].header['DATE-OBS'].split('T')[0] for i in CCFs
@@ -984,17 +1050,17 @@ class RV(ISSUES, REPORTS):
             if fits_file not in tar.getnames():
                 logger.error(f'KOBE file not found for {star}')
                 return
-            
+
             hdul = fits.open(tar.extractfile(fits_file))
 
         else:
             resp = requests.get(f'https://kobe.caha.es/internal/fitsfiles/{fits_file}',
                                 auth=HTTPBasicAuth('kobeteam', config.kobe_password))
-            
+
             if resp.status_code != 200:
                 # something went wrong, try to extract the file by downloading the
                 # full tar.gz archive
-                
+
                 logger.warning(f'could not find "{fits_file}" on server, trying to download full archive')
                 resp = requests.get('https://kobe.caha.es/internal/fitsfiles.tar.gz',
                                     auth=HTTPBasicAuth('kobeteam', config.kobe_password))
@@ -1012,7 +1078,7 @@ class RV(ISSUES, REPORTS):
                 if fits_file not in tar.getnames():
                     logger.error(f'KOBE file not found for {star}')
                     return
-                
+
                 hdul = fits.open(tar.extractfile(fits_file))
 
             else:
@@ -1411,7 +1477,9 @@ class RV(ISSUES, REPORTS):
     def remove_point(self, index):
         """
         Remove individual observations at a given index (or indices).
-        NOTE: Like Python, the index is 0-based.
+        
+        !!! Note
+            Like Python, the index is 0-based.
 
         Args:
             index (int, list, ndarray):
@@ -1443,11 +1511,14 @@ class RV(ISSUES, REPORTS):
     def restore_point(self, index):
         """
         Restore previously deleted individual observations at a given index (or
-        indices). NOTE: Like Python, the index is 0-based.
+        indices). 
+        
+        !!! Note
+            Like Python, the index is 0-based
 
         Args:
             index (int, list, ndarray):
-                Single index, list, or array of indices to restore.
+                Single index, list, or array of indices to restore
         """
         index = np.atleast_1d(index)
         try:
@@ -1471,6 +1542,14 @@ class RV(ISSUES, REPORTS):
             n = (~self.public).sum()
             logger.info(f'masking non-public observations ({n})')
         self.mask = self.mask & self.public
+        self._propagate_mask_changes()
+
+    def remove_public(self):
+        """ Remove public observations """
+        if self.verbose:
+            n = self.public.sum()
+            logger.info(f'masking public observations ({n})')
+        self.mask = self.mask & (~self.public)
         self._propagate_mask_changes()
 
     def remove_single_observations(self):
@@ -1498,26 +1577,26 @@ class RV(ISSUES, REPORTS):
                 if self.verbose:
                     logger.warning(f'no observations for prog_id "{prog_id}"')
 
-    def remove_after_bjd(self, bjd):
+    def remove_after_bjd(self, bjd: float):
         """ Remove observations after a given BJD """
         if (self.time > bjd).any():
             ind = np.where(self.time > bjd)[0]
             self.remove_point(ind)
 
-    def remove_before_bjd(self, bjd):
+    def remove_before_bjd(self, bjd: float):
         """ Remove observations before a given BJD """
         if (self.time < bjd).any():
             ind = np.where(self.time < bjd)[0]
             self.remove_point(ind)
-    
-    def remove_between_bjds(self, bjd1, bjd2):
+
+    def remove_between_bjds(self, bjd1: float, bjd2: float):
         """ Remove observations between two BJDs """
         to_remove = (self.time > bjd1) & (self.time < bjd2)
         if to_remove.any():
             ind = np.where(to_remove)[0]
             self.remove_point(ind)
 
-    def choose_n_points(self, n, seed=None, instrument=None):
+    def choose_n_points(self, n: int, seed=None, instrument=None):
         """ Randomly choose `n` observations and mask out the remaining ones
 
         Args:
@@ -1555,15 +1634,20 @@ class RV(ISSUES, REPORTS):
             getattr(self, inst).mask[m - n_before] = False
 
     def secular_acceleration(self, epoch=None, just_compute=False, force_simbad=False):
-        """
-        Remove secular acceleration from RVs
+        """ 
+        Remove secular acceleration from RVs. This uses the proper motions from
+        Gaia (in `self.gaia`) if available, otherwise from Simbad (in
+        `self.simbad`), unless `force_simbad=True`.
+
 
         Args:
             epoch (float, optional):
                 The reference epoch (DACE uses 55500, 31/10/2010)
-            instruments (bool or collection of str):
-                Only remove secular acceleration for some instruments, or for all
-                if `instruments=True`
+            just_compute (bool, optional):
+                Just compute the secular acceleration and return, without
+                changing the RVs
+            force_simbad (bool, optional):
+                Use Simbad proper motions even if Gaia is available
         """
         if self._did_secular_acceleration and not just_compute:  # don't do it twice
             return
@@ -1672,7 +1756,7 @@ class RV(ISSUES, REPORTS):
 
         if config.return_self:
             return self
-    
+
     def _undo_secular_acceleration(self):
         if self._did_secular_acceleration:
             _old_verbose = self.verbose
@@ -1700,7 +1784,15 @@ class RV(ISSUES, REPORTS):
             self._did_secular_acceleration = False
 
     def sigmaclip(self, sigma=5, instrument=None, strict=True):
-        """ Sigma-clip RVs (per instrument!) """
+        """
+        Sigma-clip RVs (per instrument!), by MAD away from the median.
+
+        Args:
+            sigma (float):
+                Number of MADs to clip
+            instrument (str, list):
+                Instrument(s) to sigma-clip
+        """
         #from scipy.stats import sigmaclip as dosigmaclip
         from .stats import sigmaclip_median as dosigmaclip
 
@@ -1737,7 +1829,7 @@ class RV(ISSUES, REPORTS):
 
         self._propagate_mask_changes()
 
-        if self._did_adjust_means:
+        if len(changed_instruments) > 0 and self._did_adjust_means:
             self._did_adjust_means = False
             self.adjust_means(instrument=changed_instruments)
 
@@ -1770,7 +1862,8 @@ class RV(ISSUES, REPORTS):
         """
         Nightly bin the observations.
 
-        WARNING: This creates and returns a new object and does not modify self.
+        !!! Warning
+            This creates and returns a new object and does not modify self.
         """
 
         # create copy of self to be returned
@@ -1874,7 +1967,7 @@ class RV(ISSUES, REPORTS):
         return np.nanmean(z, axis=0)
 
     def subtract_mean(self):
-        """ Subtract (single) mean RV from all instruments """
+        """ Subtract (a single) non-weighted mean RV from all instruments """
         self._meanRV = meanRV = self.mvrad.mean()
         for inst in self.instruments:
             s = getattr(self, inst)
@@ -1910,7 +2003,7 @@ class RV(ISSUES, REPORTS):
         #     row = []
         #     if print_as_table:
         #         logger.info('subtracted weighted average from each instrument:')
-    
+
         others = ('fwhm', 'bispan', )
 
         instruments = self._check_instrument(instrument, strict=kwargs.get('strict', False))
@@ -2189,10 +2282,10 @@ class RV(ISSUES, REPORTS):
         """ Sort instruments by first or last observation date.
 
         Args:
-            by_first_observation (bool, optional, default=True):
-                Sort by first observation date.
-            by_last_observation (bool, optional, default=False):
-                Sort by last observation date.
+            by_first_observation (bool, optional):
+                Sort by first observation date
+            by_last_observation (bool, optional):
+                Sort by last observation date
         """
         if by_last_observation:
             by_first_observation = False
@@ -2268,7 +2361,7 @@ class RV(ISSUES, REPORTS):
                     #     if self.verbose:
                     #         logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
 
-                header = '\t'.join(['rjd', 'vrad', 'svrad', 
+                header = '\t'.join(['rjd', 'vrad', 'svrad',
                                     'fwhm', 'sig_fwhm',
                                     'bispan', 'sig_bispan',
                                     'contrast', 'sig_contrast',
