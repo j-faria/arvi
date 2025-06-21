@@ -79,14 +79,17 @@ def timer(name=None):
     if name is None:
         logger.debug('starting timer')
     else:
-        logger.debug(f'starting timer: {name}')
+        logger.debug(f'{name}: starting timer')
 
     start = time.time()
     try:
         yield
     finally:
         end = time.time()
-        logger.debug(f'elapsed time: {end - start:.2f} seconds')
+        if name is None:
+            logger.debug(f'elapsed time {end - start:.2f} seconds')
+        else:
+            logger.debug(f'{name}: elapsed time {end - start:.2f} seconds')
 
 
 def sanitize_path(path):
