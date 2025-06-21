@@ -40,24 +40,53 @@ class RV(ISSUES, REPORTS):
     """
     A class holding RV observations
 
+    Args:
+        star (str):
+            Name of the star
+        instrument (str, list):
+            Name of the instrument or list of instruments
+        verbose (bool):
+            Print logging messages
+        do_maxerror:
+            Mask points based on a maximum RV uncertainty
+        do_secular_acceleration:
+            Apply secular acceleration correction. This only applies
+            to certain instruments.
+        do_sigma_clip (bool):
+            Apply sigma clipping on the RVs
+        do_adjust_means (bool):
+            Subtract individual weighted mean RV from each instrument
+        only_latest_pipeline (bool):
+            Select only the latest pipeline from each instrument
+        load_extra_data (bool):
+        check_drs_qc (bool):
+            Mask points based on DRS quality control flags
+        user (str):
+            User name for DACE queries (should be a section in `~/.dacerc` file)
+
     Examples:
         >>> s = RV('Proxima')
+        >>> s = RV('HD10180', instrument='HARPS')
 
-    Attributes:
-        star (str):
-            The name of the star
-        N (int):
-            Total number of observations
-        instruments (list):
-            List of instruments for which there are RVs. Each instrument is also
-            stored as an attribute (e.g. `self.CORALIE98` or `self.HARPS`)
-        simbad (simbad):
-            Information on the target from Simbad
     """
+    # Attributes:
+    #     star (str):
+    #         The name of the star
+    #     N (int):
+    #         Total number of observations
+    #     NN (dict):
+    #         Number of observations per instrument
+    #     instruments (list):
+    #         List of instruments for which there are RVs. Each instrument is also
+    #         stored as an attribute (e.g. `self.CORALIE98` or `self.HARPS`)
+    #     simbad (simbad):
+    #         Information on the target from Simbad
+    #     gaia (gaia):
+    #         Information on the target from Gaia DR3
     star: str
     instrument: Union[str, list] = field(init=True, repr=False, default=None)
     verbose: bool = field(init=True, repr=False, default=True)
-    do_maxerror: Union[bool, float] = field(init=True, repr=False, default=False)
+    do_maxerror: float = field(init=True, repr=False, default=None)
     do_secular_acceleration: bool = field(init=True, repr=False, default=True)
     do_sigma_clip: bool = field(init=True, repr=False, default=False)
     do_adjust_means: bool = field(init=True, repr=False, default=True)
