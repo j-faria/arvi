@@ -65,19 +65,20 @@ class RV(ISSUES, REPORTS):
     load_extra_data: Union[bool, str] = field(init=True, repr=False, default=False)
     check_drs_qc: bool = field(init=True, repr=False, default=True)
     check_sophie_archive: bool = field(init=True, repr=False, default=False)
-    user: bool | None = field(init=True, repr=False, default=None)
+    user: Union[str, None] = field(init=True, repr=False, default=None)
     #
     units = 'm/s'
     _child: bool = field(init=True, repr=False, default=False)
-    _did_secular_acceleration: bool = field(init=False, repr=False, default=False)
-    _did_sigma_clip: bool = field(init=False, repr=False, default=False)
-    _did_adjust_means: bool = field(init=False, repr=False, default=False)
-    _did_simbad_query: bool = field(init=False, repr=False, default=False)
-    _did_gaia_query: bool = field(init=False, repr=False, default=False)
-    _did_toi_query: bool = field(init=False, repr=False, default=False)
-    _raise_on_error: bool = field(init=True, repr=False, default=True)
-    __masked_numbers: bool = field(init=False, repr=False, default=False)
-    # 
+    #
+    _did_secular_acceleration : bool = field(init=False, repr=False, default=False)
+    _did_sigma_clip           : bool = field(init=False, repr=False, default=False)
+    _did_adjust_means         : bool = field(init=False, repr=False, default=False)
+    _did_simbad_query         : bool = field(init=False, repr=False, default=False)
+    _did_gaia_query           : bool = field(init=False, repr=False, default=False)
+    _did_toi_query            : bool = field(init=False, repr=False, default=False)
+    _raise_on_error  : bool = field(init=True, repr=False, default=True)
+    __masked_numbers : bool = field(init=False, repr=False, default=False)
+    #
     _simbad = None
     _gaia = None
     _toi = None
@@ -105,7 +106,7 @@ class RV(ISSUES, REPORTS):
 
         if self._child:
             return None
-    
+
         if self._did_simbad_query:
             return None
 
