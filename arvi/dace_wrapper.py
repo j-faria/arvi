@@ -212,17 +212,22 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
 
     for inst in np.unique(result['ins_name']):
         mask1 = result['ins_name'] == inst
-        r[inst] = {}
+        r[str(inst)] = {}
 
-        for pipe in np.unique(result['ins_drs_version'][mask1]):
-            mask2 = mask1 & (result['ins_drs_version'] == pipe)
-            r[inst][pipe] = {}
+        key2 = 'ins_drs_version'
+        n_key2 = len(np.unique(result[key2][mask1]))
+        if len(np.unique(result['pub_bibcode'][mask1])) >= n_key2:
+            key2 = 'pub_bibcode'
+
+        for pipe in np.unique(result[key2][mask1]):
+            mask2 = mask1 & (result[key2] == pipe)
+            r[str(inst)][str(pipe)] = {}
 
             for ins_mode in np.unique(result['ins_mode'][mask2]):
                 mask3 = mask2 & (result['ins_mode'] == ins_mode)
                 _nan = np.full(mask3.sum(), np.nan)
 
-                r[inst][pipe][ins_mode] = {
+                r[str(inst)][str(pipe)][str(ins_mode)] = {
                     'texp': result['texp'][mask3],
                     'bispan': result['spectro_ccf_bispan'][mask3],
                     'bispan_err': result['spectro_ccf_bispan_err'][mask3],
