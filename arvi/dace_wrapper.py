@@ -2,7 +2,7 @@ import os
 import sys
 import tarfile
 import collections
-from functools import lru_cache
+from functools import lru_cache, partial
 from itertools import islice
 import numpy as np
 
@@ -170,7 +170,7 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
     """
     Spectroscopy = load_spectroscopy(user)
     found_dace_id = False
-    with timer('simbad query'):
+    with timer('dace_id query'):
         try:
             dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
             found_dace_id = True
@@ -372,9 +372,11 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
     #     # For all other strings, sort alphabetically
     #     return (2, s)
 
-    def custom_key(val):
+    def custom_key(val, strip_EGGS=False):
+        if strip_EGGS:
+            val = val.replace('-EGGS', '').replace(' EGGS', '')
         key = 0
-        key -= 2 if val == '3.5' else 0
+        key -= 1 if '3.5' in val else 0
         key -= 1 if 'EGGS' in val else 0
         key -= 1 if ('UHR' in val or 'MR' in val) else 0
         key -= 1 if 'LBL' in val else 0
@@ -385,6 +387,8 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
         # new_result[inst] = dict(
         #     sorted(result[inst].items(), key=custom_sort_key, reverse=True)
         # )
+        if all(['EGGS' in k for k in result[inst].keys()]):
+            custom_key = partial(custom_key, strip_EGGS=True)
         # WARNING: not the same as reverse=True (not sure why)
         sorted_keys = sorted(result[inst].keys(), key=custom_key)[::-1]
         new_result[inst] = {}
