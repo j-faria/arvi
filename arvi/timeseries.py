@@ -246,7 +246,7 @@ class RV(ISSUES, REPORTS):
                     else:
                         mid = None
 
-                    with timer():
+                    with timer('dace query'):
                         self.dace_result = get_observations(self.__star__, self.instrument,
                                                             user=self.user, main_id=mid, verbose=self.verbose)
                 except ValueError as e:
@@ -347,7 +347,7 @@ class RV(ISSUES, REPORTS):
 
             if self.do_adjust_means:
                 self.adjust_means()
-        
+
         _star_no_space = self.star.replace(' ', '')
         _directory = sanitize_path(_star_no_space)
         self._download_directory = f'{_directory}_downloads'
@@ -587,8 +587,9 @@ class RV(ISSUES, REPORTS):
         s.time = time
         s.vrad = vrad
         s.svrad = svrad
-        # mask
+
         s.mask = kwargs.pop('mask', np.full_like(s.time, True, dtype=bool))
+        s.units = kwargs.pop('units', 'm/s')
 
         for k, v in kwargs.items():
             setattr(s, k, np.atleast_1d(v))
@@ -615,7 +616,7 @@ class RV(ISSUES, REPORTS):
         dt = datetime.fromtimestamp(float(timestamp))
         if verbose:
             logger.info(f'reading snapshot of {star} from {dt}')
-        
+
         s = pickle.load(open(file, 'rb'))
         s._snapshot = file
         return s
@@ -627,7 +628,7 @@ class RV(ISSUES, REPORTS):
 
         Args:
             files (str, list):
-                File name or list of file names
+                File name, file object, or list of file names
             star (str, optional):
                 Name of the star. If None, try to infer it from file name
             instrument (str, list, optional):
