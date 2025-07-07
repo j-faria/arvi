@@ -1806,9 +1806,11 @@ class RV(ISSUES, REPORTS):
         for inst in instruments:
             m = self.instrument_array == inst
             result = dosigmaclip(self.vrad[m], low=sigma, high=sigma)
-            n = self.vrad[m].size - result.clipped.size
+            # n = self.vrad[m].size - result.clipped.size
 
-            ind = m & ((self.vrad < result.lower) | (self.vrad > result.upper))
+            ind = m & self.mask & \
+                  ((self.vrad < result.lower) | (self.vrad > result.upper))
+            n = ind.sum()
 
             if self.verbose and n > 0:
                 s = 's' if (n == 0 or n > 1) else ''
