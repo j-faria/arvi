@@ -408,15 +408,18 @@ class RV(ISSUES, REPORTS):
         self._did_correct_berv = False
         self.__post_init__()
 
-    def snapshot(self):
+    def snapshot(self, directory=None):
         import pickle
         from datetime import datetime
         ts = datetime.now().timestamp()
         star_name = self.star.replace(' ', '')
         file = f'{star_name}_{ts}.pkl'
+        if directory is not None:
+            file = os.path.join(directory, file)
         pickle.dump(self, open(file, 'wb'), protocol=0)
         if self.verbose:
             logger.info(f'saved snapshot to {file}')
+        return file
 
     @property
     def N(self) -> int:
