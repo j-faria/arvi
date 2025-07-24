@@ -70,6 +70,17 @@ FROM ident AS id1 JOIN ident AS id2 USING(oidref)
 WHERE id1.id = '{star}' AND id2.id LIKE '{name}%';
 """
 
+RA_DEC_QUERY = """
+SELECT DISTINCT basic.OID,
+       RA,
+       DEC,
+       main_id,
+       DISTANCE(POINT('ICRS', RA, DEC), POINT('ICRS', {ra}, {dec})) as "dist"
+FROM basic JOIN flux ON oidref = oid
+WHERE CONTAINS(POINT('ICRS', RA, DEC), CIRCLE('ICRS', {ra}, {dec}, 0.02)) = 1
+ORDER BY "dist";
+"""
+
 def find_identifier(identifier, star):
     response = run_query(HD_GJ_HIP_QUERY.format(name=identifier, star=star))
     if identifier in response:
@@ -288,6 +299,15 @@ class simbad:
     def bmv(self):
         return self.B - self.V
 
+    @classmethod
+    def from_ra_dec(cls, ra, dec, **kwargs):
+        table1 = run_query(query=RA_DEC_QUERY.format(ra=ra, dec=dec))
+        cols, values = parse_tablen(table1)
+        if len(values) == 0:
+            raise ValueError(f'no Simbad results for ra={ra}, dec={dec}')
+        assert cols == ['oid', 'ra', 'dec', 'main_id', 'dist']
+        star = values[0][cols.index('main_id')].replace('"', '')
+        return cls(star, **kwargs)
 
 def argsort_by_spectral_type(sptypes):
     STs = [f'{letter}{n}' for letter in ('F', 'G', 'K', 'M') for n in range(10)]
