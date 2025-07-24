@@ -127,9 +127,9 @@ def HARPS_commissioning(self, mask=True, plot=True):
     total_affected = affected.sum()
 
     if self.verbose:
-        n = total_affected
-        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
-                     "during HARPS commissioning")
+        n, i = total_affected, int(total_affected != 1)
+        logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
+                    "during HARPS commissioning")
 
     if mask:
         self.mask[affected] = False
@@ -159,9 +159,9 @@ def HARPS_fiber_commissioning(self, mask=True, plot=True):
     total_affected = affected.sum()
 
     if self.verbose:
-        n = total_affected
-        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
-                     "during the HARPS fiber commissioning period")
+        n, i = total_affected, int(total_affected != 1)
+        logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
+                    "during the HARPS fiber commissioning period")
 
     if mask:
         self.mask[affected] = False
@@ -191,15 +191,15 @@ def ESPRESSO_commissioning(self, mask=True, plot=True):
     total_affected = affected.sum()
 
     if self.verbose:
-        n = total_affected
-        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
-                     "during ESPRESSO commissioning")
+        n, i = total_affected, int(total_affected != 1)
+        logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
+                    "during ESPRESSO commissioning")
 
     if mask:
         self.mask[affected] = False
         self._propagate_mask_changes()
 
-        if plot:
+        if plot and total_affected > 0:
             self.plot(show_masked=True)
 
     return affected
@@ -240,9 +240,9 @@ def ADC_issues(self, mask=True, plot=True, check_headers=False):
     total_affected = intersect.sum()
 
     if self.verbose:
-        n = total_affected
-        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
-                     "affected by ADC issues")
+        n, i = total_affected, int(total_affected != 1)
+        logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
+                    "affected by ADC issues")
 
     if mask:
         self.mask[intersect] = False
@@ -276,9 +276,9 @@ def blue_cryostat_issues(self, mask=True, plot=True):
     total_affected = intersect.sum()
 
     if self.verbose:
-        n = total_affected
-        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
-                     "affected by blue cryostat issues")
+        n, i = total_affected, int(total_affected != 1)
+        logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
+                    "affected by blue cryostat issues")
 
     if mask:
         self.mask[intersect] = False
@@ -322,8 +322,9 @@ def qc_scired_issues(self, plot=False, **kwargs):
     n = affected.sum()
 
     if self.verbose:
-        logger.info(f"there {'are'[:n^1]}{'is'[n^1:]} {n} frame{'s'[:n^1]} "
-                     "where QC SCIRED CHECK is 0")
+        n, i = total_affected, int(total_affected != 1)
+        logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
+                    "where QC SCIRED CHECK is 0")
 
     if n == 0:
         return
