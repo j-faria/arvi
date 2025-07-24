@@ -322,7 +322,7 @@ def qc_scired_issues(self, plot=False, **kwargs):
     n = affected.sum()
 
     if self.verbose:
-        n, i = total_affected, int(total_affected != 1)
+        i = int(n != 1)
         logger.info(f"there {['is', 'are'][i]} {n} frame{['', 's'][i]} "
                     "where QC SCIRED CHECK is 0")
 
