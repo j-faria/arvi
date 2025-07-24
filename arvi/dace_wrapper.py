@@ -544,6 +544,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
     """ Download CCFs / S1Ds / S2Ds from DACE """
     logger = setup_logger()
     raw_files = np.atleast_1d(raw_files)
+    raw_files_original = raw_files.copy()
 
     create_directory(output_directory)
 
@@ -557,7 +558,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
     if n == 0:
         if verbose:
             logger.info('no files to download')
-        return
+        return list(map(os.path.basename, raw_files_original))
 
     # avoid an empty chunk
     if chunk_size > n:
@@ -575,7 +576,9 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
 
     if n < parallel_limit:
         iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
-        for files in tqdm(iterator, total=len(iterator)):
+        if len(iterator) > 1:
+            iterator = tqdm(iterator, total=len(iterator))
+        for files in iterator:
             download(files, type, output_directory, quiet=False, user=user)
             extract_fits(output_directory)
 
@@ -604,6 +607,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
 
     sys.stdout.flush()
     logger.info('extracted .fits files')
+    return list(map(os.path.basename, raw_files_original))
 
 
 # def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):

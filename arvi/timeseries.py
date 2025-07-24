@@ -1263,8 +1263,9 @@ class RV(ISSUES, REPORTS):
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('CCF', files[:limit], directory, clobber=clobber,
-                                 verbose=self.verbose, user=self.user, **kwargs)
+            downloaded = do_download_filetype('CCF', files[:limit], directory, 
+                                              clobber=clobber, verbose=self.verbose, 
+                                              user=self.user, **kwargs)
 
         if load:
             try:
@@ -1276,17 +1277,26 @@ class RV(ISSUES, REPORTS):
                     for f in files[:limit]
                 ]
                 downloaded = [
-                    skysub 
+                    skysub
                     if exists(skysub := f.replace('CCF_A.fits', 'CCF_SKYSUB_A.fits')) else f
                     for f in downloaded
                 ]
                 if self.verbose:
                     logger.info('loading the CCF(s) into `.CCF` attribute')
 
-                self.CCF = iCCF.from_file(downloaded)
+                self.CCF = iCCF.from_file(downloaded, verbose=False)
+                if len(self.CCF) == 1:
+                    self.CCF = [self.CCF]
 
-            except (ImportError, ValueError):
-                pass
+                if self.simbad is None:
+                    if self.verbose:
+                        logger.info('querying Simbad with RA/DEC from CCF header')
+                    ra = self.CCF[0].HDU[0].header['RA']
+                    dec = self.CCF[0].HDU[0].header['DEC']
+                    self._simbad = simbad.from_ra_dec(ra, dec)
+
+            except (ImportError, ValueError, FileNotFoundError):
+                logger.error('could not load CCF(s) into `.CCF` attribute')
 
     def download_s1d(self, instrument=None, index=None, limit=None,
                      directory=None, clobber=False, apply_mask=True, symlink=False, **kwargs):
