@@ -95,7 +95,7 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
             npipe = len(pipelines)
             if 'NIRPS' in inst and any(['LBL' in p for p in pipelines]):
                 # TODO: correctly load both CCF and LBL
-                pipelines = [pipelines[1]]
+                pipelines = [pipelines[0]]
             if 'HARPS' in inst and npipe > 1 and pipelines[1] == pipelines[0] + '-EGGS':
                 pipelines = pipelines[:2]
             else:
