@@ -408,17 +408,39 @@ class RV(ISSUES, REPORTS):
         self._did_correct_berv = False
         self.__post_init__()
 
-    def snapshot(self, directory=None):
+    def snapshot(self, directory=None, delete_others=False):
         import pickle
         from datetime import datetime
         ts = datetime.now().timestamp()
         star_name = self.star.replace(' ', '')
         file = f'{star_name}_{ts}.pkl'
-        if directory is not None:
-            file = os.path.join(directory, file)
-        pickle.dump(self, open(file, 'wb'), protocol=0)
+
+        if directory is None:
+            directory = '.'
+        else:
+            os.makedirs(directory, exist_ok=True)
+
+        file = os.path.join(directory, file)
+
+        if delete_others:
+            import re
+            other_pkls = [
+                f for f in os.listdir(directory)
+                if re.search(fr'{star_name}_\d+.\d+.pkl', f)
+            ]
+            for pkl in other_pkls:
+                os.remove(os.path.join(directory, pkl))
+
+        metadata = {
+            'star': self.star,
+            'timestamp': ts,
+            'description': 'arvi snapshot'
+        }
+        pickle.dump((self, metadata), open(file, 'wb'), protocol=0)
+
         if self.verbose:
             logger.info(f'saved snapshot to {file}')
+
         return file
 
     @property
@@ -621,6 +643,8 @@ class RV(ISSUES, REPORTS):
             logger.info(f'reading snapshot of {star} from {dt}')
 
         s = pickle.load(open(file, 'rb'))
+        if isinstance(s, tuple) and len(s) == 2:
+            s, _metadata = s
         s._snapshot = file
         return s
 
@@ -662,10 +686,11 @@ class RV(ISSUES, REPORTS):
             file_object = hasattr(files, 'read')
             files = [files]
 
-        # if len(files) == 0:
-        #     if verbose:
-        #         logger.error('no files found')
-        #     return
+        if len(files) == 0:
+            if verbose:
+                logger.error('from_rdb: no files found')
+            return
+
         def get_star_name(file):
             return splitext(basename(file))[0].split('_')[0].replace('-', '_')
         
@@ -1646,6 +1671,9 @@ class RV(ISSUES, REPORTS):
             inst = self.instruments[self.obs[m] - 1]
             n_before = (self.obs < self.obs[m]).sum()
             getattr(self, inst).mask[m - n_before] = False
+        for inst in self.instruments:
+            if getattr(self, inst).mtime.size == 0:
+                self.remove_instrument(inst, strict=True)
 
     def secular_acceleration(self, epoch=None, just_compute=False, force_simbad=False):
         """ 
