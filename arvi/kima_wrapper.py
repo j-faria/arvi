@@ -7,7 +7,8 @@ try:
     import kima
     from kima.pykima.utils import chdir
     from kima import distributions
-    from kima import RVData, RVmodel, GPmodel
+    from kima import RVData, HGPMdata
+    from kima import RVmodel, GPmodel, RVHGPMmodel
     kima_available = True
 except ImportError:
     kima_available = False
@@ -21,8 +22,8 @@ def try_to_guess_prior(model, prior):
     return None
 
 
-def run_kima(self, run=False, load=False, run_directory=None, model=RVmodel, priors={},
-             **kwargs):
+def run_kima(self, run=False, load=False, run_directory=None,
+             model=RVmodel, priors={}, **kwargs):
     if not kima_available:
         raise ImportError('kima not available, please install with `pip install kima`')
     
@@ -42,11 +43,16 @@ def run_kima(self, run=False, load=False, run_directory=None, model=RVmodel, pri
             model = {
                 'RVmodel': RVmodel,
                 'GPmodel': GPmodel,
+                'RVHGPMmodel': RVHGPMmodel
             }[model]
         except KeyError:
             raise ValueError(f'unknown model: {model}')
-    
-    model = model(fix=fix, npmax=npmax, data=data)
+
+    if model is RVHGPMmodel:
+        pm_data = HGPMdata(self.simbad.gaia_id)
+        model = model(fix=fix, npmax=npmax, data=data, pm_data=pm_data)
+    else:
+        model = model(fix=fix, npmax=npmax, data=data)
 
     model.trend = kwargs.pop('trend', False)
     model.degree = kwargs.pop('degree', 0)
@@ -69,6 +75,13 @@ def run_kima(self, run=False, load=False, run_directory=None, model=RVmodel, pri
     if kwargs.pop('kuma', False):
         model.conditional.eprior = distributions.Kumaraswamy(0.867, 3.03)
 
+    if isinstance(model, RVHGPMmodel):
+        model.pm_ra_bary_prior = priors.pop('pm_ra_bary_prior', 
+                                            distributions.Gaussian(pm_data.pm_ra_hg, pm_data.sig_hg_ra))
+        model.pm_dec_bary_prior = priors.pop('pm_dec_bary_prior',
+                                             distributions.Gaussian(pm_data.pm_dec_hg, pm_data.sig_hg_dec))
+
+
     for k, v in priors.items():
         try:
             if 'conditional' in k:
@@ -87,7 +100,6 @@ def run_kima(self, run=False, load=False, run_directory=None, model=RVmodel, pri
         run_directory = os.getcwd()
 
     if run:
-        
         # TODO: use signature of kima.run to pop the correct kwargs
         # model_name = model.__class__.__name__
         # model_name = f'kima.{model_name}.{model_name}'
@@ -95,7 +107,10 @@ def run_kima(self, run=False, load=False, run_directory=None, model=RVmodel, pri
 
         with chdir(run_directory):
             kima.run(model, **kwargs)
-        
+
+    if isinstance(model, RVHGPMmodel):
+        data = (data, pm_data)
+
     if load:
         with chdir(run_directory):
             res = kima.load_results(model)
