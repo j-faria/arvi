@@ -3,7 +3,9 @@ import multiprocessing
 from functools import partial, lru_cache
 from itertools import chain
 from collections import namedtuple
-from multiprocessing.pool import ThreadPool
+from multiprocessing.pool import ThreadPool, Pool
+import concurrent.futures
+import sys
 from tqdm import tqdm
 # import numpy as np
 
@@ -22,13 +24,14 @@ def get_star(star, instrument=None, verbose=False, **kwargs):
 
 class LazyRV:
     def __init__(self, stars: list, instrument: str = None,
-                 _parallel_limit=10):
+                 _parallel_limit=10, _parallel_workers=8):
         self.stars = stars
         if isinstance(self.stars, str):
             self.stars = [self.stars]
         self.instrument = instrument
         self._saved = None
         self._parallel_limit = _parallel_limit
+        self._parallel_workers = _parallel_workers
 
     @property
     def N(self):
@@ -42,7 +45,7 @@ class LazyRV:
         if self.N > self._parallel_limit:
             # logger.info('Querying DACE...')
             _get_star = partial(get_star, instrument=self.instrument, **kwargs)
-            with ThreadPool(8) as pool:
+            with Pool(self._parallel_workers) as pool:
                 result = list(tqdm(pool.imap(_get_star, self.stars), 
                                    total=self.N, unit='star',
                                    desc='Querying DACE (can take a while)'))
