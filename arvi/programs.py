@@ -7,7 +7,7 @@ from multiprocessing.pool import ThreadPool
 from tqdm import tqdm
 # import numpy as np
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 from .timeseries import RV
 
 __all__ = ['ESPRESSO_GTO']
@@ -38,6 +38,7 @@ class LazyRV:
         return f"RV({self.N} stars)"
 
     def _get(self, **kwargs):
+        logger = setup_logger()
         if self.N > self._parallel_limit:
             # logger.info('Querying DACE...')
             _get_star = partial(get_star, instrument=self.instrument, **kwargs)
