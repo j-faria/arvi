@@ -2,6 +2,7 @@ import os
 import sys
 import time
 from contextlib import contextmanager
+
 try:
     from unittest.mock import patch
 except ImportError:
@@ -98,8 +99,9 @@ def sanitize_path(path):
     path = path.replace('*', '_')
     return path
 
-def pretty_print_table(rows, line_between_rows=True, logger=None):
-    """
+def pretty_print_table(rows, line_between_rows=True, string=False, 
+                       markdown=False, latex=False, logger=None):
+    r"""
     Example Output
     ┌──────┬─────────────┬────┬───────┐
     │ True │ short       │ 77 │ catty │
@@ -110,25 +112,76 @@ def pretty_print_table(rows, line_between_rows=True, logger=None):
     └──────┴─────────────┴────┴───────┘
     """
     _print = logger.info if logger else print
+    if string:
+        def _print(x, s):
+            s += x + '\n'
+            return s
+    else:
+        if logger:
+            def _print(x, _):
+                logger.info(x)
+        else:
+            def _print(x, _):
+                print(x)
+
+    if latex or markdown:
+        line_between_rows = False
+
+    s = ''
 
     # find the max length of each column
     max_col_lens = list(map(max, zip(*[(len(str(cell)) for cell in row) for row in rows])))
 
+    if markdown:
+        bar_char = '|'
+    else:
+        bar_char = r'│'
+
     # print the table's top border
-    _print('┌' + '┬'.join('─' * (n + 2) for n in max_col_lens) + '┐')
+    if markdown:
+        pass
+    elif latex:
+        s = _print(r'\begin{table*}', s)
+        # s = _print(r'\centering', s)
+        s = _print(r'\begin{tabular}' + '{' + ' c ' * len(rows[0]) + '}', s)
+    else:
+        s = _print(r'┌' + r'┬'.join(r'─' * (n + 2) for n in max_col_lens) + r'┐', s)
 
-    rows_separator = '├' + '┼'.join('─' * (n + 2) for n in max_col_lens) + '┤'
+    if markdown:
+        header_separator = bar_char + bar_char.join('-' * (n + 2) for n in max_col_lens) + bar_char
 
-    row_fstring = ' │ '.join("{: <%s}" % n for n in max_col_lens)
+    rows_separator = r'├' + r'┼'.join(r'─' * (n + 2) for n in max_col_lens) + r'┤'
+
+    if latex:
+        row_fstring = ' & '.join("{: <%s}" % n for n in max_col_lens)
+    else:
+        row_fstring = bar_char.center(3).join("{: <%s}" % n for n in max_col_lens)
 
     for i, row in enumerate(rows):
-        _print('│ ' + row_fstring.format(*map(str, row)) + ' │')
+        if markdown and i == 1:
+            s = _print(header_separator, s)
+
+        if latex:
+            s = _print(row_fstring.format(*map(str, row)) + r' \\', s)
+        else:
+            s = _print(bar_char + ' ' + row_fstring.format(*map(str, row)) + ' ' + bar_char, s)
         
+
         if line_between_rows and i < len(rows) - 1:
-            _print(rows_separator)
+            s = _print(rows_separator, s)
+
 
     # print the table's bottom border
-    _print('└' + '┴'.join('─' * (n + 2) for n in max_col_lens) + '┘')
+    if markdown:
+        pass
+    elif latex:
+        s = _print(r'\end{tabular}', s)
+        s = _print(r'\end{table*}', s)
+    else:
+        s = _print(r'└' + r'┴'.join(r'─' * (n + 2) for n in max_col_lens) + r'┘', s)
+
+    if string:
+        return s
 
 
 def strtobool(val):
