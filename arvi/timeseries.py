@@ -1913,6 +1913,8 @@ class RV(ISSUES, REPORTS):
 
         # create copy of self to be returned
         snew = deepcopy(self)
+        # store original object
+        snew._unbinned = deepcopy(self)
 
         all_bad_quantities = []
 
@@ -2102,23 +2104,32 @@ class RV(ISSUES, REPORTS):
         if config.return_self:
             return self
 
-    def detrend(self, degree=1):
-        """ Detrend the RVs of all instruments """
+    def detrend(self, degree: int=1):
+        """
+        Detrend the RVs of all instruments using a polynomial of degree `degree`
+        """
         instrument_indices = np.unique_inverse(self.instrument_array).inverse_indices
-        def fun(p, t, degree, ninstruments, just_model=False, index=None):
+        instrument_indices_masked = np.unique_inverse(self.instrument_array[self.mask]).inverse_indices
+
+        def fun(p, t, degree, ninstruments, just_model=False, index=None, masked=True):
             polyp, offsets = p[:degree], p[-ninstruments:]
             polyp = np.r_[polyp, 0.0]
             if index is None:
-                model = offsets[instrument_indices] + np.polyval(polyp, t)
+                if masked:
+                    model = offsets[instrument_indices_masked] + np.polyval(polyp, t)
+                else:
+                    model = offsets[instrument_indices] + np.polyval(polyp, t)
             else:
                 model = offsets[index] + np.polyval(polyp, t)
             if just_model:
                 return model
             return self.mvrad - model
+
         coef = np.polyfit(self.mtime, self.mvrad, degree)
         x0 = np.append(coef, [0.0] * (len(self.instruments) - 1))
-        print(x0)
+        # print(x0)
         fun(x0, self.mtime, degree, len(self.instruments))
+
         from scipy.optimize import leastsq
         xbest, _ = leastsq(fun, x0, args=(self.mtime, degree, len(self.instruments)))
 
@@ -2128,12 +2139,13 @@ class RV(ISSUES, REPORTS):
         self.plot(ax=ax)
         for i, inst in enumerate(self.instruments):
             s = getattr(self, inst)
-            ax.plot(s.time, fun(xbest, s.time, degree, len(self.instruments), just_model=True, index=i),
+            ax.plot(s.time,
+                    fun(xbest, s.time, degree, len(self.instruments), just_model=True, index=i, masked=False),
                     color=f'C{i}')
         ax.set_title('original', loc='left', fontsize=10)
         ax.set_title(f'coefficients: {xbest[:degree]}', loc='right', fontsize=10)
 
-        self.add_to_vrad(-fun(xbest, self.time, degree, len(self.instruments), just_model=True))
+        self.add_to_vrad(-fun(xbest, self.time, degree, len(self.instruments), just_model=True, masked=False))
         ax = fig.add_subplot(2, 1, 2)
         self.plot(ax=ax)
         ax.set_title('detrended', loc='left', fontsize=10)
@@ -2142,7 +2154,7 @@ class RV(ISSUES, REPORTS):
         # axs[1].errorbar(self.mtime, fun(xbest, self.mtime, degree, len(self.instruments)), self.msvrad, fmt='o')
 
         return
-        
+
 
 
 
