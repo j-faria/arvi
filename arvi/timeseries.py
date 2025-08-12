@@ -2358,33 +2358,66 @@ class RV(ISSUES, REPORTS):
             self._build_arrays()
 
 
-    def save(self, directory=None, instrument=None, full=False, postfix=None,
-             save_masked=False, save_nans=True):
-        """ Save the observations in .rdb files.
+    def save(self, directory=None, instrument=None, format='rdb',
+             indicators=False, join_instruments=False, postfix=None,
+             save_masked=False, save_nans=True, **kwargs):
+        """ Save the observations in .rdb or .csv files.
 
         Args:
             directory (str, optional):
                 Directory where to save the .rdb files.
             instrument (str, optional):
                 Instrument for which to save observations.
-            full (bool, optional):
-                Save just RVs and errors (False) or more indicators (True).
+            format (str, optional):
+                Format to use ('rdb' or 'csv').
+            indicators (bool, str, list[str], optional):
+                Save only RVs and errors (False) or more indicators. If True,
+                use a default list, if `str`, use an existing list, if list[str]
+                provide a sequence of specific indicators.
+            join_instruments (bool, optional):
+                Join all instruments in a single file.
             postfix (str, optional):
                 Postfix to add to the filenames ([star]_[instrument]_[postfix].rdb).
+            save_masked (bool, optional)
+                If True, also save masked observations (those for which
+                self.mask == True)
             save_nans (bool, optional)
                 Whether to save NaN values in the indicators, if they exist. If
                 False, the full observation which contains NaN values is not saved.
         """
+        if format not in ('rdb', 'csv'):
+            logger.error(f"format must be 'rdb' or 'csv', got '{format}'")
+            return
+
         star_name = self.star.replace(' ', '')
 
-        if directory is None:
-            directory = '.'
-        else:
+        if directory is not None:
             os.makedirs(directory, exist_ok=True)
+
+        indicator_sets = {
+            "default": [
+                "fwhm", "fwhm_err",
+                "bispan", "bispan_err",
+                "contrast", "contrast_err",
+                "rhk", "rhk_err",
+                "berv",
+            ],
+            "CORALIE": [
+                "fwhm", "fwhm_err",
+                "bispan", "bispan_err",
+                "contrast", "contrast_err",
+                "haindex", "haindex_err",
+                "berv",
+            ],
+        } 
+
+        if 'full' in kwargs:
+            logger.warning('argument `full` is deprecated, use `indicators` instead')
+            indicators = kwargs['full']
 
         files = []
 
-        for inst in self.instruments:
+        for _i, inst in enumerate(self.instruments):
             if instrument is not None:
                 if instrument not in inst:
                     continue
@@ -2394,74 +2427,94 @@ class RV(ISSUES, REPORTS):
             if not _s.mask.any():  # all observations are masked, don't save
                 continue
 
-            if full:
-                if save_masked:
-                    arrays = [
-                        _s.time, _s.vrad, _s.svrad,
-                        _s.fwhm, _s.fwhm_err,
-                        _s.bispan, _s.bispan_err,
-                        _s.contrast, _s.contrast_err,
-                        _s.rhk, _s.rhk_err,
-                        _s.berv,
-                    ]
-                else:
-                    arrays = [
-                        _s.mtime, _s.mvrad, _s.msvrad,
-                        _s.fwhm[_s.mask], _s.fwhm_err[_s.mask],
-                        _s.bispan[_s.mask], _s.bispan_err[_s.mask],
-                        _s.contrast[_s.mask], _s.contrast_err[_s.mask],
-                        _s.rhk[_s.mask], _s.rhk_err[_s.mask],
-                        _s.berv[_s.mask],
-                    ]
-                if not save_nans:
-                    raise NotImplementedError
-                    # if np.isnan(d).any():
-                    #     # remove observations where any of the indicators are # NaN
-                    #     nan_mask = np.isnan(d[:, 3:]).any(axis=1)
-                    #     d = d[~nan_mask]
-                    #     if self.verbose:
-                    #         logger.warning(f'masking {nan_mask.sum()} observations with NaN in indicators')
+            if save_masked:
+                arrays = [_s.time, _s.vrad, _s.svrad]
+                if join_instruments:
+                    arrays += [_s.instrument_array]
+            else:
+                arrays = [_s.mtime, _s.mvrad, _s.msvrad]
+                if join_instruments:
+                    arrays += [_s.instrument_array[_s.mask]]
+            
+            if indicators in (False, None):
+                indicator_names = []
+            else:
+                if indicators is True:
+                    indicator_names = indicator_sets["default"]
+                elif isinstance(indicators, str):
+                    try:
+                        indicator_names = indicator_sets[indicators]
+                    except KeyError:
+                        logger.error(f"unknown indicator set '{indicators}'")
+                        logger.error(f"available: {list(indicator_sets.keys())}")
+                        return
+                elif isinstance(indicators, list) and all(isinstance(i, str) for i in indicators):
+                    indicator_names = indicators
 
-                header = '\t'.join(['rjd', 'vrad', 'svrad',
-                                    'fwhm', 'sig_fwhm',
-                                    'bispan', 'sig_bispan',
-                                    'contrast', 'sig_contrast',
-                                    'rhk', 'sig_rhk',
-                                    'berv',
-                                    ])
+            if save_masked:
+                arrays += [getattr(_s, ind) for ind in indicator_names]
+            else:
+                arrays += [getattr(_s, ind)[_s.mask] for ind in indicator_names]
+
+            d = np.stack(arrays, axis=1)
+            if not save_nans:
+                # raise NotImplementedError
+                if np.isnan(d).any():
+                    # remove observations where any of the indicators are # NaN
+                    nan_mask = np.isnan(d[:, 3:]).any(axis=1)
+                    d = d[~nan_mask]
+                    if self.verbose:
+                        msg = f'{inst}: masking {nan_mask.sum()} observations with NaN in indicators'
+                        logger.warning(msg)
+
+            cols = ['rjd', 'vrad', 'svrad']
+            cols += ['inst'] if join_instruments else []
+            cols += indicator_names
+
+            if format == 'rdb':
+                header = '\t'.join(cols)
                 header += '\n'
                 header += '\t'.join(['-' * len(c) for c in header.strip().split('\t')])
-
             else:
-                if save_masked:
-                    arrays = [_s.time, _s.vrad, _s.svrad]
-                else:
-                    arrays = [_s.mtime, _s.mvrad, _s.msvrad]
+                header = ','.join(cols)
 
-                # d = np.stack(arrays, axis=1)
-                header = 'rjd\tvrad\tsvrad\n---\t----\t-----'
+            if join_instruments:
+                file = f'{star_name}.{format}'
+                if postfix is not None:
+                    file = f'{star_name}_{postfix}.{format}'
+            else:
+                file = f'{star_name}_{inst}.{format}'
+                if postfix is not None:
+                    file = f'{star_name}_{inst}_{postfix}.{format}'
 
-            file = f'{star_name}_{inst}.rdb'
-            if postfix is not None:
-                file = f'{star_name}_{inst}_{postfix}.rdb'
-
+            if directory is not None:
+                file = os.path.join(directory, file)
             files.append(file)
-            file = os.path.join(directory, file)
 
             N = len(arrays[0])
-            with open(file, 'w') as f:
-                f.write(header + '\n')
+            with open(file, 'a' if join_instruments and _i != 0 else 'w') as f:
+                if join_instruments and _i != 0:
+                    pass
+                else:
+                    f.write(header + '\n')
+
                 for i in range(N):
                     for j, a in enumerate(arrays):
                         f.write(str(a[i]))
                         if j < len(arrays) - 1:
-                            f.write('\t')
+                            f.write('\t' if format == 'rdb' else ',')
                     f.write('\n')
 
             # np.savetxt(file, d, header=header, delimiter='\t', comments='', fmt='%f')
 
-            if self.verbose:
+            if self.verbose and not join_instruments:
                 logger.info(f'saving to {file}')
+
+        if self.verbose and join_instruments:
+            logger.info(f'saving to {files[0]}')
+
+        if join_instruments:
+            files = [files[0]]
 
         return files
 
