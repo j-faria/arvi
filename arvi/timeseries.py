@@ -2314,24 +2314,28 @@ class RV(ISSUES, REPORTS):
         self.units = new_units
 
 
-    def put_at_systemic_velocity(self):
+    def put_at_systemic_velocity(self, factor=1.0):
         """
-        For instruments in which mean(RV) < ptp(RV), "move" RVs to the systemic
-        velocity from simbad. This is useful if some instruments are centered
-        at zero while others are not, and instead of calling `.adjust_means()`,
-        but it only works when the systemic velocity is smaller than ptp(RV).
+        For instruments in which mean(RV) < `factor` * ptp(RV), "move" RVs to
+        the systemic velocity from simbad. This is useful if some instruments
+        are centered at zero while others are not, and instead of calling
+        `.adjust_means()`, but it only works when the systemic velocity is
+        smaller than `factor` * ptp(RV).
         """
         changed = False
         for inst in self.instruments:
+            changed_inst = False
             s = getattr(self, inst)
             if s.mask.any():
-                if np.abs(s.mvrad.mean()) < np.ptp(s.mvrad):
+                if np.abs(s.mvrad.mean()) < factor * np.ptp(s.mvrad):
                     s.vrad += self.simbad.rvz_radvel * 1e3
-                    changed = True
+                    changed = changed_inst = True
             else:  # all observations are masked, use non-masked arrays
-                if np.abs(s.vrad.mean()) < np.ptp(s.vrad):
+                if np.abs(s.vrad.mean()) < factor * np.ptp(s.vrad):
                     s.vrad += self.simbad.rvz_radvel * 1e3
-                    changed = True
+                    changed = changed_inst = True
+            if changed_inst and self.verbose:
+                logger.info(f"putting {inst} RVs at systemic velocity")
         if changed:
             self._build_arrays()
 
