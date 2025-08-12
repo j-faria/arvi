@@ -291,3 +291,28 @@ def get_object_fast(file):
         value = f.read(20)
     return value.decode().split("'")[1].strip()
 
+
+def get_simbad_oid(self):
+    import requests
+    if isinstance(self, str):
+        star = self
+    else:
+        star = self.star
+    oid = requests.post('https://simbad.cds.unistra.fr/simbad/sim-tap/sync', 
+                        data=dict(format='text', request='doQuery', lang='adql', phase='run', 
+                                  query=f"SELECT basic.OID FROM basic JOIN ident ON oidref = oid WHERE id = '{star}';"))
+    oid = oid.text.split()[-1]
+    return oid
+
+
+
+# from https://stackoverflow.com/questions/37765197/darken-or-lighten-a-color-in-matplotlib
+def adjust_lightness(color, amount=0.5):
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except KeyError:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
