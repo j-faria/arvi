@@ -10,7 +10,7 @@ from .setup_logger import setup_logger
 from .utils import create_directory, all_logging_disabled, stdout_disabled, timer, tqdm
 
 
-def load_spectroscopy(user=None):
+def load_spectroscopy(user=None, verbose=True):
     logger = setup_logger()
     with all_logging_disabled():
         from dace_query.spectroscopy import SpectroscopyClass, Spectroscopy as default_Spectroscopy
@@ -19,7 +19,8 @@ def load_spectroscopy(user=None):
     from .config import config
     # requesting as public
     if config.request_as_public:
-        logger.warning('requesting DACE data as public')
+        if verbose:
+            logger.warning('requesting DACE data as public')
         with all_logging_disabled():
             dace = DaceClass(dace_rc_config_path='none')
         return SpectroscopyClass(dace_instance=dace)
@@ -168,7 +169,7 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
         dict:
             dictionary with data from DACE
     """
-    Spectroscopy = load_spectroscopy(user)
+    Spectroscopy = load_spectroscopy(user, verbose)
     found_dace_id = False
     with timer('dace_id query'):
         try:
@@ -283,7 +284,7 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
 def get_observations(star, instrument=None, user=None, main_id=None, verbose=True):
     logger = setup_logger()
     if instrument is None:
-        Spectroscopy = load_spectroscopy(user)
+        Spectroscopy = load_spectroscopy(user, verbose)
 
         try:
             with stdout_disabled(), all_logging_disabled():
