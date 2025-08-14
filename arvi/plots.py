@@ -1,6 +1,7 @@
 from functools import partialmethod, wraps
 from itertools import cycle
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from astropy.timeseries import LombScargle
@@ -8,9 +9,6 @@ from astropy.timeseries import LombScargle
 from .setup_logger import setup_logger
 from .config import config
 from .stats import wmean
-
-from .utils import lazy_import
-plt = lazy_import('matplotlib.pyplot')
 
 
 def plot_settings(func):
