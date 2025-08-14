@@ -6,7 +6,7 @@ from io import StringIO
 import numpy as np
 from astropy.timeseries import LombScargle
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 from kepmodel.rv import RvModel
 from spleaf.term import Error
 
@@ -32,6 +32,7 @@ def run_query(query):
 
 class Planets:
     def __init__(self, system):
+        logger = setup_logger()
         self.s = system
         self.verbose = system.verbose
 
@@ -163,6 +164,7 @@ class Planets:
         self.model.show_param()
 
     def fit_all(self, adjust_data=False):
+        logger = setup_logger()
         self.model.fit()
 
         newP = np.array([self.model.get_param(f'kep.{i}.P') for i in range(self.np)])
@@ -187,5 +189,7 @@ class Planets:
             self.s._build_arrays()
 
     def __repr__(self):
-        return f'{self.star}({self.np} planets, '\
-               f'P={list(self.P)}, K={list(self.K)}, e={list(self.e)})'
+        P = list(map(float, self.P))
+        K = list(map(float, self.K))
+        e = list(map(float, self.e))
+        return f'{self.star}({self.np} planets, {P=}, {K=}, {e=})'
