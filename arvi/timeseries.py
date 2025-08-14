@@ -540,6 +540,11 @@ class RV(ISSUES, REPORTS):
     def _mtime_sorter(self):
         return np.argsort(self.mtime)
 
+    @property
+    def timespan(self):
+        """ Total time span of the (masked) observations """
+        return np.ptp(self.mtime)
+
     def _index_from_instrument_index(self, index, instrument):
         ind = np.where(self.instrument_array == instrument)[0]
         return ind[getattr(self, instrument).mask][index]
