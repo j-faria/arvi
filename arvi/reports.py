@@ -40,6 +40,7 @@ class REPORTS:
             rows.append([self.star] + [''] * len(self.instruments) + [''])
             rows.append([''] + self.instruments + ['full'])
             rows.append(['N'] + list(self.NN.values()) + [self.N])
+            rows.append(['T span'] + [np.ptp(s.mtime).round(1) for s in self] + [np.ptp(self.mtime).round(1)])
             rows.append(['RV span'] + [np.ptp(s.mvrad).round(3) for s in self] + [np.ptp(self.mvrad).round(3)])
             rows.append(['RV std'] + [s.mvrad.std().round(3) for s in self] + [self.mvrad.std().round(3)])
             rows.append(['eRV mean'] + [s.msvrad.mean().round(3) for s in self] + [self.msvrad.mean().round(3)])
