@@ -123,7 +123,10 @@ def HARPS_commissioning(self, mask=True, plot=True):
     if check(self, 'HARPS') is None:
         return
 
-    affected = self.time < HARPS_start
+    affected = np.logical_and(
+        self.instrument_array == 'HARPS03', 
+        self.time < HARPS_start
+    )
     total_affected = affected.sum()
 
     if self.verbose:
@@ -187,7 +190,10 @@ def ESPRESSO_commissioning(self, mask=True, plot=True):
     if check(self, 'ESPRESSO') is None:
         return
 
-    affected = self.time < ESPRESSO_start
+    affected = np.logical_and(
+        self.instrument_array == 'ESPRESSO18',
+        self.time < ESPRESSO_start
+    )
     total_affected = affected.sum()
 
     if self.verbose:
