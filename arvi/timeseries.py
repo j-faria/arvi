@@ -2322,7 +2322,7 @@ class RV(ISSUES, REPORTS):
         self.units = new_units
 
 
-    def put_at_systemic_velocity(self, factor=1.0):
+    def put_at_systemic_velocity(self, factor=1.0, ignore=None):
         """
         For instruments in which mean(RV) < `factor` * ptp(RV), "move" RVs to
         the systemic velocity from simbad. This is useful if some instruments
@@ -2332,6 +2332,9 @@ class RV(ISSUES, REPORTS):
         """
         changed = False
         for inst in self.instruments:
+            if ignore is not None:
+                if inst in ignore or any([i in inst for i in ignore]):
+                    continue
             changed_inst = False
             s = getattr(self, inst)
             if s.mask.any():
