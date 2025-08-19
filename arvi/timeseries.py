@@ -1911,6 +1911,36 @@ class RV(ISSUES, REPORTS):
         if config.return_self:
             return self
 
+    def sigmaclip_ew(self, sigma=5):
+        """ Sigma-clip EW (FWHM x contrast), by MAD away from the median """
+        from .stats import sigmaclip_median as dosigmaclip, weighted_median
+
+        S = deepcopy(self)
+        for _s in S:
+            m = _s.mask
+            _s.fwhm -= weighted_median(_s.fwhm[m], 1 / _s.fwhm_err[m])
+            _s.contrast -= weighted_median(_s.contrast[m], 1 / _s.contrast_err[m])
+        S._build_arrays()
+        ew = S.fwhm * S.contrast
+        ew_err = np.hypot(S.fwhm_err * S.contrast, S.fwhm * S.contrast_err)
+
+        wmed = weighted_median(ew[S.mask], 1 / ew_err[S.mask])
+        data = (ew - wmed) / ew_err
+        result = dosigmaclip(data, low=sigma, high=sigma)
+        ind = (data < result.lower) | (data > result.upper)
+        self.mask[ind] = False
+
+        if self.verbose and ind.sum() > 0:
+            n = ind.sum()
+            s = 's' if (n == 0 or n > 1) else ''
+            logger.warning(f'sigmaclip_ew removed {n} point' + s)
+
+        self._propagate_mask_changes()
+        if config.return_self:
+            return self
+
+
+
     def bin(self):
         """
         Nightly bin the observations.
