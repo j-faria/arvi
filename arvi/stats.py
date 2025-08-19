@@ -1,3 +1,4 @@
+from functools import partial
 import numpy as np
 
 def wmean(a, e):
@@ -50,8 +51,22 @@ def wrms(a, e, ignore_nans=False):
     w = 1 / e**2
     return np.sqrt(np.sum(w * (a - np.average(a, weights=w))**2) / sum(w))
 
+# from https://stackoverflow.com/questions/20601872/numpy-or-scipy-to-calculate-weighted-median
+def weighted_quantiles_interpolate(values, weights, quantiles):
+    i = np.argsort(values)
+    c = np.cumsum(weights[i])
+    q = np.searchsorted(c, quantiles * c[-1])
+    # Ensure right-end isn't out of bounds. Thanks @Jeromino!
+    q_plus1 = np.clip(q + 1, a_min=None, a_max=values.shape[0] - 1)
+    return np.where(
+        c[q] / c[-1] == quantiles,
+        0.5 * (values[i[q]] + values[i[q_plus1]]),
+        values[i[q]],
+    )
 
-def sigmaclip_median(a, low=4.0, high=4.0):
+weighted_median = partial(weighted_quantiles_interpolate, quantiles=0.5)
+
+
     """
     Same as scipy.stats.sigmaclip but using the median and median absolute
     deviation instead of the mean and standard deviation.
