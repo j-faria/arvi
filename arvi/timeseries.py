@@ -514,6 +514,15 @@ class RV(ISSUES, REPORTS):
     def instrument_array(self):
         return np.concatenate([[i] * n for i, n in self.NN.items()])
 
+    def _instrument_mask(self, instrument):
+        if isinstance(instrument, str):
+            return np.char.find(self.instrument_array, instrument) == 0
+        elif isinstance(instrument, (list, tuple, np.ndarray)):
+            m = np.full_like(self.time, False, dtype=bool)
+            for i in instrument:
+                m |= np.char.find(self.instrument_array, i) == 0
+            return m
+
     @property
     def rms(self) -> float:
         """ Weighted rms of the (masked) radial velocities """
@@ -1513,7 +1522,7 @@ class RV(ISSUES, REPORTS):
         """ Remove all observations that satisfy a condition
 
         Args:
-            condition (np.ndarray):
+            condition (ndarray):
                 Boolean array of the same length as the observations
         """
         if self.verbose:
@@ -1889,19 +1898,29 @@ class RV(ISSUES, REPORTS):
         if config.return_self:
             return self
 
-    def clip_maxerror(self, maxerror:float):
-        """ Mask out points with RV error larger than a given value
+    def clip_maxerror(self, maxerror:float, instrument=None):
+        """
+        Mask out points with RV error larger than a given value. If `instrument`
+        is given, mask only observations from that instrument.
 
         Args:
             maxerror (float): Maximum error to keep.
+            instrument (str, list, tuple, ndarray): Instrument(s) to clip
         """
         if self._child:
             return
 
         self.maxerror = maxerror
+
+        if instrument is None:
+            inst_mask = np.ones_like(self.svrad, dtype=bool)
+        else:
+            inst_mask = self._instrument_mask(instrument)
+        
         above = self.svrad > maxerror
-        n = above.sum()
-        self.mask[above] = False
+        n = above[inst_mask].sum()
+
+        self.mask[inst_mask & above] = False
 
         if self.verbose and above.sum() > 0:
             s = 's' if (n == 0 or n > 1) else ''
