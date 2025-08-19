@@ -193,12 +193,13 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
         except TypeError:
             msg = f'no {instrument} observations for {star}'
             raise ValueError(msg) from None
+
     if (isinstance(instrument, str)):
         filters = {
             "ins_name": {"contains": [instrument]},
             "obj_id_daceid": {"contains": [dace_id]}
         }
-    elif (isinstance(instrument, list)):
+    elif (isinstance(instrument, (list, tuple, np.ndarray))):
         filters = {
             "ins_name": {"contains": instrument},
             "obj_id_daceid": {"contains": [dace_id]}
