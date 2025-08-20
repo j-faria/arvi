@@ -1873,6 +1873,9 @@ class RV(ISSUES, REPORTS):
             m = self.instrument_array == inst
             d = getattr(self, quantity)
 
+            if np.isnan(d[m]).all():
+                continue
+
             result = dosigmaclip(d[m], low=sigma, high=sigma)
             # n = self.vrad[m].size - result.clipped.size
 
