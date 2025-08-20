@@ -1844,15 +1844,21 @@ class RV(ISSUES, REPORTS):
 
             self._did_secular_acceleration = False
 
-    def sigmaclip(self, sigma=5, instrument=None, strict=True):
+    def sigmaclip(self, sigma=5, quantity='vrad', instrument=None,
+                  strict=True):
         """
-        Sigma-clip RVs (per instrument!), by MAD away from the median.
+        Sigma-clip RVs or other quantities (per instrument!), by MAD away from
+        the median.
 
         Args:
             sigma (float):
-                Number of MADs to clip
+                Number of MADs away from the median
+            quantity (str):
+                Quantity to sigma-clip (by default the RVs)
             instrument (str, list):
                 Instrument(s) to sigma-clip
+            strict (bool):
+                Passed directly to self._check_instrument
         """
         #from scipy.stats import sigmaclip as dosigmaclip
         from .stats import sigmaclip_median as dosigmaclip
@@ -1865,16 +1871,17 @@ class RV(ISSUES, REPORTS):
 
         for inst in instruments:
             m = self.instrument_array == inst
-            result = dosigmaclip(self.vrad[m], low=sigma, high=sigma)
+            d = getattr(self, quantity)
+
+            result = dosigmaclip(d[m], low=sigma, high=sigma)
             # n = self.vrad[m].size - result.clipped.size
 
-            ind = m & self.mask & \
-                  ((self.vrad < result.lower) | (self.vrad > result.upper))
+            ind = m & self.mask & ((d < result.lower) | (d > result.upper))
             n = ind.sum()
 
             if self.verbose and n > 0:
                 s = 's' if (n == 0 or n > 1) else ''
-                logger.warning(f'sigma-clip RVs will remove {n} point{s} for {inst}')
+                logger.warning(f'sigma-clip {quantity} will remove {n} point{s} for {inst}')
 
             if n > 0:
                 self.mask[ind] = False
@@ -1919,11 +1926,12 @@ class RV(ISSUES, REPORTS):
             inst_mask = self._instrument_mask(instrument)
         
         above = self.svrad > maxerror
-        n = above[inst_mask].sum()
+        old_mask = self.mask.copy()
 
         self.mask[inst_mask & above] = False
 
         if self.verbose and above.sum() > 0:
+            n = (above[inst_mask] & old_mask[inst_mask]).sum()
             s = 's' if (n == 0 or n > 1) else ''
             logger.warning(f'clip_maxerror ({maxerror} {self.units}) removed {n} point' + s)
 
