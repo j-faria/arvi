@@ -136,7 +136,7 @@ def HARPS_commissioning(self, mask=True, plot=True):
 
     if mask:
         self.mask[affected] = False
-        self._propagate_mask_changes()
+        self._propagate_mask_changes(_remove_instrument=False)
 
         if plot:
             self.plot(show_masked=True)
@@ -158,7 +158,14 @@ def HARPS_fiber_commissioning(self, mask=True, plot=True):
     if check(self, 'HARPS') is None:
         return
 
-    affected = (self.time >= HARPS_technical_intervention_range[0]) & (self.time <= HARPS_technical_intervention_range[1])
+    affected = np.logical_and(
+        self.time >= HARPS_technical_intervention_range[0],
+        self.time <= HARPS_technical_intervention_range[1]
+    )
+    affected = np.logical_and(
+        affected,
+        np.char.find(self.instrument_array, 'HARPS') == 0
+    )
     total_affected = affected.sum()
 
     if self.verbose:
@@ -168,7 +175,7 @@ def HARPS_fiber_commissioning(self, mask=True, plot=True):
 
     if mask:
         self.mask[affected] = False
-        self._propagate_mask_changes()
+        self._propagate_mask_changes(_remove_instrument=False)
 
         if plot:
             self.plot(show_masked=True)
@@ -203,7 +210,7 @@ def ESPRESSO_commissioning(self, mask=True, plot=True):
 
     if mask:
         self.mask[affected] = False
-        self._propagate_mask_changes()
+        self._propagate_mask_changes(_remove_instrument=False)
 
         if plot and total_affected > 0:
             self.plot(show_masked=True)
@@ -252,7 +259,7 @@ def ADC_issues(self, mask=True, plot=True, check_headers=False):
 
     if mask:
         self.mask[intersect] = False
-        self._propagate_mask_changes()
+        self._propagate_mask_changes(_remove_instrument=False)
 
         if plot:
             self.plot(show_masked=True)
@@ -288,7 +295,7 @@ def blue_cryostat_issues(self, mask=True, plot=True):
 
     if mask:
         self.mask[intersect] = False
-        self._propagate_mask_changes()
+        self._propagate_mask_changes(_remove_instrument=False)
 
         if plot:
             self.plot(show_masked=True)
@@ -336,7 +343,7 @@ def qc_scired_issues(self, plot=False, **kwargs):
         return
 
     self.mask[affected] = False
-    self._propagate_mask_changes()
+    self._propagate_mask_changes(_remove_instrument=False)
 
     if plot:
         self.plot(show_masked=True)
@@ -370,6 +377,7 @@ class ISSUES:
                 logger.error('are the data binned? cannot proceed to mask these points...')
         
         results = list(filter(lambda x: x is not None, results))
+        self._propagate_mask_changes()
 
         try:
             return np.logical_or.reduce(results)
