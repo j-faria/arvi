@@ -1682,16 +1682,17 @@ class RV(ISSUES, REPORTS):
         self._propagate_mask_changes()
 
 
-    def _propagate_mask_changes(self):
+    def _propagate_mask_changes(self, _remove_instrument=True):
         """ link self.mask with each self.`instrument`.mask """
         masked = np.where(~self.mask)[0]
         for m in masked:
             inst = self.instruments[self.obs[m] - 1]
             n_before = (self.obs < self.obs[m]).sum()
             getattr(self, inst).mask[m - n_before] = False
-        for inst in self.instruments:
-            if getattr(self, inst).mtime.size == 0:
-                self.remove_instrument(inst, strict=True)
+        if _remove_instrument:
+            for inst in self.instruments:
+                if getattr(self, inst).mtime.size == 0:
+                    self.remove_instrument(inst, strict=True)
 
     def secular_acceleration(self, epoch=None, just_compute=False, force_simbad=False):
         """ 
