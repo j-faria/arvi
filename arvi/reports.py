@@ -203,3 +203,109 @@ class REPORTS:
                 # os.system(f'evince {save} &')
 
         return fig
+
+
+def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False):
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from matplotlib.backends.backend_pdf import PdfPages
+    logger = setup_logger()
+
+    def set_align_for_column(table, col, align="left"):
+        cells = [key for key in table._cells if key[1] == col]
+        for cell in cells:
+            table._cells[cell]._loc = align
+            table._cells[cell]._text.set_horizontalalignment(align) 
+
+    from .kepmodel_wrapper import model
+    m = model(self)
+
+    while fit_keplerians > 0:
+        if m.add_keplerian_from_periodogram():
+            fit_keplerians -= 1
+        else:
+            break
+
+    m.fit()
+
+
+    # size = A4
+    size = 8.27, 11.69
+    fig = plt.figure(figsize=size, constrained_layout=True)
+    gs = gridspec.GridSpec(5, 3, figure=fig, height_ratios=[2, 1, 1, 1, 1])
+
+    # first row, all columns
+    ax1 = plt.subplot(gs[0, :])
+
+    if nasaexo_title:
+        title = str(self.planets).replace('(', '\n').replace(')', '')
+        star, planets = title.split('\n')
+        planets = planets.replace('planets,', 'known planets\n')
+        ax1.set_title(star, loc='left', fontsize=14)
+        ax1.set_title(planets, loc='right', fontsize=10)
+    else:
+        title = f'{self.star}'
+        ax1.set_title(title, loc='left', fontsize=14)
+    # ax1.set_title(r"\href{http://www.google.com}{link}", color='blue',
+    #               loc='center')
+
+    m.plot(ax=ax1, N_in_label=True, tooltips=False, remove_50000=True)
+
+    ax1.legend().remove()
+    legend_ax = plt.subplot(gs[1, -1])
+    legend_ax.axis('off')
+    leg = plt.legend(*ax1.get_legend_handles_labels(),
+                    prop={'family': 'monospace'})
+    legend_ax.add_artist(leg)
+    
+    ax2 = plt.subplot(gs[1, :-1])
+    m._plot_periodogram(ax=ax2)
+
+    ax3 = plt.subplot(gs[2, 0])
+    ax3.axis('off')
+    items = list(m.offsets.items())
+    items = [[item[0].replace('offset_', 'offet '), item[1].round(3)] for item in items]
+    table = ax3.table(items, loc='center', edges='open')
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    set_align_for_column(table, 1, align="left")
+
+    ax4 = plt.subplot(gs[2, 1])
+    ax4.axis('off')
+    items = list(m.jitters.items())
+    items = [[item[0].replace('jit_', 'jitter '), item[1].round(3)] for item in items]
+    table = ax4.table(items, loc='center', edges='open')
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    set_align_for_column(table, 1, align="left")
+
+    ax5 = plt.subplot(gs[2, 2])
+    ax5.axis('off')
+    items = [
+        ['N', m.model.n],
+        [r'N$_{\rm free}$', len(m.model.fit_param)],
+        [r'$\chi^2$', round(m.model.chi2(), 2)],
+        [r'$\chi^2_r$', round(m.model.chi2() / (m.model.n - len(m.model.fit_param)), 2)],
+        [r'$\log L$', round(m.model.loglike(), 2)],
+    ]
+    table = ax5.table(items, loc='center', edges='open')
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    set_align_for_column(table, 1, align="left")
+
+    for i, name in enumerate(m.keplerians):
+        ax = plt.subplot(gs[3, i])
+        m.plot_phasefolding(planets=name, ax=ax)
+
+        ax = plt.subplot(gs[4, i])
+        ax.axis('off')
+        with m.ew():
+            items = list(m.keplerians[name].items())
+        items = [[item[0], item[1].round(3)] for item in items]
+        table = ax.table(items, loc='center', edges='open')
+        table.auto_set_font_size(False)
+        table.set_fontsize(9)
+        set_align_for_column(table, 1, align="left")
+
+
+    return fig, m
