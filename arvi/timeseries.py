@@ -2429,6 +2429,11 @@ class RV(ISSUES, REPORTS):
             self.instruments = sorted(self.instruments, key=lambda i: getattr(self, i).time.max())
             self._build_arrays()
 
+    def put_instrument_last(self, instrument):
+        if not self._check_instrument(instrument, strict=True, log=True):
+            return
+        self.instruments = [i for i in self.instruments if i != instrument] + [instrument]
+        self._build_arrays()
 
     def save(self, directory=None, instrument=None, format='rdb',
              indicators=False, join_instruments=False, postfix=None,
