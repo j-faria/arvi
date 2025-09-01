@@ -1710,8 +1710,11 @@ class RV(ISSUES, REPORTS):
             force_simbad (bool, optional):
                 Use Simbad proper motions even if Gaia is available
         """
-        if self._did_secular_acceleration and not just_compute:  # don't do it twice
+        # don't do it twice
+        if self._did_secular_acceleration and not just_compute:
             return
+
+        from astropy import units
 
         #as_yr = units.arcsec / units.year
         mas_yr = units.milliarcsecond / units.year
