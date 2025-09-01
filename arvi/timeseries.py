@@ -7,7 +7,6 @@ import warnings
 from copy import deepcopy
 from datetime import datetime, timezone
 
-# import lazy_loader as lazy
 import numpy as np
 
 from .setup_logger import setup_logger
@@ -26,7 +25,8 @@ from .HZ import getHZ_period
 from .instrument_specific import ISSUES
 from .reports import REPORTS
 from .utils import sanitize_path, strtobool, there_is_internet, timer, chdir
-# from .utils import lazy_import
+from .setup_logger import setup_logger
+logger = setup_logger()
 
 # units = lazy_import('astropy.units')
 # units = lazy.load('astropy.units')
