@@ -648,7 +648,7 @@ class RV(ISSUES, REPORTS):
         from datetime import datetime
         if star is None:
             assert file.endswith('.pkl'), 'expected a .pkl file'
-            star, timestamp = file.replace('.pkl', '').split('_')
+            star, timestamp = os.path.basename(file).replace('.pkl', '').split('_')
         else:
             try:
                 file = sorted(glob(f'{star}_*.*.pkl'))[-1]
