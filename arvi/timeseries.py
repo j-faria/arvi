@@ -2460,7 +2460,7 @@ class RV(ISSUES, REPORTS):
                 Postfix to add to the filenames ([star]_[instrument]_[postfix].rdb).
             save_masked (bool, optional)
                 If True, also save masked observations (those for which
-                self.mask == True)
+                self.mask == False)
             save_nans (bool, optional)
                 Whether to save NaN values in the indicators, if they exist. If
                 False, the full observation which contains NaN values is not saved.
