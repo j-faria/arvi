@@ -2060,7 +2060,8 @@ class RV(ISSUES, REPORTS):
 
                 # treat ccf_mask specially, doing a 'unique' bin
                 if q == 'ccf_mask':
-                    setattr(s, q, bin_ccf_mask(s.mtime, getattr(s, q)))
+                    ccf_mask = getattr(s, q)[s.mask]
+                    setattr(s, q, bin_ccf_mask(s.mtime, ccf_mask))
                     continue
 
                 if Q.dtype != np.float64:
