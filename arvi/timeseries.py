@@ -411,35 +411,71 @@ class RV(ISSUES, REPORTS):
         self._did_correct_berv = False
         self.__post_init__()
 
-    def snapshot(self, directory=None, delete_others=False):
-        import pickle
+    def snapshot(self, directory=None, delete_others=False, compress=False):
+        if compress:
+            try:
+                import compress_pickle as pickle
+            except ImportError:
+                logger.warning('compress_pickle not installed, not compressing')
+                import pickle
+                compress = False
+        else:
+            import pickle
+        import re
         from datetime import datetime
+
         ts = datetime.now().timestamp()
         star_name = self.star.replace(' ', '')
         file = f'{star_name}_{ts}.pkl'
 
+        server = None
         if directory is None:
             directory = '.'
         else:
-            os.makedirs(directory, exist_ok=True)
-
-        file = os.path.join(directory, file)
-
-        if delete_others:
-            import re
-            other_pkls = [
-                f for f in os.listdir(directory)
-                if re.search(fr'{star_name}_\d+.\d+.pkl', f)
-            ]
-            for pkl in other_pkls:
-                os.remove(os.path.join(directory, pkl))
+            if ':' in directory:
+                server, directory = directory.split(':')
+                delete_others = False
+            else:
+                os.makedirs(directory, exist_ok=True)
 
         metadata = {
             'star': self.star,
             'timestamp': ts,
             'description': 'arvi snapshot'
         }
-        pickle.dump((self, metadata), open(file, 'wb'), protocol=0)
+
+
+        if server:
+            import posixpath
+            from .utils import server_sftp, server_file
+            with server_sftp(server=server) as sftp:
+                try:
+                    sftp.chdir(directory)
+                except FileNotFoundError:
+                    sftp.mkdir(directory)
+                finally:
+                    sftp.chdir(directory)
+                with sftp.open(file, 'wb') as f:
+                    print('saving snapshot to server...', end='', flush=True)
+                    pickle.dump((self, metadata), f, protocol=0)
+                    print('done')
+            file = posixpath.join(directory, file)
+        else:
+            if delete_others:
+                other_pkls = [
+                    f for f in os.listdir(directory)
+                    if re.search(fr'{star_name}_\d+.\d+.pkl', f)
+                ]
+                for pkl in other_pkls:
+                    os.remove(os.path.join(directory, pkl))
+
+            file = os.path.join(directory, file)
+
+            if compress:
+                file += '.gz'
+
+            with open(file, 'wb') as f:
+                pickle.dump((self, metadata), f)
 
         if self.verbose:
             logger.info(f'saved snapshot to {file}')
@@ -647,22 +683,28 @@ class RV(ISSUES, REPORTS):
         import pickle
         from datetime import datetime
         if star is None:
-            assert file.endswith('.pkl'), 'expected a .pkl file'
-            star, timestamp = os.path.basename(file).replace('.pkl', '').split('_')
+            assert file.endswith(('.pkl', '.pkl.gz')), 'expected a .pkl file'
+            basefile = os.path.basename(file)
+            star, timestamp = basefile.replace('.pkl.gz', '').replace('.pkl', '').split('_')
         else:
             try:
-                file = sorted(glob(f'{star}_*.*.pkl'))[-1]
+                file = sorted(glob(f'{star}_*.*.pkl*'))[-1]
             except IndexError:
                 raise ValueError(f'cannot find any file matching {star}_*.pkl')
-            star, timestamp = file.replace('.pkl', '').split('_')
+            star, timestamp = file.replace('.pkl.gz', '').replace('.pkl', '').split('_')
 
         dt = datetime.fromtimestamp(float(timestamp))
         if verbose:
             logger.info(f'reading snapshot of {star} from {dt}')
 
-        s = pickle.load(open(file, 'rb'))
+        with open(file, 'rb') as f:
+            if file.endswith('.gz'):
+                import compress_pickle as pickle
+            s = pickle.load(f)
+
         if isinstance(s, tuple) and len(s) == 2:
             s, _metadata = s
+
         s._snapshot = file
         return s
 
