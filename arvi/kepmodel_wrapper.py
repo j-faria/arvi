@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 from kepmodel.rv import RvModel
+from spleaf.cov import merge_series
 from spleaf.term import Error, InstrumentJitter
 
 from .setup_logger import setup_logger
@@ -39,6 +40,12 @@ class model:
         self.instruments = s.instruments
         self.Pmax = 2 * np.ptp(s.time)
         ts = self.ts = self.s._mtime_sorter
+
+        # t, y_ ye, series_index = merge_series(
+        #     [_s.mtime for _s in s],
+        #     [_s.mvrad for _s in s],
+        #     [_s.msvrad for _s in s],
+        # )
 
         inst_jit = self._get_jitters()
 
@@ -118,7 +125,11 @@ class model:
         ]
         # if self.np == 0:
         #     self._set_jitters(0.1 * np.std(self.model.y - self.model.model()))
-        self.model.fit()
+        try:
+            self.model.fit()
+        except Exception as e:
+            print(e)
+            
 
     def plot(self, **kwargs):
         fig, ax = self.s.plot(**kwargs)
