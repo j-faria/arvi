@@ -241,7 +241,9 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
                     'rv': result['spectro_ccf_rv'][mask3],
                     'rv_err': result['spectro_ccf_rv_err'][mask3],
                     'berv': result['spectro_cal_berv'][mask3],
-                    'ccf_noise': _nan,
+                    'ccf_noise': np.sqrt(
+                        np.square(result['spectro_ccf_rv_err'][mask3]) - np.square(result['spectro_cal_drift_noise'][mask3])
+                    ),
                     'rhk': result['spectro_analysis_rhk'][mask3],
                     'rhk_err': result['spectro_analysis_rhk_err'][mask3],
                     'contrast': result['spectro_ccf_contrast'][mask3],
