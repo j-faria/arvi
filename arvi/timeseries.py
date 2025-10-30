@@ -4,7 +4,7 @@ from typing import Union
 from functools import partial, partialmethod
 from glob import glob
 import warnings
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime, timezone
 
 import numpy as np
