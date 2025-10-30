@@ -26,3 +26,18 @@ def test_list_instruments():
     _ = RV('HD28185', instrument='CORALIE')
     _ = RV('HD28185', instrument=['CORALIE'])
     _ = RV('HD28185', instrument=['CORALIE', 'HRS'])
+
+
+def test_remove_instruments():
+    from numpy import isin
+    from arvi import RV, config
+    config.request_as_public = True
+
+    s = RV('51Peg', verbose=False)
+    first_two = tuple(s.instruments[:2])
+    s.remove_condition(isin(s.instrument_array, first_two))
+
+    url = 'https://github.com/j-faria/arvi/issues/19'
+    msg = f'did not remove instruments correctly, see {url}'
+    assert first_two[0] not in s.instruments, msg
+    assert first_two[1] not in s.instruments, msg
