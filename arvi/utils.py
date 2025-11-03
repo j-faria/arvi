@@ -68,6 +68,50 @@ def all_logging_disabled():
         logging.disable(previous_level)
 
 
+class record_removals:
+    def __init__(self, s, storage=None):
+        """
+        A simple context manager to record removed files
+
+        Args:
+            s (RV):
+                An `RV` object
+            storage (dict): 
+                A dictionary to store the removed files, with keys 'raw_file'
+                and 'reason' as lists.
+        
+        Examples:
+            >>> with record_removals(s) as rec:
+              :    s.remove_instrument('HARPS')
+              :    rec.store('removed HARPS')
+            >>> rec.storage
+        """
+        self.s = s
+        if storage is None:
+            self.storage = defaultdict(list)
+        else:
+            if 'raw_file' not in storage:
+                storage['raw_file'] = []
+            if 'reason' not in storage:
+                storage['reason'] = []
+            self.storage = storage
+        self.raw_file_start = self.s.raw_file.copy()
+
+    def store(self, reason):
+        missing = ~ np.isin(self.raw_file_start, self.s.raw_file[self.s.mask])
+        if missing.any():
+            lost = self.raw_file_start[missing]
+            self.storage['raw_file'].extend(lost)
+            self.storage['reason'].extend(len(lost) * [reason])
+            self.raw_file_start = self.s.raw_file[self.s.mask].copy()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+
 @contextmanager
 def timer(name=None):
     """ A simple context manager to time a block of code """

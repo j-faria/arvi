@@ -1913,6 +1913,8 @@ class RV(ISSUES, REPORTS):
             return
 
         instruments = self._check_instrument(instrument, strict)
+        if instruments is None:
+            return
         changed_instruments = []
 
         for inst in instruments:
