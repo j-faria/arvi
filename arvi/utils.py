@@ -2,6 +2,8 @@ import os
 import sys
 import time
 from contextlib import contextmanager
+from functools import partial
+from collections import defaultdict
 
 try:
     from unittest.mock import patch
