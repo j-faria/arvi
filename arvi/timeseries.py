@@ -1657,6 +1657,16 @@ class RV(ISSUES, REPORTS):
         for inst in singles:
             self.remove_instrument(inst, strict=True)
 
+    def remove_more_than_n_per_night(self, n=2):
+        """ Remove whenever there are more than `n` observations per night """
+        ind = np.array([], dtype=int)
+        for s in self:
+            n_night = (np.abs(s.time[:, None] - s.time[None, :]) < 0.5).sum(axis=0)
+            ind_s = np.where(n_night >= n)[0]
+            ind = np.r_[ind, self._index_from_instrument_index(ind_s, s.instruments[0])]
+        if len(ind) > 0:
+            self.remove_point(ind)
+
     def remove_prog_id(self, prog_id):
         """ Remove observations from a given program ID """
         from glob import has_magic
