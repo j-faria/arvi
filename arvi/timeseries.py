@@ -1934,7 +1934,7 @@ class RV(ISSUES, REPORTS):
             if np.isnan(d[m]).all():
                 continue
 
-            result = dosigmaclip(d[m], low=sigma, high=sigma)
+            result = dosigmaclip(d[m & self.mask], low=sigma, high=sigma)
             # n = self.vrad[m].size - result.clipped.size
 
             ind = m & self.mask & ((d < result.lower) | (d > result.upper))
