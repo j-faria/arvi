@@ -2418,7 +2418,7 @@ class RV(ISSUES, REPORTS):
         if new_units not in possible:
             msg = f"new_units must be one of 'm/s', 'km/s', 'ms', 'kms', got '{new_units}'"
             raise ValueError(msg)
-        
+
         new_units = possible[new_units]
         if new_units == self.units:
             return
@@ -2426,11 +2426,14 @@ class RV(ISSUES, REPORTS):
         if self.verbose:
             logger.info(f"changing units from {self.units} to {new_units}")
 
-        if new_units == 'm/s' and self.units == 'km/s':
+        if new_units == 'm/s' and self.units in ('km/s', 'kms'):
             factor = 1e3
-        elif new_units == 'km/s' and self.units == 'm/s':
+        elif new_units == 'km/s' and self.units in ('m/s', 'ms'):
             factor = 1e-3
-        
+        else:
+            logger.warning(f"no known conversion from {self.units} to {new_units}")
+            return
+
         for inst in self.instruments:
             s = getattr(self, inst)
             s.vrad *= factor
