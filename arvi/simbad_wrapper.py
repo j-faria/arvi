@@ -285,8 +285,12 @@ class simbad:
         except IndexError:
             if self.sp_type == '':
                 if len(self.measurements.teff) > 0:
-                    self.teff = int(np.mean(self.measurements.teff))
-                    self.sp_type = teff_to_sptype(self.teff)
+                    try:
+                        self.teff = int(np.mean(self.measurements.teff))
+                        self.sp_type = teff_to_sptype(self.teff)
+                    except ValueError:
+                        self.teff = np.nan
+                        self.sp_type = ''
             elif self.sp_type[:2] in EFFECTIVE_TEMPERATURES:
                 self.teff = EFFECTIVE_TEMPERATURES[self.sp_type[:2]]
 
