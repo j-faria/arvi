@@ -651,7 +651,11 @@ class RV(ISSUES, REPORTS):
         return s
 
     @classmethod
-    def from_arrays(cls, star, time, vrad, svrad, inst, **kwargs):
+    def from_arrays(cls, star, time, vrad, svrad, instrument:str, **kwargs):
+        if 'inst' in kwargs:
+            logger.warning('`inst` is deprecated. Use `instrument` instead.')
+            instrument = kwargs.pop('inst')
+
         s = cls(star, _child=True)
         time, vrad, svrad = map(np.atleast_1d, (time, vrad, svrad))
 
@@ -673,8 +677,12 @@ class RV(ISSUES, REPORTS):
         for k, v in kwargs.items():
             setattr(s, k, np.atleast_1d(v))
 
-        s.instruments = [inst]
         s._quantities = np.array(list(kwargs.keys()))
+        _instrument = instrument.replace(' ', '_').replace('-', '_')
+        s.instruments = [_instrument]
+
+        setattr(s, _instrument, deepcopy(s))
+        s._child = False
 
         return s
 
