@@ -2038,9 +2038,9 @@ class RV(ISSUES, REPORTS):
 
 
 
-    def bin(self):
+    def bin(self, daily=False):
         """
-        Nightly bin the observations.
+        Bin the observations, nightly by default.
 
         !!! Warning
             This creates and returns a new object and does not modify self.
@@ -2050,6 +2050,8 @@ class RV(ISSUES, REPORTS):
         snew = deepcopy(self)
         # store original object
         snew._unbinned = deepcopy(self)
+
+        time_offset = 0.5 if daily else 0.0
 
         all_bad_quantities = []
 
@@ -2064,7 +2066,8 @@ class RV(ISSUES, REPORTS):
             if s.mtime.size == 0:
                 continue
 
-            tb, vb, svb = binRV(s.mtime, s.mvrad, s.msvrad)
+            tb, vb, svb = binRV(s.mtime + time_offset, s.mvrad, s.msvrad)
+            tb -= time_offset
             s.vrad = vb
             s.svrad = svb
 
@@ -2075,14 +2078,14 @@ class RV(ISSUES, REPORTS):
 
                 # treat date_night specially, basically doing a group-by
                 if q == 'date_night':
-                    inds = binRV(s.mtime, None, None, binning_indices=True)
+                    inds = binRV(s.mtime + time_offset, None, None, binning_indices=True)
                     setattr(s, q, Q[s.mask][inds])
                     continue
 
                 # treat ccf_mask specially, doing a 'unique' bin
                 if q == 'ccf_mask':
                     ccf_mask = getattr(s, q)[s.mask]
-                    setattr(s, q, bin_ccf_mask(s.mtime, ccf_mask))
+                    setattr(s, q, bin_ccf_mask(s.mtime + time_offset, ccf_mask))
                     continue
 
                 if Q.dtype != np.float64:
@@ -2097,12 +2100,14 @@ class RV(ISSUES, REPORTS):
                 elif q + '_err' in s._quantities:
                     Qerr = getattr(s, q + '_err')
                     if (Qerr == 0.0).all(): # if all errors are NaN, don't use them
-                        _, yb = binRV(s.mtime, Q[s.mask], stat='mean', tstat='mean')
+                        _, yb = binRV(s.mtime + time_offset, Q[s.mask],
+                                      stat='mean', tstat='mean')
                     else:
                         if (Qerr <= 0.0).any(): # if any error is <= 0, set it to NaN
                             Qerr[Qerr <= 0.0] = np.nan
 
-                        _, yb, eb = binRV(s.mtime, Q[s.mask], Qerr[s.mask], remove_nans=False)
+                        _, yb, eb = binRV(s.mtime + time_offset, Q[s.mask], Qerr[s.mask],
+                                          remove_nans=False)
                         setattr(s, q + '_err', eb)
 
                     setattr(s, q, yb)
@@ -2111,7 +2116,7 @@ class RV(ISSUES, REPORTS):
                     with warnings.catch_warnings():
                         warnings.filterwarnings('ignore', category=RuntimeWarning)
                         try:
-                            _, yb = binRV(s.mtime, Q[s.mask],
+                            _, yb = binRV(s.mtime + time_offset, Q[s.mask],
                                         stat=np.nanmean, tstat=np.nanmean)
                             setattr(s, q, yb)
                         except TypeError:
