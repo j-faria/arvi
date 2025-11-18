@@ -9,7 +9,8 @@ DATA_PATH = os.path.join(DATA_PATH, 'data')
 QUERY = """
 SELECT TOP 20 gaia_source.designation, gaia_source.source_id,
               gaia_source.ra, gaia_source.dec, 
-              gaia_source.parallax, gaia_source.pmra, gaia_source.pmdec,
+              gaia_source.parallax, gaia_source.parallax_error,
+              gaia_source.pmra, gaia_source.pmdec,
               gaia_source.ruwe, gaia_source.phot_g_mean_mag, gaia_source.bp_rp, 
               gaia_source.radial_velocity, gaia_source.radial_velocity_error
 FROM gaiadr3.gaia_source 
@@ -27,7 +28,8 @@ CONTAINS(
 QUERY_ID = """
 SELECT TOP 20 gaia_source.designation, gaia_source.source_id,
               gaia_source.ra, gaia_source.dec, 
-              gaia_source.parallax, gaia_source.pmra, gaia_source.pmdec,
+              gaia_source.parallax, gaia_source.parallax_error,
+              gaia_source.pmra, gaia_source.pmdec,
               gaia_source.ruwe, gaia_source.phot_g_mean_mag, gaia_source.bp_rp, 
               gaia_source.radial_velocity, gaia_source.radial_velocity_error
 FROM gaiadr3.gaia_source 
@@ -120,6 +122,7 @@ class gaia:
         self.pmdec = float(results['pmdec'])
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
         self.plx = float(results['parallax'])
+        self.plx_err = float(results['parallax_error'])
         try:
             self.radial_velocity = float(results['radial_velocity'])
         except ValueError:
@@ -130,6 +133,13 @@ class gaia:
             self.radial_velocity_error = None
 
         return
+
+    def distance(self):
+        """ Calculate the distance to the star as 1 / parallax [pc] """
+        from astropy import units as u
+        d = (self.plx * u.mas).to(u.parsec, 
+                                  equivalencies=u.equivalencies.parallax())
+        return d
 
     def __repr__(self):
         return f'{self.star} (DR3 id={self.dr3_id})'
