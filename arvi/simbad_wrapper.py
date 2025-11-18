@@ -204,7 +204,7 @@ class simbad:
         try:
             table2 = run_query(query=BV_QUERY.format(star=self.star))
             if _debug:
-                print('table2:', table2)
+                print('table2:\n', table2)
             cols, values = parse_table1(table2, cols, values)
         except IndexError:
             self.B = self.V = np.nan
@@ -228,6 +228,14 @@ class simbad:
                 setattr(self, '_' + filter_name, ufloat(float(mag), float(mag_err)))
             except ValueError:
                 setattr(self, '_' + filter_name, float(mag))
+            
+            # substitute missing V magnitude
+            if filter_name == 'V' and values[cols.index('V')] == '':
+                values[cols.index('V')] = mag
+            # substitute missing B magnitude
+            if filter_name == 'B' and values[cols.index('B')] == '':
+                values[cols.index('B')] = mag
+
 
         # measurements table
         table5 = run_query(query=MEAS_QUERY.format(star=self.star))
