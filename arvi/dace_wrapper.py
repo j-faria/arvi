@@ -240,7 +240,6 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
                 }
                 new_result = {}
                 for key in result.keys():
-                    print(key)
                     if key in translations:
                         new_key = translations[key]
                     else:

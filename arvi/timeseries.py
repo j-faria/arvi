@@ -1674,9 +1674,13 @@ class RV(ISSUES, REPORTS):
         """ Remove whenever there are more than `n` observations per night """
         ind = np.array([], dtype=int)
         for s in self:
+            # how many observations per night
             n_night = (np.abs(s.time[:, None] - s.time[None, :]) < 0.5).sum(axis=0)
+            # indices for this instrument
             ind_s = np.where(n_night >= n)[0]
-            ind = np.r_[ind, self._index_from_instrument_index(ind_s, s.instruments[0])]
+            # translate to indices in self
+            ind_self = self._index_from_instrument_index(ind_s, s.instruments[0], masked=False)
+            ind = np.r_[ind, ind_self]
         if len(ind) > 0:
             self.remove_point(ind)
 
