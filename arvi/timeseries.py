@@ -145,6 +145,7 @@ class RV(ISSUES, REPORTS):
         if self.verbose:
             logger.info('querying Simbad...')
 
+        # TODO: removing the 'A' might not be a good idea 
         # complicated way to query Simbad with self.__star__ or, if that
         # fails, try after removing a trailing 'A'
         for target in set([self.__star__, self.__star__.replace('A', '')]):
@@ -1047,7 +1048,7 @@ class RV(ISSUES, REPORTS):
             time = np.array([i.bjd for i in CCFs])
             vrad = np.array([i.RV*1e3 for i in CCFs])
             svrad = np.array([i.RVerror*1e3 for i in CCFs])
-            _s = RV.from_arrays(star, time, vrad, svrad, inst=instrument)
+            _s = RV.from_arrays(star, time, vrad, svrad, instrument=instrument)
 
             _quantities = []
 
@@ -1074,8 +1075,12 @@ class RV(ISSUES, REPORTS):
             _s.texp = np.array([i.HDU[0].header['EXPTIME'] for i in CCFs])
             _quantities.append('texp')
 
-            _s.berv = np.array([i.HDU[0].header['HIERARCH ESO QC BERV'] for i in CCFs])
+            try:
+                _s.berv = np.array([i.HDU[0].header['HIERARCH ESO QC BERV'] for i in CCFs])
+            except KeyError:
+                _s.berv = np.full_like(time, np.nan)
             _quantities.append('berv')
+
 
             _s.date_night = np.array([
                 i.HDU[0].header['DATE-OBS'].split('T')[0] for i in CCFs
@@ -1713,7 +1718,7 @@ class RV(ISSUES, REPORTS):
             ind = np.where(to_remove)[0]
             self.remove_point(ind)
 
-    def choose_n_points(self, n: int, seed=None, instrument=None):
+    def choose_n_points(self, n: int, instrument=None, seed=None):
         """ Randomly choose `n` observations and mask out the remaining ones
 
         Args:
@@ -1724,21 +1729,21 @@ class RV(ISSUES, REPORTS):
             instrument (str or list, optional):
                 For which instrument to choose points (default is all).
         """
-        instruments = self._check_instrument(instrument)
+        if not self._check_instrument(instrument):
+            return
+        # instruments = self._check_instrument(instrument)
+        mask_for_this_inst = self._instrument_mask(instrument)
         rng = np.random.default_rng(seed=seed)
-        for inst in instruments:
-            # s = getattr(self, inst)
-            mask_for_this_inst = self.obs == self.instruments.index(inst) + 1
-            # only choose if there are more than n points
-            if self.mask[mask_for_this_inst].sum() > n:
-                if self.verbose:
-                    logger.info(f'selecting {n} points from {inst}')
-                # indices of points for this instrument which are not masked already
-                available = np.where(self.mask & mask_for_this_inst)[0]
-                # choose n randomly
-                i = rng.choice(available, size=n, replace=False)
-                # mask the others out
-                self.mask[np.setdiff1d(available, i)] = False
+        # only choose if there are more than n points
+        if self.mask[mask_for_this_inst].sum() > n:
+            if self.verbose:
+                logger.info(f'selecting {n} points from {instrument}')
+            # indices of points for this instrument which are not masked already
+            available = np.where(self.mask & mask_for_this_inst)[0]
+            # choose n randomly
+            i = rng.choice(available, size=n, replace=False)
+            # mask the others out
+            self.mask[np.setdiff1d(available, i)] = False
         self._propagate_mask_changes()
 
 
@@ -2495,6 +2500,10 @@ class RV(ISSUES, REPORTS):
             by_last_observation (bool, optional):
                 Sort by last observation date
         """
+        if self.N == 0:
+            if self.verbose:
+                logger.warning("no observations to sort")
+            return
         if by_last_observation:
             by_first_observation = False
         if by_first_observation:
