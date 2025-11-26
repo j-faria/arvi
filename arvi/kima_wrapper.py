@@ -3,17 +3,6 @@ import numpy as np
 
 from .setup_logger import setup_logger
 
-try:
-    import kima
-    from kima.pykima.utils import chdir
-    from kima import distributions
-    from kima import RVData, HGPMdata
-    from kima import RVmodel, GPmodel, RVHGPMmodel
-    kima_available = True
-except ImportError:
-    kima_available = False
-
-
 def try_to_guess_prior(model, prior):
     if 'jitter' in prior:
         return 'Jprior'
@@ -23,8 +12,14 @@ def try_to_guess_prior(model, prior):
 
 
 def run_kima(self, run=False, load=False, run_directory=None,
-             model=RVmodel, priors={}, **kwargs):
-    if not kima_available:
+             model='RVmodel', priors={}, **kwargs):
+    try:
+        import kima
+        from kima.pykima.utils import chdir
+        from kima import distributions
+        from kima import RVData, HGPMdata
+        from kima import RVmodel, GPmodel, RVHGPMmodel
+    except ImportError:
         raise ImportError('kima not available, please install with `pip install kima`')
     
     logger = setup_logger()
@@ -57,7 +52,7 @@ def run_kima(self, run=False, load=False, run_directory=None,
     model.trend = kwargs.pop('trend', False)
     model.degree = kwargs.pop('degree', 0)
 
-    if isinstance(model, RVmodel):
+    if isinstance(model, (RVmodel, RVHGPMmodel)):
         model.studentt = kwargs.pop('studentt', False)
 
     if isinstance(model, GPmodel):
@@ -99,21 +94,27 @@ def run_kima(self, run=False, load=False, run_directory=None,
     if run_directory is None:
         run_directory = os.getcwd()
 
-    if run:
-        # TODO: use signature of kima.run to pop the correct kwargs
-        # model_name = model.__class__.__name__
-        # model_name = f'kima.{model_name}.{model_name}'
-        # signature, defaults = [sig for sig in kima.run.__nb_signature__ if model_name in sig[0]]
+    diagnostic = kwargs.pop('diagnostic', False)
 
+    if run:
+        model_name = model.__class__.__name__
+        model_name = f'kima.{model_name}.{model_name}'
+        signature, _, defaults = [sig for sig in kima._run_really.__nb_signature__ if model_name in sig[0]][0]
+        signature = signature.replace('\\', '')
+        args = ast.parse(signature + ':\n pass').body[0].args
+        defaults = {arg.arg: d for arg, d in zip(args.args[1:], defaults)}
+        defaults.update(kwargs)
         with chdir(run_directory):
-            kima.run(model, **kwargs)
+            kima.run(model, **defaults)
 
     if isinstance(model, RVHGPMmodel):
         data = (data, pm_data)
 
     if load:
         with chdir(run_directory):
-            res = kima.load_results(model)
+            res = kima.load_results(model, diagnostic=diagnostic)
+
+        res.star = self.star
         return data, model, res
 
     return data, model
