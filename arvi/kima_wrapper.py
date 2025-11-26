@@ -1,5 +1,5 @@
 import os
-import numpy as np
+import ast
 
 from .setup_logger import setup_logger
 
@@ -76,6 +76,16 @@ def run_kima(self, run=False, load=False, run_directory=None,
         model.pm_dec_bary_prior = priors.pop('pm_dec_bary_prior',
                                              distributions.Gaussian(pm_data.pm_dec_hg, pm_data.sig_hg_dec))
 
+    KO = kwargs.pop('known_object', False)
+    if KO:
+        if isinstance(KO, int) and KO is not True:
+            model.set_known_object(KO)
+        else:
+            try:
+                model.set_known_object(kwargs.pop('n_known_object'))
+            except KeyError:
+                msg = 'if `known_object` is True, specify `n_known_object` or pass `known_object` as an integer'
+                raise ValueError(msg) from None
 
     for k, v in priors.items():
         try:
