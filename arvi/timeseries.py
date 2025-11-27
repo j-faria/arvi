@@ -1962,7 +1962,11 @@ class RV(ISSUES, REPORTS):
             result = dosigmaclip(d[m & self.mask], low=sigma, high=sigma)
             # n = self.vrad[m].size - result.clipped.size
 
-            ind = m & self.mask & ((d < result.lower) | (d > result.upper))
+            # NOTE: result.lower and result.upper are updated values, calculated
+            # *after* the last point has been removed. So the previous solution
+            # getting points outside the range [result.lower, result.upper] is
+            # not correct and we need to use result.clipped instead.
+            ind = m & self.mask & ~np.isin(d, result.clipped)
             n = ind.sum()
 
             if self.verbose and n > 0:
