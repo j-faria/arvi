@@ -591,9 +591,12 @@ class RV(ISSUES, REPORTS):
         """ Total time span of the (masked) observations """
         return np.ptp(self.mtime)
 
-    def _index_from_instrument_index(self, index, instrument):
+    def _index_from_instrument_index(self, index, instrument, masked=True):
         ind = np.where(self.instrument_array == instrument)[0]
-        return ind[getattr(self, instrument).mask][index]
+        if masked:
+            return ind[getattr(self, instrument).mask][index]
+        else:
+            return ind[index]
 
     # @property
     def _tt(self, f=20) -> np.ndarray:
@@ -1580,6 +1583,11 @@ class RV(ISSUES, REPORTS):
             condition (ndarray):
                 Boolean array of the same length as the observations
         """
+        condition = np.asarray(condition, dtype=bool)
+        if not np.any(condition):
+            if self.verbose:
+                logger.info('no points to remove')
+            return
         if self.verbose:
             inst = np.unique(self.instrument_array[condition])
             logger.info(f"Removing {condition.sum()} points from instruments {inst}")
