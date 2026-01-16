@@ -1,6 +1,6 @@
 from functools import partial
 import numpy as np
-from scipy.stats import norm
+
 
 def wmean(a, e):
     """Weighted mean of array `a`, with uncertainties given by `e`.
@@ -69,7 +69,7 @@ weighted_median = partial(weighted_quantiles_interpolate, quantiles=0.5)
 
 
 
-def sigmaclip_median(a, low=4.0, high=4.0, k=1/norm.ppf(3/4)):
+def sigmaclip_median(a, low=4.0, high=4.0, k=None):
     """
     Same as scipy.stats.sigmaclip but using the median and median absolute
     deviation instead of the mean and standard deviation.
@@ -91,8 +91,12 @@ def sigmaclip_median(a, low=4.0, high=4.0, k=1/norm.ppf(3/4)):
             - `lower`: Lower clipping limit
             - `upper`: Upper clipping limit
     """
-    from scipy.stats import median_abs_deviation
+    from scipy.stats import median_abs_deviation, norm
     from scipy.stats._stats_py import SigmaclipResult
+
+    if k is None:
+        k = 1 / norm.ppf(3 / 4)
+
     c = np.asarray(a).ravel()
     delta = 1
     while delta:
