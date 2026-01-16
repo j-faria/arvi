@@ -434,9 +434,10 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
         logger.info('RVs available from')
         with logger.contextualize(indent='  '):
             _inst = ''
+            max_len_inst = max([len(inst) for inst in instruments])
             for inst in instruments:
                 pipelines = list(new_result[inst].keys())
-                max_len = max([len(pipe) for pipe in pipelines])
+                max_len_pipe = max([len(pipe) for pipe in pipelines])
                 for pipe in pipelines:
                     last_pipe = pipe == pipelines[-1]
                     modes = list(new_result[inst][pipe].keys())
@@ -444,11 +445,11 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
                         N = len(new_result[inst][pipe][mode]['rjd'])
                         # LOG
                         if inst == _inst and last_pipe:
-                            logger.info(f'{" ":>12s} └ {pipe:{max_len}s} - {mode} ({N} observations)')
+                            logger.info(f'{" ":>{max_len_inst}s} └ {pipe:{max_len_pipe}s} - {mode} ({N} observations)')
                         elif inst == _inst:
-                            logger.info(f'{" ":>12s} ├ {pipe:{max_len}s} - {mode} ({N} observations)')
+                            logger.info(f'{" ":>{max_len_inst}s} ├ {pipe:{max_len_pipe}s} - {mode} ({N} observations)')
                         else:
-                            logger.info(f'{inst:>12s} ├ {pipe:{max_len}s} - {mode} ({N} observations)')
+                            logger.info(f'{inst:>{max_len_inst}s} ├ {pipe:{max_len_pipe}s} - {mode} ({N} observations)')
                             _inst = inst
 
     return new_result
