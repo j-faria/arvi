@@ -98,6 +98,12 @@ class LazyRV:
             return self._saved[index]
         return get_star(star, self.instrument, verbose=True)
 
+    def plot(self, split=20, **kwargs):
+        from .plots import plot_several
+        from itertools import batched
+        S = list(batched(self.__call__(), split))
+        for s in S:
+            plot_several(s, **kwargs)
 
 # sorted by spectral type
 WG1_stars = [
