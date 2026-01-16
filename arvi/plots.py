@@ -587,6 +587,32 @@ def plot_xy(self, x, y, ax=None, instrument=None, show_legend=True, **kwargs):
         return fig, ax
 
 
+def plot_several(obj, axs=None, **kwargs):
+    try:
+        from grid_strategy.strategies import SquareStrategy
+    except ImportError:
+        raise ImportError("Please install 'grid-strategy' to use this function")
+    if axs is None:
+        if isinstance(obj, (list, tuple)):
+            n = len(obj)
+            GS = SquareStrategy().get_grid(n)
+            fig = plt.gcf()
+            fig.set_size_inches(8, 6)
+            axs = [fig.add_subplot(gs) for gs in GS]
+        else:
+            raise NotImplementedError('`obj` should be a list or tuple')
+    else:
+        assert isinstance(axs, (list, tuple))
+        assert len(axs) == len(obj), 'Number of axes does not match number of objects'
+
+    kwargs.setdefault('show_legend', False)
+    kwargs.setdefault('show_title', True)
+
+    for ax, s in zip(axs, obj):
+        s.plot(ax=ax, **kwargs)
+        ax.set(xlabel='', ylabel='')
+
+
 # @plot_fast
 def gls(self, ax=None, label=None, instrument=None, 
         fap=True, fap_method='baluev', adjust_means=config.adjust_means_gls,
