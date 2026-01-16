@@ -1,4 +1,5 @@
 import os
+from urllib.error import URLError
 import requests
 from dataclasses import dataclass
 from functools import partial
@@ -289,7 +290,8 @@ class simbad:
             else:
                 self.teff = data['teff']
                 self.sweetcat = data
-
+        except URLError:
+            pass
         except IndexError:
             if self.sp_type == '':
                 if len(self.measurements.teff) > 0:
