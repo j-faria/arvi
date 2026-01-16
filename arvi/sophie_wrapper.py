@@ -13,7 +13,7 @@ URL_HEADER = "http://atlas.obs-hp.fr/sophie/sophie.cgi?n=sophiecc&c=i&z=fd&a=t&o
 def extract_keyword(keyword, text, raise_error=True):
     for line in text.splitlines():
         if keyword in line:
-            value = re.findall(fr'{keyword}\s+([\'\w\d.]+)', line)[0]
+            value = re.findall(fr'{keyword}\s+([-\'\w\d.]+)', line)[0]
             value = value.replace("'", "")
             try:
                 return float(value)
