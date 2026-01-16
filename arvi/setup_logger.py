@@ -2,17 +2,17 @@ import sys
 
 def setup_logger():
     from loguru import logger
-    try:
-        import marimo as mo
-        if mo.running_in_notebook():
-            raise NotImplementedError
-    except (NotImplementedError, AttributeError):
-        pass
-    except (ImportError, ModuleNotFoundError):
-        logger.remove()
-    else:
-        logger.remove()
-
+    # try:
+    #     import marimo as mo
+    #     if mo.running_in_notebook():
+    #         return logger
+    #         raise NotImplementedError
+    # except (NotImplementedError, AttributeError):
+    #     pass
+    # except (ImportError, ModuleNotFoundError):
+    #     logger.remove()
+    # else:
+    logger.remove()
     logger.configure(extra={"indent": ""})
     logger.add(
         sys.stdout,
