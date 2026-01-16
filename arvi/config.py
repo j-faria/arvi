@@ -43,7 +43,7 @@ class config:
 
     __user_config = get_config()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         if name in ('__custom_documentations__', ):
             # return {'return_self': 'help!'}
             return {}
@@ -54,7 +54,6 @@ class config:
                 value = True if value == 'True' else value
                 value = False if value == 'False' else value
                 self.__conf[name] = value
-
             return self.__conf[name]
         except KeyError:
             raise KeyError(f"unknown config option '{name}'")
