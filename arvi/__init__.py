@@ -17,12 +17,15 @@ def __getattr__(name: str):
     if not config.fancy_import:
         raise AttributeError
     
+    if name.startswith('__'):
+        return
     if name in (
         '_ipython_canary_method_should_not_exist_',
         '_ipython_display_',
-        '__custom_documentations__',
         '_repr_mimebundle_',
-        '__wrapped__'
+        # '__custom_documentations__',
+        # '__wrapped__',
+        # '__dataframe__'
     ):
         return
 
