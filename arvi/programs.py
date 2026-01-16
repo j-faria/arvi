@@ -23,6 +23,7 @@ def get_star(star, instrument=None, verbose=False, **kwargs):
 
 
 class LazyRV:
+    """ A lazy wrapper around `RV` """
     def __init__(self, stars: list, instrument: str = None,
                  _parallel_limit=10, _parallel_workers=8):
         self.stars = stars
@@ -60,25 +61,6 @@ class LazyRV:
 
         return result
 
-        # # use a with statement to ensure threads are cleaned up promptly
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        #     star_to_RV = {
-        #         pool.submit(get_star, star, self.instrument): star 
-        #         for star in self.stars
-        #     }
-        #     logger.info('Querying DACE...')
-        #     pbar = tqdm(concurrent.futures.as_completed(star_to_RV),
-        #                 total=self.N, unit='star')
-        #     for future in pbar:
-        #         star = star_to_RV[future]
-        #         pbar.set_description(star)
-        #         try:
-        #             result.append(future.result())
-        #         except ValueError:
-        #             print(f'{star} generated an exception')
-        #             result.append(None)
-        # return result
-
     def reload(self, **kwargs):
         self._saved = self._get(**kwargs)
         return self._saved
@@ -92,10 +74,16 @@ class LazyRV:
         return self._saved
 
     @lru_cache(maxsize=10)
-    def __getitem__(self, index):
-        star = self.stars[index]
+    def __getitem__(self, index_or_name):
+        if isinstance(index_or_name, str):
+            index = self.stars.index(index_or_name)
+        else:
+            index = index_or_name
+
         if self._saved is not None:
             return self._saved[index]
+
+        star = self.stars[index]
         return get_star(star, self.instrument, verbose=True)
 
     def plot(self, split=20, **kwargs):
