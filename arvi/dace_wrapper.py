@@ -310,6 +310,14 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
     # print([r[k1][k2].keys() for k1 in r.keys() for k2 in r[k1].keys()])
     return r
 
+def _warn_harpsn(instrument):
+    if 'HARPSN' in instrument or 'HARPS-N' in instrument:
+        logger = setup_logger()
+        logger.warning(f'Did you mean "HARPN" instead of "{instrument}"?')
+        return True
+    return False
+
+
 def get_observations(star, instrument=None, user=None, main_id=None, verbose=True):
     logger = setup_logger()
     if instrument is None:
@@ -331,6 +339,7 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
             result = get_observations_from_instrument(star, instrument, user, main_id, verbose)
         except ValueError:
             msg = f'no {instrument} observations for {star}'
+            _warn_harpsn(instrument)
             raise ValueError(msg) from None
 
     # defaultdict --> dict
