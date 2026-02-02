@@ -410,6 +410,8 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
     def custom_key(val, strip_EGGS=False):
         if strip_EGGS:
             val = val.replace('-EGGS', '').replace(' EGGS', '')
+        if val in ('3.3', '3.4', '3.5', '3.6', '3.7', '3.8'):
+            val = '0.' + val
         key = 0
         key -= 1 if '3.5' in val else 0
         key -= 1 if 'EGGS' in val else 0
@@ -435,7 +437,7 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
         with logger.contextualize(indent='  '):
             _inst = ''
             max_len_inst = max([len(inst) for inst in instruments])
-            for inst in instruments:
+            for inst in sorted(instruments):
                 pipelines = list(new_result[inst].keys())
                 max_len_pipe = max([len(pipe) for pipe in pipelines])
                 for pipe in pipelines:
