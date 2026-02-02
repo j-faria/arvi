@@ -65,6 +65,12 @@ JOIN ident ON oidref = oid
 WHERE id = '{star}';
 """
 
+OTYPE_QUERY = """
+SELECT otype FROM basic 
+JOIN ident ON oidref = oid 
+WHERE id = '{star}';
+"""
+
 HD_GJ_HIP_QUERY = """
 SELECT id2.id
 FROM ident AS id1 JOIN ident AS id2 USING(oidref)
@@ -211,6 +217,14 @@ class simbad:
             self.B = self.V = np.nan
 
         try:
+            table21 = run_query(query=OTYPE_QUERY.format(star=self.star))
+            if _debug:
+                print('table21:\n', table21)
+            cols, values = parse_table1(table21, cols, values)
+        except IndexError:
+            self.otype = None
+
+        try:
             table3 = run_query(query=IDS_QUERY.format(star=self.star))
             if _debug:
                 print('table3:', table3)
@@ -267,6 +281,8 @@ class simbad:
             try:
                 setattr(self, col, float(val))
             except ValueError:
+                if val == '':
+                    val = None
                 setattr(self, col, val)
 
         self.coords = SkyCoord(self.ra, self.dec, unit='deg')
@@ -293,7 +309,7 @@ class simbad:
         except URLError:
             pass
         except IndexError:
-            if self.sp_type == '':
+            if self.sp_type in (None, ''):
                 if len(self.measurements.teff) > 0:
                     try:
                         self.teff = int(np.mean(self.measurements.teff))
