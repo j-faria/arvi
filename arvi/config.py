@@ -36,6 +36,8 @@ class config:
         'fancy_import': True,
         # use the 'dark_background' matplotlib theme
         'dark_plots': False,
+        # specific colors per instrument
+        'colors_per_instrument': False,
         # debug
         'debug': False,
     }
