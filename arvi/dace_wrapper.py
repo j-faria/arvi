@@ -197,12 +197,12 @@ def get_observations_from_instrument(star, instrument, user=None, main_id=None, 
     if (isinstance(instrument, str)):
         filters = {
             "ins_name": {"contains": [instrument]},
-            "obj_id_daceid": {"contains": [dace_id]}
+            "obj_id_daceid": {"equal": [dace_id]}
         }
     elif (isinstance(instrument, (list, tuple, np.ndarray))):
         filters = {
             "ins_name": {"contains": instrument},
-            "obj_id_daceid": {"contains": [dace_id]}
+            "obj_id_daceid": {"equal": [dace_id]}
         }
     with all_logging_disabled():
         result = Spectroscopy.query_database(filters=filters)
