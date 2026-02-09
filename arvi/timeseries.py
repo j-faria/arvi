@@ -2095,6 +2095,9 @@ class RV(ISSUES, REPORTS):
             bad_quantities = []
 
             for q in s._quantities:
+                if '_err' in q:
+                    continue
+
                 Q = getattr(s, q)
 
                 # treat date_night specially, basically doing a group-by
@@ -2138,7 +2141,7 @@ class RV(ISSUES, REPORTS):
                         warnings.filterwarnings('ignore', category=RuntimeWarning)
                         try:
                             _, yb = binRV(s.mtime + time_offset, Q[s.mask],
-                                        stat=np.nanmean, tstat=np.nanmean)
+                                          stat=np.nanmean, tstat=np.nanmean)
                             setattr(s, q, yb)
                         except TypeError:
                             pass
