@@ -2120,6 +2120,8 @@ class RV(ISSUES, REPORTS):
                 if np.isnan(Q).all():
                     yb = np.full_like(tb, np.nan)
                     setattr(s, q, yb)
+                    if q + '_err' in s._quantities:
+                        setattr(s, q + '_err', yb)
 
                 elif q + '_err' in s._quantities:
                     Qerr = getattr(s, q + '_err')
