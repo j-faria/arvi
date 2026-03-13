@@ -22,7 +22,7 @@ def extract_keyword(keyword, text, raise_error=True):
     if raise_error:
         raise KeyError(f'Keyword {keyword} not found')
 
-def query_sophie_archive(star: str, verbose=True):
+def query_sophie_archive(star: str, verbose=True, _debug=False):
     from .timeseries import RV
     logger = setup_logger()
 
