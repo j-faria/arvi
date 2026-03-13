@@ -109,3 +109,64 @@ def sigmaclip_median(a, low=4.0, high=4.0, k=None):
         delta = size - c.size
 
     return SigmaclipResult(c, critlower, critupper)
+
+
+def adjusted_boxplot_params(data):
+    """
+    Returns:
+        outlier_range_lower:
+            lower bound for boxplot whiskers
+        outlier_range_upper:
+            upper bound for boxplot whiskers
+        whis:
+            (lowWhis, highWhis) `whis` parameter in the form (low_percentage,
+            high_percentage), as expected by plt.boxplot().
+    """
+    from statsmodels.stats.stattools import medcouple
+
+    q1 = np.quantile(data, 0.25)
+    q3 = np.quantile(data, 0.75)
+    # interquartile range
+    iqr = q3 - q1
+
+    # medcouple
+    MC = medcouple(data)
+
+    # Define the outlier range
+    if MC > 0:
+        outlier_range_lower = q1 - 1.5 * np.exp(-4 * MC) * iqr
+        outlier_range_upper = q3 + 1.5 * np.exp(3 * MC) * iqr
+    else:
+        outlier_range_lower = q1 - 1.5 * np.exp(-3 * MC) * iqr
+        outlier_range_upper = q3 + 1.5 * np.exp(4 * MC) * iqr
+
+    # see https://stackoverflow.com/a/65390045/7745170
+    whis = np.interp([outlier_range_lower, outlier_range_upper], 
+                     np.sort(data), np.linspace(0, 1, data.size)) * 100
+
+    return outlier_range_lower, outlier_range_upper, whis, MC
+
+
+
+def consistent_measurements(v1, e1, v2, e2, plot=True):
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(1, 1, constrained_layout=True)
+    
+    if isinstance(e1, list):
+        for i, e in enumerate(sorted(e1), start=1):
+            ax.errorbar(1, v1, yerr=e, color='C0', fmt='o', elinewidth=len(e1)/i,
+                        label='v1' if i == 1 else None)
+    else:
+        ax.errorbar(1, v1, yerr=e1, fmt='o', label='v1')
+    ax.plot([1, 1.95], [v1, v1], color='k', ls='--')
+
+    if isinstance(e2, list):
+        for i, e in enumerate(sorted(e2), start=1):
+            ax.errorbar(2, v2, yerr=e, color='C1', fmt='o', elinewidth=len(e2)/i,
+                        label='v2' if i == 1 else None)
+    else:
+        ax.errorbar(2, v2, yerr=e2, color='C1', fmt='o', label='v2')
+    ax.plot([1.05, 2], [v2, v2], color='k', ls='--')
+
+    ax.legend()
+    ax.set(xlabel='measurement', ylabel='value', xticks=[1, 2])
