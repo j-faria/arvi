@@ -195,9 +195,10 @@ class RV(ISSUES, REPORTS):
         if self._toi is not None:
             return self._toi
 
+        if self._child or self._did_toi_query:
+            return None
         if ('TOI' not in self.__star__ and 'TIC' not in self.__star__):
-            if self._child or self._did_toi_query:
-                return None
+            return None
 
         if self.verbose:
             logger.info('querying ExoFOP...')
