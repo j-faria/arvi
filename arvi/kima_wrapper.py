@@ -1,6 +1,8 @@
 import os
 import ast
 
+import numpy as np
+
 from .setup_logger import setup_logger
 
 def try_to_guess_prior(model, prior):
@@ -32,7 +34,12 @@ def run_kima(self, run=False, load=False, run_directory=None,
     time = [getattr(self, inst).mtime for inst in instruments]
     vrad = [getattr(self, inst).mvrad for inst in instruments]
     err = [getattr(self, inst).msvrad for inst in instruments]
-    data = RVData(time, vrad, err, instruments=instruments)
+    actind = [
+        [getattr(self, inst).fwhm[getattr(self, inst).mask] for inst in instruments],
+        [getattr(self, inst).fwhm_err[getattr(self, inst).mask] for inst in instruments]
+    ]
+    data = RVData(time, vrad, err, actind, instruments=instruments)
+    data.indicator_names = ['FWHM', 'FWHM_err']
 
     fix = kwargs.pop('fix', False)
     npmax = kwargs.pop('npmax', 1)
