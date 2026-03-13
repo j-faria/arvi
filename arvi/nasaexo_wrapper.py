@@ -23,15 +23,24 @@ STAR_QUERY = [
 ]
 
 
-def run_query(query):
+def run_query(query, _debug=False):
     link = f'{url}query={query}&format=csv'
+    if _debug:
+        print(link)
     r = requests.get(link)
-    data = np.genfromtxt(StringIO(r.text), delimiter=',', names=True, 
-                         dtype=None, encoding=None)
+    try:
+        data = np.genfromtxt(StringIO(r.text), delimiter=',', names=True, 
+                             dtype=None, encoding=None)
+    except ValueError:
+        try:
+            from pandas import read_csv
+            data = read_csv(StringIO(r.text)).to_records()
+        except ImportError:
+            raise ValueError('could not parse response from NASA Exoplanet Archive')
     return r, data
 
 class Planets:
-    def __init__(self, system):
+    def __init__(self, system, _debug=False):
         logger = setup_logger()
         self.s = system
         self.verbose = system.verbose
@@ -44,7 +53,7 @@ class Planets:
         if self.verbose:
             logger.info('querying NASA Exoplanet Archive...')
 
-        self.response, self.data = run_query(query)
+        self.response, self.data = run_query(query, _debug=_debug)
         self.np = self.data.size
 
         # try again with other ids
