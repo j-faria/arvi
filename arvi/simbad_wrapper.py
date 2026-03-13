@@ -190,7 +190,7 @@ class simbad:
             if os.path.exists(fname):
                 with open(fname) as f:
                     for line in f.readlines():
-                        kobe_id, catname = line.strip().split(',')
+                        kobe_id, catname, _dr3 = line.strip().split(',')
                         kobe_translate[kobe_id] = catname
                 try:
                     self.star = star = kobe_translate[self.star]
