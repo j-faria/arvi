@@ -18,13 +18,17 @@ def run_kima(self, run=False, load=False, run_directory=None,
         from kima.pykima.utils import chdir
         from kima import distributions
         from kima import RVData, HGPMdata
-        from kima import RVmodel, GPmodel, RVHGPMmodel
+        from kima import RVmodel, GPmodel, RVFWHMmodel, RVHGPMmodel, SPLEAFmodel
     except ImportError:
         raise ImportError('kima not available, please install with `pip install kima`')
     
     logger = setup_logger()
 
     instruments = [inst for inst in self.instruments if self.NN[inst] > 1]
+
+    if len(instruments) == 0:
+        raise ValueError('no instruments with more than 1 observation')
+
     time = [getattr(self, inst).mtime for inst in instruments]
     vrad = [getattr(self, inst).mvrad for inst in instruments]
     err = [getattr(self, inst).msvrad for inst in instruments]
@@ -38,7 +42,9 @@ def run_kima(self, run=False, load=False, run_directory=None,
             model = {
                 'RVmodel': RVmodel,
                 'GPmodel': GPmodel,
-                'RVHGPMmodel': RVHGPMmodel
+                'RVFWHMmodel': RVFWHMmodel,
+                'RVHGPMmodel': RVHGPMmodel,
+                'SPLEAFmodel': SPLEAFmodel
             }[model]
         except KeyError:
             raise ValueError(f'unknown model: {model}')
@@ -47,6 +53,7 @@ def run_kima(self, run=False, load=False, run_directory=None,
         pm_data = HGPMdata(self.simbad.gaia_id)
         model = model(fix=fix, npmax=npmax, data=data, pm_data=pm_data)
     else:
+        pm_data = None
         model = model(fix=fix, npmax=npmax, data=data)
 
     model.trend = kwargs.pop('trend', False)
@@ -55,7 +62,7 @@ def run_kima(self, run=False, load=False, run_directory=None,
     if isinstance(model, (RVmodel, RVHGPMmodel)):
         model.studentt = kwargs.pop('studentt', False)
 
-    if isinstance(model, GPmodel):
+    if isinstance(model, (GPmodel, RVFWHMmodel, SPLEAFmodel)):
         if 'kernel' in kwargs:
             model.kernel = kwargs.pop('kernel')
 
