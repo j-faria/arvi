@@ -691,25 +691,30 @@ class RV(ISSUES, REPORTS):
         return s
 
     @classmethod
-    def from_snapshot(cls, file=None, star=None, verbose=True):
+    def from_snapshot(cls, file=None, star=None, directory=None, verbose=True):
         import pickle
         from datetime import datetime
+
+        if directory is None:
+            directory = '.'
+
         if star is None:
             assert file.endswith(('.pkl', '.pkl.gz')), 'expected a .pkl file'
             basefile = os.path.basename(file)
             star, timestamp = basefile.replace('.pkl.gz', '').replace('.pkl', '').split('_')
         else:
             try:
-                file = sorted(glob(f'{star}_*.*.pkl*'))[-1]
+                file = sorted(glob(os.path.join(directory, f'{star}_*.*.pkl*')))[-1]
             except IndexError:
-                raise ValueError(f'cannot find any file matching {star}_*.pkl')
+                raise ValueError(f'cannot find any file matching {star}_*.pkl') from None
+            file = os.path.basename(file)
             star, timestamp = file.replace('.pkl.gz', '').replace('.pkl', '').split('_')
 
         dt = datetime.fromtimestamp(float(timestamp))
         if verbose:
             logger.info(f'reading snapshot of {star} from {dt}')
 
-        with open(file, 'rb') as f:
+        with open(os.path.join(directory, file), 'rb') as f:
             if file.endswith('.gz'):
                 import compress_pickle as pickle
             s = pickle.load(f)
@@ -717,7 +722,7 @@ class RV(ISSUES, REPORTS):
         if isinstance(s, tuple) and len(s) == 2:
             s, _metadata = s
 
-        s._snapshot = file
+        s._snapshot = os.path.join(directory, file)
         return s
 
     @classmethod
