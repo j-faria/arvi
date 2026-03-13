@@ -1,16 +1,14 @@
 import numpy as np
-from astropy.constants import G
-from astropy import units
 
 # Coeffcients to be used in the analytical expression to calculate habitable
 # zone flux boundaries
-seffsun = [1.776, 1.107, 0.356, 0.320, 1.188, 0.99]
-a = [2.136e-4, 1.332e-4, 6.171e-5, 5.547e-5, 1.433e-4, 1.209e-4]
-b = [2.533e-8, 1.580e-8, 1.698e-9, 1.526e-9, 1.707e-8, 1.404e-8]
-c = [-1.332e-11, -8.308e-12, -3.198e-12, -2.874e-12, -8.968e-12, -7.418e-12]
-d = [-3.097e-15, -1.931e-15, -5.575e-16, -5.011e-16, -2.084e-15, -1.713e-15]
-seffsun = np.array(seffsun)
-a, b, c, d = np.array([a, b, c, d])
+seffsun = np.array([1.776, 1.107, 0.356, 0.320, 1.188, 0.99])
+a, b, c, d = np.array([
+    [2.136e-4, 1.332e-4, 6.171e-5, 5.547e-5, 1.433e-4, 1.209e-4],
+    [2.533e-8, 1.580e-8, 1.698e-9, 1.526e-9, 1.707e-8, 1.404e-8],
+    [-1.332e-11, -8.308e-12, -3.198e-12, -2.874e-12, -8.968e-12, -7.418e-12],
+    [-3.097e-15, -1.931e-15, -5.575e-16, -5.011e-16, -2.084e-15, -1.713e-15],
+])
 
 
 def getHZ(teff, lum, which='conservative'):
@@ -79,6 +77,8 @@ def getHZ_period(teff, Mstar, Mplanet, lum=1, Mplanet_units='earth',
         Inner and outer limits of the HZ [in days].
     """
     # this function is nothing more than Kepler's 3rd law
+    from astropy.constants import G
+    from astropy import units
 
     f = 4 * np.pi**2 / G
     
