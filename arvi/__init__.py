@@ -11,9 +11,16 @@ from .config import config
 from .simbad_wrapper import simbad
 from .gaia_wrapper import gaia
 
-from .timeseries import RV
+# from .timeseries import RV
+from .dace_wrapper import load_spectroscopy
+query_database = load_spectroscopy().query_database
+
 
 def __getattr__(name: str):
+    if name == 'RV':
+        from .timeseries import RV
+        return RV
+
     if not config.fancy_import:
         raise AttributeError
     
@@ -30,6 +37,7 @@ def __getattr__(name: str):
         return
 
     try:
+        from .timeseries import RV
         globals()[name] = RV(name)
         return globals()[name]
     except ValueError as e:
