@@ -245,18 +245,23 @@ class RV(ISSUES, REPORTS):
                 if self.verbose:
                     logger.info(f'querying DACE for {self.__star__}...')
                 try:
-                    if hasattr(self, 'simbad') and self.simbad is not None:
-                        mid = self.simbad.main_id
-                    else:
-                        mid = None
+                    # if hasattr(self, 'simbad') and self.simbad is not None:
+                    #     mid = self.simbad.main_id
+                    # else:
+                    #     mid = None
 
                     with timer('dace query'):
-                        self.dace_result = get_observations(self.__star__, self.instrument,
-                                                            user=self.user, main_id=mid, verbose=self.verbose)
+                        self.dace_result = get_observations(
+                            self.__star__, 
+                            self.instrument,
+                            user=self.user, 
+                            only_latest_pipeline=self.only_latest_pipeline,
+                            verbose=self.verbose
+                        )
                 except ValueError as e:
                     # querying DACE failed, should we raise an error?
                     if self._raise_on_error:
-                        raise e
+                        raise e from None
                     else:
                         self.time = np.array([])
                         self.instruments = []
@@ -276,7 +281,7 @@ class RV(ISSUES, REPORTS):
         # build children
         if not self._child:
             arrays = get_arrays(self.dace_result,
-                                latest_pipeline=self.only_latest_pipeline,
+                                only_latest_pipeline=self.only_latest_pipeline,
                                 verbose=self.verbose)
 
             for (inst, pipe, mode), data in arrays:
@@ -295,15 +300,9 @@ class RV(ISSUES, REPORTS):
         if not self._child:
             #! sorted?
             if self.only_latest_pipeline:
-                self.instruments = [
-                    do_replacements(inst)
-                    for (inst, _, _), _ in arrays
-                ]
+                self.instruments = [do_replacements(inst) for (inst, _, _), _ in arrays]
             else:
-                self.instruments = [
-                    do_replacements(inst) + '_' + do_replacements(pipe)
-                    for (inst, pipe, _), _ in arrays
-                ]
+                self.instruments = [do_replacements(inst) + '_' + do_replacements(pipe) for (inst, pipe, _), _ in arrays]
             # all other quantities
             self._build_arrays()
 

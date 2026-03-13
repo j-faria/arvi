@@ -318,29 +318,35 @@ def _warn_harpsn(instrument):
     return False
 
 
-def get_observations(star, instrument=None, user=None, main_id=None, verbose=True):
+def get_observations(star, instrument=None, user=None,
+                     only_latest_pipeline=False, verbose=True):
     logger = setup_logger()
-    if instrument is None:
-        Spectroscopy = load_spectroscopy(user, verbose)
+    Spectroscopy = load_spectroscopy(user, verbose)
 
-        try:
-            with stdout_disabled(), all_logging_disabled():
-                result = Spectroscopy.get_timeseries(target=star,
-                                                     sorted_by_instrument=True,
-                                                     output_format='numpy')
-        except TypeError:
-            if instrument is None:
-                msg = f'no observations for {star}'
-            else:
-                msg = f'no {instrument} observations for {star}'
-            raise ValueError(msg) from None
+    if instrument is None:
+        filters = None
     else:
-        try:
-            result = get_observations_from_instrument(star, instrument, user, main_id, verbose)
-        except ValueError:
+        if isinstance(instrument, str):
+            instrument = [instrument]
+
+        filters = {"instrument_name": {"contains": instrument}}
+
+    with stdout_disabled(), all_logging_disabled():
+        result = Spectroscopy.get_timeseries(
+            target=star,
+            filters=filters,
+            drs_version='latest' if only_latest_pipeline else None,
+        )
+    
+    if len(result) == 0:
+        if instrument is None:
+            msg = f'no observations for {star}'
+        else:
+            if len(instrument) == 1:
+                instrument = instrument[0]
             msg = f'no {instrument} observations for {star}'
-            _warn_harpsn(instrument)
-            raise ValueError(msg) from None
+        _warn_harpsn(instrument)
+        raise ValueError(msg) from None
 
     # defaultdict --> dict
     if isinstance(result, collections.defaultdict):
@@ -354,7 +360,6 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
                     result[inst][pipe] = dict(result[inst][pipe])
         if isinstance(result[inst], collections.defaultdict):
             result[inst] = dict(result[inst])
-    #
 
     instruments = list(map(str, result.keys()))
 
@@ -371,89 +376,19 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
             msg = f'no {instrument} observations for {star}'
         raise ValueError(msg)
 
-    # # sort pipelines, being extra careful with HARPS pipeline names
-    # # (i.e. ensure that 3.x.x > 3.5)
-    # from re import match
-    # def cmp(a, b):
-    #     if a[0] in ('3.5', '3.5 EGGS') or 'EGGS' in a[0] and match(r'3.\d.\d', b[0]):
-    #         return -1
-    #     if b[0] in ('3.5', '3.5 EGGS') or 'EGGS' in b[0] and match(r'3.\d.\d', a[0]):
-    #         return 1
-
-    #     if a[0] == b[0]:
-    #         return 0
-    #     elif a[0] > b[0]:
-    #         return 1
-    #     else:
-    #         return -1
-
-    # # sort pipelines, must be extra careful with HARPS/HARPN pipeline version numbers
-    # # got here with the help of DeepSeek
-    # # from functools import cmp_to_key
-    # from re import match
-    # def custom_sort_key(s):
-    #     s = s[0]
-    #     # Check for version number pattern (e.g., 3.2.5 or 3.2.5-EGGS)
-    #     version_match = match(r'^(\d+(?:\.\d+)*)(?:[-\s](.*))?$', s)
-    #     if version_match:
-    #         version_parts = list(map(int, version_match.group(1).split('.')))
-    #         if len(version_parts) == 2:
-    #             version_parts.insert(1, -1)
-    #         # if version_match.group(2) and 'LBL' in version_match.group(2):
-    #         #     version_parts.append(-1)
-    #         # else:
-    #         #     version_parts.append(0)
-    #         if version_match.group(2) is None:
-    #             version_parts.append('')
-    #         else:
-    #             version_parts.append(version_match.group(2))
-    #         return (0, 1, version_parts)
-    #     # Check for scientific reference pattern (e.g., 2004A&A...)
-    #     year_match = match(r'^(\d{4})', s)
-    #     if year_match:
-    #         year = int(year_match.group(1))
-    #         return (1, year)
-    #     # For all other strings, sort alphabetically
-    #     return (2, s)
-
-    def custom_key(val, strip_EGGS=False):
-        if strip_EGGS:
-            val = val.replace('-EGGS', '').replace(' EGGS', '')
-        if val in ('3.3', '3.4', '3.6', '3.7', '3.8'):
-            val = '4.' + val
-        key = 0
-        key -= 1 if '3.5' in val else 0
-        key -= 1 if 'EGGS' in val else 0
-        key -= 1 if ('UHR' in val or 'MR' in val) else 0
-        key -= 1 if 'LBL' in val else 0
-        return str(key) if key != 0 else val
-
-    new_result = {}
-    for inst in instruments:
-        # new_result[inst] = dict(
-        #     sorted(result[inst].items(), key=custom_sort_key, reverse=True)
-        # )
-        if all(['EGGS' in k for k in result[inst].keys()]):
-            custom_key = partial(custom_key, strip_EGGS=True)
-        # WARNING: not the same as reverse=True (not sure why)
-        sorted_keys = sorted(result[inst].keys(), key=custom_key)[::-1]
-        new_result[inst] = {}
-        for key in sorted_keys:
-            new_result[inst][key] = result[inst][key]
-
     if verbose:
         logger.info('RVs available from')
         with logger.contextualize(indent='  '):
             _inst = ''
             max_len_inst = max([len(inst) for inst in instruments])
             for inst in sorted(instruments):
-                pipelines = list(new_result[inst].keys())
+                pipelines = list(result[inst].keys())
                 max_len_pipe = max([len(pipe) for pipe in pipelines])
                 for pipe in pipelines:
                     last_pipe = pipe == pipelines[-1]
-                    modes = list(new_result[inst][pipe].keys())
+                    modes = list(result[inst][pipe].keys())
                     for mode in modes:
-                        N = len(new_result[inst][pipe][mode]['rjd'])
+                        N = len(result[inst][pipe][mode]['rjd'])
                         # LOG
                         if inst == _inst and last_pipe:
                             logger.info(f'{" ":>{max_len_inst}s} └ {pipe:{max_len_pipe}s} - {mode} ({N} observations)')
@@ -463,7 +398,7 @@ def get_observations(star, instrument=None, user=None, main_id=None, verbose=Tru
                             logger.info(f'{inst:>{max_len_inst}s} ├ {pipe:{max_len_pipe}s} - {mode} ({N} observations)')
                             _inst = inst
 
-    return new_result
+    return result
 
 
 def check_existing(output_directory, files, type):
