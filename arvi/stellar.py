@@ -1,5 +1,7 @@
 import numpy as np
 
+from .setup_logger import setup_logger
+
 # from Table 5 of Pecaut & Mamajek (2013, ApJS, 208, 9; http://adsabs.harvard.edu/abs/2013ApJS..208....9P)
 # https://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt
 EFFECTIVE_TEMPERATURES = {
@@ -81,6 +83,7 @@ def calc_prot_age(self, bv=None, array=False):
     Range of logR'HK-Prot relation: -5.5 < logR'HK < -4.3
     Range of Mamajek & Hillenbrand (2008) relation for ages: 0.5 < B-V < 0.9
     """
+    logger = setup_logger()
 
     if array:
         log_rhk = self.rhk[~np.isnan(self.rhk)]
@@ -119,6 +122,9 @@ def calc_prot_age(self, bv=None, array=False):
         #age_m08_err = 0.05*np.log(10)*age_m08
         age_m08_err  = 0.2 * age_m08 * np.log(10) # using 0.2 dex typical error from paper
     else:
+        if self.verbose:
+            msg = f"B-V {bv} is outside Mamajek & Hillenbrand (2008) relation: 0.5 < B-V < 0.9"
+            logger.warning(msg)
         age_m08 = np.nan
         age_m08_err = np.nan
 
