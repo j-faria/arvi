@@ -196,12 +196,13 @@ class model:
         return fig, axs
 
     def add_planet_from_period(self, period):
-        self.model.add_keplerian_from_period(period, fit=True)
+        letter = ascii_lowercase[1:][self.np]
+        self.model.add_keplerian_from_period(period, name=letter, fit=True)
         self.model.fit()
         self.np += 1
 
     def _plot_periodogram(self, P=None, power=None, kmax=None, faplvl=None,
-                          **kwargs):
+                          full_output=False, **kwargs):
         if P is None and power is None:
             with timer('periodogram'):
                 nu, power = self.model.periodogram(self.nu0, self.dnu, self.nfreq)
@@ -227,6 +228,8 @@ class model:
         ax.text(0.99, 0.95, f'FAP = {faplvl:.2g}', transform=ax.transAxes,
                 ha='right', va='top')
 
+        if full_output:
+            return fig, ax, (P, power, kmax, faplvl)
         return fig, ax
 
     def add_keplerian_from_periodogram(self, fap_max=0.001, plot=False,
