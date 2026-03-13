@@ -11,7 +11,7 @@ from astropy import constants as const
 from astropy.timeseries import LombScargle
 from tqdm import tqdm
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 from .config import config
 
 
@@ -19,6 +19,7 @@ def correct_rvs(self, simple=False, H=None, save_files=False, plot=True):
     """
     """
     import pickle
+    logger = setup_logger()
 
     if hasattr(self, '_did_correct_berv') and self._did_correct_berv:
         logger.info('Already corrected for the BERV! Not doing anything.')
@@ -75,7 +76,7 @@ def correct_rvs(self, simple=False, H=None, save_files=False, plot=True):
                 rdb.write('# vrad\n')
                 rdb.write('# svrad\n')
                 rdb.write('# berv - BERV value from header\n')
-                rdb.write('# berv_pipe - BERV from header corrected for 1.55e-8 factor\n')
+                rdb.write('# berv_pipe - BERV from header corrected for SED/VTOT variation\n')
                 rdb.write('# berv_barycorrpy - BERV value from barycorrpy\n')
                 rdb.write('# diff - difference between berv_barycorrpy and berv_pipe\n')
                 rdb.write('# vrad_berv_corrected = vrad + diff\n')
@@ -203,8 +204,10 @@ def BERV(self, H=None, use_gaia_meassurements=False, plx=None,
         plot (bool, optional):
             Plot the results.
     """
+    logger = setup_logger()
+
     if H is None:
-        H = get_headers(self, check_lesta=False, check_exo2=False, instrument='ESPRE')
+        H = get_headers(self, check_lesta=False, check_exo2=False)#, instrument='ESPRE')
 
     if len(H) != self.N:
         raise ValueError(f'Expected {self.N} headers (in `H`), got {len(H)}')
@@ -228,10 +231,32 @@ def BERV(self, H=None, use_gaia_meassurements=False, plx=None,
     # (1 + 1.55e-8) * (1 + BERV/c) = 1 + effBERV/c 
     # => effBERV = ((1 + 1.55e-8) * (1 + BERV/c) - 1) * c
 
+    def catch(func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            return np.nan
+
     if A is None and V is None:
+        try:
+            # A = np.array([h['HIERARCH ESO QC SED'] for h in H])
+            A = np.array([catch(lambda : h['HIERARCH ESO QC SED']) for h in H])
+        except KeyError:
+            pass
+        try:
+            V = np.array([catch(lambda : h['HIERARCH ESO QC VTOT']) for h in H])
+        except KeyError:
+            pass
+
+        if np.isnan(A).any() or np.isnan(V).any():
+            _A, _V = get_A_and_V_from_lesta(self)
+            A[np.isnan(A)] = _A[np.isnan(A)]
+            V[np.isnan(V)] = _V[np.isnan(V)]
+
         if verbose:
             logger.info("Using mean value for Earth-Sun distance and Earth's orbital velocity")
 
+    A, V = None, None
     if A is None:
         Φobs = const.G * const.M_sun / const.au + const.G * const.M_earth / const.R_earth
     else:
@@ -349,12 +374,12 @@ def BERV(self, H=None, use_gaia_meassurements=False, plx=None,
         axs[1].plot(bjd, diff, 'k.', label=label)
         axs[1].axhline(np.mean(diff), ls='--', c='k', alpha=0.1)
 
-        text = axs[1].text(bjd.max(), diff.min() + 0.1*diff.ptp(), 
-                           f'ptp: {diff.ptp()*1e2:.2f} cm/s',
+        text = axs[1].text(bjd.max(), diff.min() + 0.1*np.ptp(diff), 
+                           f'ptp: {np.ptp(diff)*1e2:.2f} cm/s',
                            ha='right', va='bottom', color='g', alpha=0.8)
-        axs[1].plot([bjd[np.argmax(diff)], bjd.max() + 0.05 * bjd.ptp()], 
+        axs[1].plot([bjd[np.argmax(diff)], bjd.max() + 0.05 * np.ptp(bjd)], 
                     [np.max(diff), np.max(diff)], 'g--', alpha=0.3)
-        axs[1].plot([bjd[np.argmin(diff)], bjd.max() + 0.05 * bjd.ptp()], 
+        axs[1].plot([bjd[np.argmin(diff)], bjd.max() + 0.05 * np.ptp(bjd)], 
                     [np.min(diff), np.min(diff)], 'g--', alpha=0.3)
 
         ax = axs[1].twinx()
