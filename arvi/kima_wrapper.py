@@ -77,18 +77,26 @@ def run_kima(self, run=False, load=False, run_directory=None,
     model.enforce_stability = kwargs.pop('enforce_stability', False)
     model.star_mass = kwargs.pop('star_mass', 1.0)
 
+    if kwargs.pop('gaussian_prior_vsys', False):
+        if data.multi:
+            from kima.pykima.utils import get_gaussian_prior_vsys
+            model.Cprior = get_gaussian_prior_vsys(data, use_std=True)
+
     if kwargs.pop('gaussian_priors_individual_offsets', False):
-        from kima.pykima.utils import get_gaussian_priors_individual_offsets
-        model.individual_offset_prior = get_gaussian_priors_individual_offsets(data, use_std=True)
+        if data.multi:
+            from kima.pykima.utils import get_gaussian_priors_individual_offsets
+            model.individual_offset_prior = get_gaussian_priors_individual_offsets(data, use_std=True)
 
     if kwargs.pop('kuma', False):
         model.conditional.eprior = distributions.Kumaraswamy(0.867, 3.03)
 
     if isinstance(model, RVHGPMmodel):
+        sig = kwargs.get('pm_bary_sig', None) or pm_data.sig_hg_ra
         model.pm_ra_bary_prior = priors.pop('pm_ra_bary_prior', 
-                                            distributions.Gaussian(pm_data.pm_ra_hg, pm_data.sig_hg_ra))
+                                            distributions.Gaussian(pm_data.pm_ra_hg, sig))
+        sig = kwargs.pop('pm_bary_sig', None) or pm_data.sig_hg_dec
         model.pm_dec_bary_prior = priors.pop('pm_dec_bary_prior',
-                                             distributions.Gaussian(pm_data.pm_dec_hg, pm_data.sig_hg_dec))
+                                             distributions.Gaussian(pm_data.pm_dec_hg, sig))
 
     KO = kwargs.pop('known_object', False)
     if KO:
