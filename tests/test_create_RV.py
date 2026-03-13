@@ -41,3 +41,12 @@ def test_remove_instruments():
     msg = f'did not remove instruments correctly, see {url}'
     assert first_two[0] not in s.instruments, msg
     assert first_two[1] not in s.instruments, msg
+
+
+def test_repr():
+    from arvi import RV
+    s = RV('51Peg', verbose=False)
+    _repr = repr(s)
+    assert '51Peg' in _repr
+    assert _repr.startswith("RV(star='51Peg'")
+
