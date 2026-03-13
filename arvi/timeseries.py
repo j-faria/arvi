@@ -179,7 +179,7 @@ class RV(ISSUES, REPORTS):
         # try after removing a trailing 'A'
         for target in set([self.__star__, self.__star__.replace('A', '')]):
             try:
-                self._gaia = gaia(target)
+                self._gaia = gaia(target, simbad=self.simbad)
                 break
             except ValueError:
                 continue
