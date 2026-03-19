@@ -873,20 +873,20 @@ class RV(ISSUES, REPORTS):
                 data = np.array([], dtype=np.dtype([]))
 
             # try to find FWHM and uncertainty
-            if (v := find_column(data, ['fwhm'])) is not False:  # walrus !!
-                _s.fwhm = v * factor
-                if (sv := find_column(data, ['sfwhm', 'fwhm_err', 'sig_fwhm'])) is not False:
-                    _s.fwhm_err = sv * factor
+            if (v := find_column(data, ['fwhm', 'ccf_fwhm'])) is not False:  # walrus !!
+                _s.ccf_fwhm = v * factor
+                if (sv := find_column(data, ['sfwhm', 'fwhm_err', 'ccf_fwhm_err', 'sig_fwhm'])) is not False:
+                    _s.ccf_fwhm_err = sv * factor
                     logger.debug('found columns for FWHM and uncertainty') if verbose else None
                 else:
-                    _s.fwhm_err = 2 * _s.svrad
+                    _s.ccf_fwhm_err = 2 * _s.svrad
                     logger.debug('found column for FWHM') if verbose else None
             else:
-                _s.fwhm = np.full_like(time, np.nan)
-                _s.fwhm_err = np.full_like(time, np.nan)
+                _s.ccf_fwhm = np.full_like(time, np.nan)
+                _s.ccf_fwhm_err = np.full_like(time, np.nan)
 
-            _quantities.append('fwhm')
-            _quantities.append('fwhm_err')
+            _quantities.append('ccf_fwhm')
+            _quantities.append('ccf_fwhm_err')
 
             # try to find R'HK and uncertainty
             if (v := find_column(data, ['rhk'])) is not False:
@@ -1063,18 +1063,18 @@ class RV(ISSUES, REPORTS):
 
             _quantities = []
 
-            _s.fwhm = np.array([i.FWHM*1e3 for i in CCFs])
-            _s.fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
+            _s.ccf_fwhm = np.array([i.FWHM*1e3 for i in CCFs])
+            _s.ccf_fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
             _quantities.append('fwhm')
             _quantities.append('fwhm_err')
 
-            _s.contrast = np.array([i.contrast for i in CCFs])
-            _s.contrast_err = np.array([i.contrast_error for i in CCFs])
+            _s.ccf_contrast = np.array([i.contrast for i in CCFs])
+            _s.ccf_contrast_err = np.array([i.contrast_error for i in CCFs])
             _quantities.append('contrast')
             _quantities.append('contrast_err')
 
-            _s.bispan = np.array([i.BIS*1e3 for i in CCFs])
-            _s.bispan_err = np.array([i.BISerror*1e3 for i in CCFs])
+            _s.ccf_bispan = np.array([i.BIS*1e3 for i in CCFs])
+            _s.ccf_bispan_err = np.array([i.BISerror*1e3 for i in CCFs])
             _quantities.append('bispan')
             _quantities.append('bispan_err')
 
@@ -1816,9 +1816,9 @@ class RV(ISSUES, REPORTS):
             self.gaia
             self.gaia.plx
 
-            if self.gaia.plx < 0:
+            if self.gaia.plx is None or self.gaia.plx < 0:
                 if self.verbose:
-                    logger.error('negative Gaia parallax, falling back to Simbad')
+                    logger.error('negative or missing Gaia parallax, falling back to Simbad')
                 raise AttributeError
 
             using = 'Gaia'
@@ -2226,7 +2226,7 @@ class RV(ISSUES, REPORTS):
         #     if print_as_table:
         #         logger.info('subtracted weighted average from each instrument:')
 
-        others = ('fwhm', 'bispan', )
+        others = ('ccf_fwhm', 'ccf_bispan', )
 
         instruments = self._check_instrument(instrument, strict=kwargs.get('strict', False))
 
@@ -2500,6 +2500,11 @@ class RV(ISSUES, REPORTS):
         `.adjust_means()`, but it only works when the systemic velocity is
         smaller than `factor` * ptp(RV).
         """
+        if self.simbad is None or self.simbad.rvz_radvel is None:
+            if self.verbose:
+                logger.error('no radvel from simbad, `put_at_systemic_velocity` doing nothing')
+            return
+
         changed = False
         for inst in self.instruments:
             if ignore is not None:
