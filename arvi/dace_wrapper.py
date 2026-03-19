@@ -24,8 +24,14 @@ def load_spectroscopy(user=None, verbose=True):
         with all_logging_disabled():
             dace = DaceClass(dace_rc_config_path='none')
         return SpectroscopyClass(dace_instance=dace)
+    # path to DACERC file in config
+    if config.dacerc_path != '' and user is None:
+        if verbose:
+            logger.info(f'using credentials from {config.dacerc_path}')
+        dace = DaceClass(dace_rc_config_path=config.dacerc_path)
+        return SpectroscopyClass(dace_instance=dace)
     # DACERC environment variable is set, should point to a dacerc file with credentials
-    if 'DACERC' in os.environ:
+    if 'DACERC' in os.environ and user is None:
         dace = DaceClass(dace_rc_config_path=os.environ['DACERC'])
         return SpectroscopyClass(dace_instance=dace)
     # user provided, should be a section in ~/.dacerc
@@ -41,7 +47,8 @@ def load_spectroscopy(user=None, verbose=True):
             new_config['user'] = config[user]
             new_config.write(f)
         dace = DaceClass(dace_rc_config_path=f.name)
-        logger.info(f'using credentials for user {user} in ~/.dacerc')
+        if verbose:
+            logger.info(f'using credentials for user {user} in ~/.dacerc')
         return SpectroscopyClass(dace_instance=dace)
     # default
     if not os.path.exists(os.path.expanduser('~/.dacerc')):
