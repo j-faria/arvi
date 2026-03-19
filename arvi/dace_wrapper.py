@@ -72,52 +72,31 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
     for inst in instruments:
         pipelines = [str(p) for p in result[inst].keys()]
+        npipe = len(pipelines)
 
-        # select ESPRESSO mode, which is defined at the level of the pipeline
-        if 'ESPRESSO' in inst:
-            find_mode = [ESPRESSO_mode in pipe for pipe in pipelines]
-            # the mode was not found
-            if not any(find_mode):
-                if len(pipelines) > 1 and verbose:
-                    logger.warning(f'no observations for requested ESPRESSO mode ({ESPRESSO_mode})')
-            # the mode was found but do nothing if it's the only one
-            elif any(find_mode) and not all(find_mode):
-                if verbose:
-                    logger.info(f'selecting mode {ESPRESSO_mode} for ESPRESSO')
-                i = [i for i, pipe in enumerate(pipelines) if ESPRESSO_mode in pipe][0]
-                pipelines = [pipelines[i]]
-
-        # select NIRPS mode
-        if 'NIRPS' in inst:
-            if any(this_mode := [p for p in pipelines if NIRPS_mode in p]):
-                pipelines = this_mode
-
-        if latest_pipeline:
-            npipe = len(pipelines)
-            if 'NIRPS' in inst and any(['LBL' in p for p in pipelines]):
-                # TODO: correctly load both CCF and LBL
-                pipelines = [pipelines[0]]
-            if 'HARPS' in inst and npipe > 1 and pipelines[1] == pipelines[0] + '-EGGS':
-                pipelines = pipelines[:2]
-            else:
-                pipelines = [pipelines[0]]
-
+        if only_latest_pipeline:
+            latest = sorted(pipelines)[-1]
             if verbose and npipe > 1:
-                logger.info(f'selecting latest pipeline ({pipelines[0]}) for {inst}')
+                logger.info(f'selecting latest pipeline ({latest}) for {inst}')
+            pipelines = [pipelines[pipelines.index(latest)]]
 
         for pipe in pipelines:
             modes = [m for m in result[inst][pipe].keys()]
 
-            # select NIRPS mode, which is defined at the level of the mode
-            if 'NIRPS' in inst and len(modes) > 1:
-                if NIRPS_mode in modes:
-                    if verbose:
-                        logger.info(f'selecting mode {NIRPS_mode} for NIRPS - {pipe}')
-                    i = modes.index(NIRPS_mode)
-                    modes = [modes[i]]
-                else:
-                    if verbose:
-                        logger.warning(f'no observations for requested NIRPS mode ({NIRPS_mode})')
+            # ESPRESSO and NIRPS have a "preferred" mode
+            for m, i in (
+                (ESPRESSO_mode, 'ESPRESSO'),
+                (NIRPS_mode, 'NIRPS'),
+            ):
+                if i in inst and len(modes) > 1:
+                    if m in modes:
+                        if verbose:
+                            logger.info(f'selecting mode {m} for {inst} - {pipe}')
+                        i = modes.index(m)
+                        modes = [modes[i]]
+                    elif verbose:
+                        logger.warning(f'no observations for requested {i} mode ({m})')
+
 
             # HARPS observations should not be separated by 'mode' if some are
             # done together with NIRPS, but should be separated by 'EGGS' mode
@@ -146,169 +125,169 @@ def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='H
 
     return arrays
 
-def get_observations_from_instrument(star, instrument, user=None, main_id=None, verbose=True):
-    """ Query DACE for all observations of a given star and instrument
+# def get_observations_from_instrument(star, instrument, user=None, main_id=None, verbose=True):
+#     """ Query DACE for all observations of a given star and instrument
 
-    Args:
-        star (str):
-            name of the star
-        instrument (str):
-            instrument name
-        user (str, optional):
-            DACERC user name. Defaults to None.
-        main_id (str, optional):
-            Simbad main id of target to query DACE id. Defaults to None.
-        verbose (bool, optional):
-            whether to print warnings. Defaults to True.
+#     Args:
+#         star (str):
+#             name of the star
+#         instrument (str):
+#             instrument name
+#         user (str, optional):
+#             DACERC user name. Defaults to None.
+#         main_id (str, optional):
+#             Simbad main id of target to query DACE id. Defaults to None.
+#         verbose (bool, optional):
+#             whether to print warnings. Defaults to True.
 
-    Raises:
-        ValueError:
-            If query for DACE id fails
+#     Raises:
+#         ValueError:
+#             If query for DACE id fails
 
-    Returns:
-        dict:
-            dictionary with data from DACE
-    """
-    Spectroscopy = load_spectroscopy(user, verbose)
-    found_dace_id = False
-    with timer('dace_id query'):
-        try:
-            dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
-            found_dace_id = True
-        except ValueError as e:
-            if main_id is not None:
-                try:
-                    dace_id = get_dace_id(main_id, verbose=verbose, raise_error=True)
-                    found_dace_id = True
-                except ValueError:
-                    pass
+#     Returns:
+#         dict:
+#             dictionary with data from DACE
+#     """
+#     Spectroscopy = load_spectroscopy(user, verbose)
+#     found_dace_id = False
+#     with timer('dace_id query'):
+#         try:
+#             dace_id = get_dace_id(star, verbose=verbose, raise_error=True)
+#             found_dace_id = True
+#         except ValueError as e:
+#             if main_id is not None:
+#                 try:
+#                     dace_id = get_dace_id(main_id, verbose=verbose, raise_error=True)
+#                     found_dace_id = True
+#                 except ValueError:
+#                     pass
 
-    if not found_dace_id:
-        try:
-            with all_logging_disabled():
-                result = Spectroscopy.get_timeseries(target=star,
-                                                     sorted_by_instrument=True,
-                                                     output_format='numpy')
-                return result
-        except TypeError:
-            msg = f'no {instrument} observations for {star}'
-            raise ValueError(msg) from None
+#     if not found_dace_id:
+#         try:
+#             with all_logging_disabled():
+#                 result = Spectroscopy.get_timeseries(target=star,
+#                                                      sorted_by_instrument=True,
+#                                                      output_format='numpy')
+#                 return result
+#         except TypeError:
+#             msg = f'no {instrument} observations for {star}'
+#             raise ValueError(msg) from None
 
-    if (isinstance(instrument, str)):
-        filters = {
-            "ins_name": {"contains": [instrument]},
-            "obj_id_daceid": {"equal": [dace_id]}
-        }
-    elif (isinstance(instrument, (list, tuple, np.ndarray))):
-        filters = {
-            "ins_name": {"contains": instrument},
-            "obj_id_daceid": {"equal": [dace_id]}
-        }
-    with all_logging_disabled():
-        result = Spectroscopy.query_database(filters=filters)
+#     if (isinstance(instrument, str)):
+#         filters = {
+#             "ins_name": {"contains": [instrument]},
+#             "obj_id_daceid": {"equal": [dace_id, main_id]}
+#         }
+#     elif (isinstance(instrument, (list, tuple, np.ndarray))):
+#         filters = {
+#             "ins_name": {"contains": instrument},
+#             "obj_id_daceid": {"equal": [dace_id, main_id]}
+#         }
+#     with all_logging_disabled():
+#         result = Spectroscopy.query_database(filters=filters)
     
-    if len(result) == 0:
-        raise ValueError
+#     if len(result) == 0:
+#         raise ValueError
 
-    r = {}
+#     r = {}
 
-    for inst in np.unique(result['ins_name']):
-        mask1 = result['ins_name'] == inst
-        r[str(inst)] = {}
+#     for inst in np.unique(result['ins_name']):
+#         mask1 = result['ins_name'] == inst
+#         r[str(inst)] = {}
 
-        key2 = 'ins_drs_version'
-        n_key2 = len(np.unique(result[key2][mask1]))
-        if len(np.unique(result['pub_bibcode'][mask1])) >= n_key2:
-            key2 = 'pub_bibcode'
+#         key2 = 'ins_drs_version'
+#         n_key2 = len(np.unique(result[key2][mask1]))
+#         if len(np.unique(result['pub_bibcode'][mask1])) >= n_key2:
+#             key2 = 'pub_bibcode'
 
-        for pipe in np.unique(result[key2][mask1]):
-            mask2 = mask1 & (result[key2] == pipe)
-            r[str(inst)][str(pipe)] = {}
+#         for pipe in np.unique(result[key2][mask1]):
+#             mask2 = mask1 & (result[key2] == pipe)
+#             r[str(inst)][str(pipe)] = {}
 
-            for ins_mode in np.unique(result['ins_mode'][mask2]):
-                mask3 = mask2 & (result['ins_mode'] == ins_mode)
-                _nan = np.full(mask3.sum(), np.nan)
+#             for ins_mode in np.unique(result['ins_mode'][mask2]):
+#                 mask3 = mask2 & (result['ins_mode'] == ins_mode)
+#                 _nan = np.full(mask3.sum(), np.nan)
 
-                translations = {
-                    'obj_date_bjd': 'rjd',
-                    'spectro_drs_qc': 'drs_qc',
-                    'spectro_cal_berv_mx': 'bervmax',
-                    'pub_ref': 'pub_reference',
-                    'file_rootpath': 'raw_file',
-                    'spectro_ccf_asym': 'ccf_asym',
-                    'spectro_ccf_asym_err': 'ccf_asym_err',
-                }
-                new_result = {}
-                for key in result.keys():
-                    if key in translations:
-                        new_key = translations[key]
-                    else:
-                        new_key = key
-                        new_key = new_key.replace('spectro_ccf_', '')
-                        new_key = new_key.replace('spectro_cal_', '')
-                        new_key = new_key.replace('spectro_analysis_', '')
-                    new_result[new_key] = result[key][mask3]
+#                 translations = {
+#                     'obj_date_bjd': 'rjd',
+#                     'spectro_drs_qc': 'drs_qc',
+#                     'spectro_cal_berv_mx': 'bervmax',
+#                     'pub_ref': 'pub_reference',
+#                     'file_rootpath': 'raw_file',
+#                     'spectro_ccf_asym': 'ccf_asym',
+#                     'spectro_ccf_asym_err': 'ccf_asym_err',
+#                 }
+#                 new_result = {}
+#                 for key in result.keys():
+#                     if key in translations:
+#                         new_key = translations[key]
+#                     else:
+#                         new_key = key
+#                         new_key = new_key.replace('spectro_ccf_', '')
+#                         new_key = new_key.replace('spectro_cal_', '')
+#                         new_key = new_key.replace('spectro_analysis_', '')
+#                     new_result[new_key] = result[key][mask3]
 
-                new_result['ccf_noise'] = np.sqrt(
-                    np.square(result['spectro_ccf_rv_err'][mask3]) - np.square(result['spectro_cal_drift_noise'][mask3])
-                )
+#                 new_result['ccf_noise'] = np.sqrt(
+#                     np.square(result['spectro_ccf_rv_err'][mask3]) - np.square(result['spectro_cal_drift_noise'][mask3])
+#                 )
 
-                r[str(inst)][str(pipe)][str(ins_mode)] = new_result
+#                 r[str(inst)][str(pipe)][str(ins_mode)] = new_result
 
-                # r[str(inst)][str(pipe)][str(ins_mode)] = {
-                #     'texp': result['texp'][mask3],
-                #     'bispan': result['spectro_ccf_bispan'][mask3],
-                #     'bispan_err': result['spectro_ccf_bispan_err'][mask3],
-                #     'drift_noise': result['spectro_cal_drift_noise'][mask3],
-                #     'rjd': result['obj_date_bjd'][mask3],
-                #     'cal_therror': _nan,
-                #     'fwhm': result['spectro_ccf_fwhm'][mask3],
-                #     'fwhm_err': result['spectro_ccf_fwhm_err'][mask3],
-                #     'rv': result['spectro_ccf_rv'][mask3],
-                #     'rv_err': result['spectro_ccf_rv_err'][mask3],
-                #     'berv': result['spectro_cal_berv'][mask3],
-                #     'ccf_noise': np.sqrt(
-                #         np.square(result['spectro_ccf_rv_err'][mask3]) - np.square(result['spectro_cal_drift_noise'][mask3])
-                #     ),
-                #     'rhk': result['spectro_analysis_rhk'][mask3],
-                #     'rhk_err': result['spectro_analysis_rhk_err'][mask3],
-                #     'contrast': result['spectro_ccf_contrast'][mask3],
-                #     'contrast_err': result['spectro_ccf_contrast_err'][mask3],
-                #     'cal_thfile': result['spectro_cal_thfile'][mask3],
-                #     'spectroFluxSn50': result['spectro_flux_sn50'][mask3],
-                #     'protm08': result['spectro_analysis_protm08'][mask3],
-                #     'protm08_err': result['spectro_analysis_protm08_err'][mask3],
-                #     'caindex': result['spectro_analysis_ca'][mask3],
-                #     'caindex_err': result['spectro_analysis_ca_err'][mask3],
-                #     'pub_reference': result['pub_ref'][mask3],
-                #     'drs_qc': result['spectro_drs_qc'][mask3],
-                #     'haindex': result['spectro_analysis_halpha'][mask3],
-                #     'haindex_err': result['spectro_analysis_halpha_err'][mask3],
-                #     'protn84': result['spectro_analysis_protn84'][mask3],
-                #     'protn84_err': result['spectro_analysis_protn84_err'][mask3],
-                #     'naindex': result['spectro_analysis_na'][mask3],
-                #     'naindex_err': result['spectro_analysis_na_err'][mask3],
-                #     'snca2': _nan,
-                #     'mask': result['spectro_ccf_mask'][mask3],
-                #     'public': result['public'][mask3],
-                #     'spectroFluxSn20': result['spectro_flux_sn20'][mask3],
-                #     'sindex': result['spectro_analysis_smw'][mask3],
-                #     'sindex_err': result['spectro_analysis_smw_err'][mask3],
-                #     'drift_used': _nan,
-                #     'ccf_asym': result['spectro_ccf_asym'][mask3],
-                #     'ccf_asym_err': result['spectro_ccf_asym_err'][mask3],
-                #     'date_night': result['date_night'][mask3],
-                #     'raw_file': result['file_rootpath'][mask3],
-                #     'prog_id': result['prog_id'][mask3],
-                #     'th_ar': result['th_ar'][mask3],
-                #     'th_ar1': result['th_ar1'][mask3],
-                #     'th_ar2': result['th_ar2'][mask3],
-                # }
+#                 # r[str(inst)][str(pipe)][str(ins_mode)] = {
+#                 #     'texp': result['texp'][mask3],
+#                 #     'bispan': result['spectro_ccf_bispan'][mask3],
+#                 #     'bispan_err': result['spectro_ccf_bispan_err'][mask3],
+#                 #     'drift_noise': result['spectro_cal_drift_noise'][mask3],
+#                 #     'rjd': result['obj_date_bjd'][mask3],
+#                 #     'cal_therror': _nan,
+#                 #     'fwhm': result['spectro_ccf_fwhm'][mask3],
+#                 #     'fwhm_err': result['spectro_ccf_fwhm_err'][mask3],
+#                 #     'rv': result['spectro_ccf_rv'][mask3],
+#                 #     'rv_err': result['spectro_ccf_rv_err'][mask3],
+#                 #     'berv': result['spectro_cal_berv'][mask3],
+#                 #     'ccf_noise': np.sqrt(
+#                 #         np.square(result['spectro_ccf_rv_err'][mask3]) - np.square(result['spectro_cal_drift_noise'][mask3])
+#                 #     ),
+#                 #     'rhk': result['spectro_analysis_rhk'][mask3],
+#                 #     'rhk_err': result['spectro_analysis_rhk_err'][mask3],
+#                 #     'contrast': result['spectro_ccf_contrast'][mask3],
+#                 #     'contrast_err': result['spectro_ccf_contrast_err'][mask3],
+#                 #     'cal_thfile': result['spectro_cal_thfile'][mask3],
+#                 #     'spectroFluxSn50': result['spectro_flux_sn50'][mask3],
+#                 #     'protm08': result['spectro_analysis_protm08'][mask3],
+#                 #     'protm08_err': result['spectro_analysis_protm08_err'][mask3],
+#                 #     'caindex': result['spectro_analysis_ca'][mask3],
+#                 #     'caindex_err': result['spectro_analysis_ca_err'][mask3],
+#                 #     'pub_reference': result['pub_ref'][mask3],
+#                 #     'drs_qc': result['spectro_drs_qc'][mask3],
+#                 #     'haindex': result['spectro_analysis_halpha'][mask3],
+#                 #     'haindex_err': result['spectro_analysis_halpha_err'][mask3],
+#                 #     'protn84': result['spectro_analysis_protn84'][mask3],
+#                 #     'protn84_err': result['spectro_analysis_protn84_err'][mask3],
+#                 #     'naindex': result['spectro_analysis_na'][mask3],
+#                 #     'naindex_err': result['spectro_analysis_na_err'][mask3],
+#                 #     'snca2': _nan,
+#                 #     'mask': result['spectro_ccf_mask'][mask3],
+#                 #     'public': result['public'][mask3],
+#                 #     'spectroFluxSn20': result['spectro_flux_sn20'][mask3],
+#                 #     'sindex': result['spectro_analysis_smw'][mask3],
+#                 #     'sindex_err': result['spectro_analysis_smw_err'][mask3],
+#                 #     'drift_used': _nan,
+#                 #     'ccf_asym': result['spectro_ccf_asym'][mask3],
+#                 #     'ccf_asym_err': result['spectro_ccf_asym_err'][mask3],
+#                 #     'date_night': result['date_night'][mask3],
+#                 #     'raw_file': result['file_rootpath'][mask3],
+#                 #     'prog_id': result['prog_id'][mask3],
+#                 #     'th_ar': result['th_ar'][mask3],
+#                 #     'th_ar1': result['th_ar1'][mask3],
+#                 #     'th_ar2': result['th_ar2'][mask3],
+#                 # }
     
-    # print(r.keys())    
-    # print([r[k].keys() for k in r.keys()])
-    # print([r[k1][k2].keys() for k1 in r.keys() for k2 in r[k1].keys()])
-    return r
+#     # print(r.keys())    
+#     # print([r[k].keys() for k in r.keys()])
+#     # print([r[k1][k2].keys() for k1 in r.keys() for k2 in r[k1].keys()])
+#     return r
 
 def _warn_harpsn(instrument):
     if 'HARPSN' in instrument or 'HARPS-N' in instrument:
@@ -345,7 +324,9 @@ def get_observations(star, instrument=None, user=None,
             if len(instrument) == 1:
                 instrument = instrument[0]
             msg = f'no {instrument} observations for {star}'
-        _warn_harpsn(instrument)
+        
+            _warn_harpsn(instrument)
+
         raise ValueError(msg) from None
 
     # defaultdict --> dict
@@ -586,59 +567,3 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
     logger.info('extracted .fits files')
     return list(map(os.path.basename, raw_files_original))
 
-
-# def do_download_s1d(raw_files, output_directory, clobber=False, verbose=True):
-#     """ Download S1Ds from DACE """
-#     raw_files = np.atleast_1d(raw_files)
-
-#     create_directory(output_directory)
-
-#     # check existing files to avoid re-downloading
-#     if not clobber:
-#         raw_files = check_existing(output_directory, raw_files, 'S1D')
-
-#     # any file left to download?
-#     if raw_files.size == 0:
-#         if verbose:
-#             logger.info('no files to download')
-#         return
-
-#     if verbose:
-#         n = raw_files.size
-#         logger.info(f"Downloading {n} S1Ds into '{output_directory}'...")
-
-#     download(raw_files, 's1d', output_directory)
-
-#     if verbose:
-#         logger.info('Extracting .fits files')
-
-#     extract_fits(output_directory)
-
-
-# def do_download_s2d(raw_files, output_directory, clobber=False, verbose=True):
-#     """ Download S2Ds from DACE """
-#     raw_files = np.atleast_1d(raw_files)
-
-#     create_directory(output_directory)
-
-#     # check existing files to avoid re-downloading
-#     if not clobber:
-#         raw_files = check_existing(output_directory, raw_files, 'S2D')
-
-#     # any file left to download?
-#     if raw_files.size == 0:
-#         if verbose:
-#             logger.info('no files to download')
-#         return
-
-#     if verbose:
-#         n = raw_files.size
-#         logger.info(f"Downloading {n} S2Ds into '{output_directory}'...")
-
-#     download(raw_files, 's2d', output_directory)
-
-#     if verbose:
-#         logger.info('Extracting .fits files')
-
-#     extracted_files = extract_fits(output_directory)
-#     return extracted_files
