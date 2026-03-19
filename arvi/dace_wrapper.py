@@ -64,8 +64,9 @@ def get_dace_id(star, verbose=True, raise_error=False):
             return None
         raise ValueError from None
 
+def get_arrays(result, only_latest_pipeline=True,
+               ESPRESSO_mode='SINGLEHR11', NIRPS_mode='HE', verbose=True):
 
-def get_arrays(result, latest_pipeline=True, ESPRESSO_mode='HR11', NIRPS_mode='HE', verbose=True):
     logger = setup_logger()
     arrays = []
     instruments = [str(i) for i in result.keys()]
