@@ -1358,7 +1358,7 @@ class RV(ISSUES, REPORTS):
         instrument = self._check_instrument(instrument, strict=strict)
         files = []
         for inst in instrument:
-            files += list(getattr(self, inst).raw_file)
+            files += list(getattr(self, inst).file_rootname)
 
         if index is not None:
             index = np.atleast_1d(index)

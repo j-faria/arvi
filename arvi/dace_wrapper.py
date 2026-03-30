@@ -425,20 +425,27 @@ def check_existing(output_directory, files, type):
 
     return np.array(missing)
 
-def download(files, type, output_directory, output_filename=None, user=None, quiet=True, pbar=None):
+def download(files, type, output_directory, output_filename=None, user=None,
+             quiet=True, pbar=None):
     """ Download files from DACE """
     Spectroscopy = load_spectroscopy(user)
     if isinstance(files, str):
         files = [files]
+    if isinstance(files, np.ndarray):
+        files = files.tolist()
+
+    kw = {
+        "filters": {"file_rootname": {"equal": files}},
+        "file_type": type.lower(),
+        "compressed": True,
+        "output_directory": output_directory,
+        "output_filename": output_filename,
+    }
     if quiet:
-        with all_logging_disabled():
-            Spectroscopy.download_files(files, file_type=type.lower(),
-                                        output_directory=output_directory,
-                                        output_filename=output_filename)
+        with all_logging_disabled(), stdout_disabled():
+            Spectroscopy.download(**kw)
     else:
-        Spectroscopy.download_files(files, file_type=type.lower(),
-                                    output_directory=output_directory,
-                                    output_filename=output_filename)
+        Spectroscopy.download(**kw)
     if pbar is not None:
         pbar.update()
 
