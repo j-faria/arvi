@@ -23,7 +23,7 @@ dependencies = [
     "scipy",
     "matplotlib",
     "astropy",
-    "dace-query",
+    "dace-query>=3.0.0",
     "loguru",
     "tqdm",
     "pySWEETCat",
