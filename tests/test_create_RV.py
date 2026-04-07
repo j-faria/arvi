@@ -14,8 +14,8 @@ def test_from_rdb(change_test_dir):
     assert s.star == 'HD10700_Bcor'
     assert s.instruments == ['ESPRESSO18']
     assert s.N == 1
-    assert s.fwhm.shape == (1,)
-    assert (s.fwhm == 0).all()
+    assert s.ccf_fwhm.shape == (1,)
+    assert (s.ccf_fwhm == 0).all()
     assert (s.bispan == 0).all()
     assert isnan(s.rhk).all()
 
@@ -41,3 +41,18 @@ def test_remove_instruments():
     msg = f'did not remove instruments correctly, see {url}'
     assert first_two[0] not in s.instruments, msg
     assert first_two[1] not in s.instruments, msg
+
+
+def test_repr():
+    from arvi import RV
+    s = RV('51Peg', verbose=False)
+    _repr = repr(s)
+    assert '51Peg' in _repr
+    assert _repr.startswith("RV(star='51Peg'")
+
+
+def test_TOI():
+    from arvi import RV
+    s = RV('TOI-449', verbose=False)
+    assert s.star == 'TOI-449'
+    assert hasattr(s, 'toi')

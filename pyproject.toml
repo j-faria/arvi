@@ -1,6 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools", "wheel", "setuptools-scm", "numpy"]
+requires = ["setuptools", "wheel", "setuptools-scm"]
 
 [project]
 name = "arvi"
@@ -23,7 +23,7 @@ dependencies = [
     "scipy",
     "matplotlib",
     "astropy",
-    "dace-query<3.0.0",
+    "dace-query>=3.0.0",
     "loguru",
     "tqdm",
     "pySWEETCat",

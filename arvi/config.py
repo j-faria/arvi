@@ -32,6 +32,8 @@ class config:
         'check_internet': False,
         # make all DACE requests without using a .dacerc file
         'request_as_public': False,
+        # path to dacerc file
+        'dacerc_path': '',
         # enable from arvi import star_name
         'fancy_import': True,
         # use the 'dark_background' matplotlib theme

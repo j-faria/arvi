@@ -1,3 +1,4 @@
+from contextlib import AbstractContextManager
 from functools import partialmethod, wraps
 from itertools import cycle
 
@@ -110,7 +111,7 @@ class BlittedCursor:
                     ax.draw_artist(self.text)
                 ax.figure.canvas.blit(ax.bbox)
 
-def clickable_legend(fig, ax, leg):
+def clickable_legend(fig, ax, leg, hidden_alpha=0.2):
     from matplotlib.text import Text
     handles, labels = ax.get_legend_handles_labels()
     for text in leg.get_texts():
@@ -121,8 +122,9 @@ def clickable_legend(fig, ax, leg):
         if isinstance(artist, Text):
             try:
                 h = handles[labels.index(artist.get_text())]
-                alpha_text = {None:0.2, 1.0: 0.2, 0.2:1.0}[artist.get_alpha()]
-                alpha_point = {None: 0.0, 1.0: 0.0, 0.2: 1.0}[artist.get_alpha()]
+                ha = hidden_alpha
+                alpha_text = {None:ha, 1.0: ha, ha:1.0}[artist.get_alpha()]
+                alpha_point = {None: 0.0, 1.0: 0.0, ha: 1.0}[artist.get_alpha()]
                 try:
                     h[0].set_alpha(alpha_point)
                     h[2][0].set_alpha(alpha_point)
@@ -133,12 +135,15 @@ def clickable_legend(fig, ax, leg):
                 fig.canvas.draw()
             except ValueError:
                 pass
+                # print('artist:', artist)
+                # print('labels:', labels)
     return on_pick_legend
 
 @plot_settings
 def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
-         remove_50000=False, tooltips=True, show_title=False, show_legend=True, label=None, 
-         jitter=None, N_in_label=False, versus_n=False, show_histogram=False, bw=False, **kwargs):
+         remove_50000=False, tooltips=True, show_title=False,
+         show_legend=True, label=None, jitter=None, N_in_label=False,
+         versus_n=False, show_histogram=False, bw=False, **kwargs):
     """ Plot the RVs
 
     Args:
@@ -194,6 +199,8 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
     kwargs.setdefault('ls', '')
     kwargs.setdefault('capsize', 0)
     kwargs.setdefault('ms', 4)
+    if config.colors_per_instrument:
+        from .instrument_specific import INSTRUMENT_COLORS
 
     if remove_50000:
         time_offset = 50000
@@ -212,6 +219,13 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
     except AttributeError:
         zorders = cycle([1] * len(instruments))
 
+    jit = 0.0
+    if jitter is not None:
+        if isinstance(jitter, (int, float)):
+            jit = jitter
+        else:
+            raise NotImplementedError
+        
     containers = {}
     for _i, inst in enumerate(instruments):
         s = self if self._child else getattr(self, inst)
@@ -230,14 +244,21 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
             else:
                 _label = label
 
+        if config.colors_per_instrument:
+            kwargs['color'] = INSTRUMENT_COLORS.get(inst, None)
+
         if versus_n:
             x = np.arange(1, s.mtime.size + 1)
         else:
             x = s.mtime - time_offset
 
         container = ax.errorbar(x, s.mvrad, s.msvrad, label=_label, 
-                                picker=True, marker=next(markers), zorder=next(zorders), **kwargs)
+                                picker=True, marker=next(markers),
+                                zorder=next(zorders), **kwargs)
 
+        if jitter is not None:
+            ax.errorbar(x, s.mvrad, np.hypot(s.msvrad, jit), fmt='.', ms=0, 
+                        color='k', alpha=0.1, zorder=-1)
 
         containers[inst] = list(container)
 
@@ -359,7 +380,9 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
 
 
     if show_histogram:
-        axh.legend()
+        legh = axh.legend()
+        on_pick_legend = clickable_legend(fig, axh, legh, hidden_alpha=0.0)
+        plt.connect('pick_event', on_pick_legend)
 
     ax.minorticks_on()
 
@@ -405,8 +428,8 @@ def plot(self, ax=None, show_masked=False, instrument=None, time_offset=0,
 
 # @plot_fast
 def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
-                  time_offset=0, remove_50000=False, tooltips=False, show_legend=True,
-                  N_in_label=False, **kwargs):
+                  time_offset=0, remove_50000=False, tooltips=False, show_title=False, 
+                  show_legend=True, N_in_label=False, **kwargs):
     logger = setup_logger()
     if self.N == 0:
         if self.verbose:
@@ -415,6 +438,11 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
 
     if not hasattr(self, quantity):
         logger.error(f"cannot find '{quantity}' attribute")
+        return
+
+    instruments = self._check_instrument(instrument)
+    if instruments is None:
+        self._check_instrument(instrument, log=True)
         return
 
     if ax is None:
@@ -430,7 +458,6 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
     if remove_50000:
         time_offset = 50000
 
-    instruments = self._check_instrument(instrument)
 
     for inst in instruments:
         s = self if self._child else getattr(self, inst)
@@ -480,8 +507,8 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
 
     ylabel = {
         quantity.lower(): quantity,
-        'fwhm': f'{delta}FWHM [{self.units}]',
-        'bispan': f'{delta}BIS [{self.units}]',
+        'ccf_fwhm': f'{delta}FWHM [{self.units}]',
+        'ccf_bispan': f'{delta}BIS [{self.units}]',
         'rhk': r"$\log$ R'$_{HK}$",
         'berv': 'BERV [km/s]',
     }
@@ -493,15 +520,18 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
     else:
         ax.set_xlabel('BJD - 2400000 [days]')
 
+    if show_title:
+        ax.set_title(self.star, loc='right')
+
     if config.return_self:
         return self
     else:
         return fig, ax
 
 
-plot_fwhm = partialmethod(plot_quantity, quantity='fwhm')
-plot_bispan = partialmethod(plot_quantity, quantity='bispan')
-plot_contrast = partialmethod(plot_quantity, quantity='contrast')
+plot_fwhm = partialmethod(plot_quantity, quantity='ccf_fwhm')
+plot_bispan = partialmethod(plot_quantity, quantity='ccf_bispan')
+plot_contrast = partialmethod(plot_quantity, quantity='ccf_contrast')
 plot_rhk = partialmethod(plot_quantity, quantity='rhk')
 plot_berv = partialmethod(plot_quantity, quantity='berv')
 
