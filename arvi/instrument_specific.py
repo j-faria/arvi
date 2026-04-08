@@ -106,19 +106,40 @@ def divide_HARPS(self):
 
     if self.verbose:
         logger.info(f'divided HARPS into {self.instruments}')
-        for q in self._quantities:
-            setattr(_s, q, getattr(self, q)[mask])
-        setattr(self, inst, _s)
-        _s._quantities = self._quantities
-        _s.mask = self.mask[mask]
-
-    delattr(self, 'HARPS')
-    self.instruments = new_instruments
-    self._build_arrays()
-
-    if self.verbose:
-        logger.info(f'divided HARPS into {self.instruments}')
     
+
+def divide_CORALIE(self):
+    """ Split CORALIE data into separate subsets (98, 07, 14, 24) """
+    raise NotImplementedError
+    logger = setup_logger()
+    if self._check_instrument('CORALIE', strict=False) is None:
+        return
+    if any(i in self.instruments for i in ['CORALIE98', 'CORALIE07', 'CORALIE14', 'CORALIE24']):
+        if self.verbose:
+            logger.info('CORALIE data seems to be split already, doing nothing')
+        return
+
+    from .timeseries import RV
+
+    new_instruments = []
+    _98 = self.time < CORALIE_07_start
+    if _98.any():
+        new_instruments += ['CORALIE98']
+
+    _07 = (CORALIE_07_start <= self.time) & (self.time < CORALIE_14_start)
+    if _07.any():
+        new_instruments += ['CORALIE07']
+
+    _14 = (CORALIE_14_start <= self.time) & (self.time < CORALIE_24_start)
+    if _14.any():
+        new_instruments += ['CORALIE14']
+
+    _24 = self.time >= CORALIE_24_start
+    if _24.any():
+        new_instruments += ['CORALIE24']
+
+    print(new_instruments)
+
 
 def check(self, instrument):
     return self._check_instrument(instrument)
