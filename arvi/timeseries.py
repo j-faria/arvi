@@ -1065,32 +1065,32 @@ class RV(ISSUES, REPORTS):
 
             _s.ccf_fwhm = np.array([i.FWHM*1e3 for i in CCFs])
             _s.ccf_fwhm_err = np.array([i.FWHMerror*1e3 for i in CCFs])
-            _quantities.append('fwhm')
-            _quantities.append('fwhm_err')
+            _quantities.append('ccf_fwhm')
+            _quantities.append('ccf_fwhm_err')
 
             _s.ccf_contrast = np.array([i.contrast for i in CCFs])
             _s.ccf_contrast_err = np.array([i.contrast_error for i in CCFs])
-            _quantities.append('contrast')
-            _quantities.append('contrast_err')
+            _quantities.append('ccf_contrast')
+            _quantities.append('ccf_contrast_err')
 
             _s.ccf_bispan = np.array([i.BIS*1e3 for i in CCFs])
             _s.ccf_bispan_err = np.array([i.BISerror*1e3 for i in CCFs])
-            _quantities.append('bispan')
-            _quantities.append('bispan_err')
+            _quantities.append('ccf_bispan')
+            _quantities.append('ccf_bispan_err')
 
-            _s.rhk = np.full_like(time, np.nan)
-            _s.rhk_err = np.full_like(time, np.nan)
-            _quantities.append('rhk')
-            _quantities.append('rhk_err')
+            _s.spectro_rhk = np.full_like(time, np.nan)
+            _s.spectro_rhk_err = np.full_like(time, np.nan)
+            _quantities.append('spectro_rhk')
+            _quantities.append('spectro_rhk_err')
 
             _s.texp = np.array([i.HDU[0].header['EXPTIME'] for i in CCFs])
             _quantities.append('texp')
 
             try:
-                _s.berv = np.array([i.HDU[0].header['HIERARCH ESO QC BERV'] for i in CCFs])
+                _s.cal_berv = np.array([i.HDU[0].header['HIERARCH ESO QC BERV'] for i in CCFs])
             except KeyError:
-                _s.berv = np.full_like(time, np.nan)
-            _quantities.append('berv')
+                _s.cal_berv = np.full_like(time, np.nan)
+            _quantities.append('cal_berv')
 
 
             _s.date_night = np.array([
