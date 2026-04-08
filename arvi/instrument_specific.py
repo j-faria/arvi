@@ -51,8 +51,8 @@ def divide_ESPRESSO(self):
         if not mask.any():
             continue
 
-        _s = RV.from_arrays(self.star, self.time[mask], self.vrad[mask], self.svrad[mask],
-                            inst=inst)
+        _s = RV.from_arrays(self.star, self.time[mask], self.vrad[mask], self.svrad[mask], 
+                            instrument=inst)
         for q in self._quantities:
             setattr(_s, q, getattr(self, q)[mask])
         setattr(self, inst, _s)
@@ -69,7 +69,7 @@ def divide_ESPRESSO(self):
     
 
 def divide_HARPS(self):
-    """ Split HARPS data into separate sub HARPS03 and HARPS15 subsets """
+    """ Split HARPS data into separate HARPS03 and HARPS15 subsets """
     logger = setup_logger()
     if self._check_instrument('HARPS', strict=False) is None:
         return
@@ -80,18 +80,32 @@ def divide_HARPS(self):
 
     from .timeseries import RV
 
-    new_instruments = []
+    new_instruments, masks = [], []
     before = self.time < HARPS_technical_intervention
     if before.any():
         new_instruments += ['HARPS03']
+        masks.append(before)
 
     after = self.time >= HARPS_technical_intervention
     if after.any():
         new_instruments += ['HARPS15']
+        masks.append(after)
 
-    for inst, mask in zip(new_instruments, [before, after]):
+    for inst, mask in zip(new_instruments, masks):
         _s = RV.from_arrays(self.star, self.time[mask], self.vrad[mask], self.svrad[mask],
-                            inst=inst)
+                            instrument=inst)
+        for q in self._quantities:
+            setattr(_s, q, getattr(self, q)[mask])
+        setattr(self, inst, _s)
+        _s._quantities = self._quantities
+        _s.mask = self.mask[mask]
+
+    delattr(self, 'HARPS')
+    self.instruments = new_instruments
+    self._build_arrays()
+
+    if self.verbose:
+        logger.info(f'divided HARPS into {self.instruments}')
         for q in self._quantities:
             setattr(_s, q, getattr(self, q)[mask])
         setattr(self, inst, _s)
