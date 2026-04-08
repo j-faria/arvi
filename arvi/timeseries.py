@@ -1112,7 +1112,7 @@ class RV(ISSUES, REPORTS):
             setattr(s, instrument, _s)
 
         s._child = False
-        s.instruments = instruments
+        s.instruments = list(map(str, instruments))
         s._build_arrays()
 
         if instruments == ['ESPRESSO']:
