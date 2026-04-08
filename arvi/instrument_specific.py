@@ -30,6 +30,16 @@ ESPRESSO_start = 58392
 ESPRESSO_technical_intervention = 58665
 
 
+# CORALIE interventions:
+# in April-May 2007 the fibre link and cross-disperser optics were replaced
+CORALIE_07_start = 54220  # 30 April 2007
+# in November 2014 octagonal fibers and an FP were installed 
+CORALIE_14_start = 56976  # 15 November 2014
+# On 15 October 2024 a Th–Ar lamp was changed
+CORALIE_24_start = 60598  # 15 October 2024
+
+
+
 def divide_ESPRESSO(self):
     """ Split ESPRESSO data into separate sub ESP18 and ESP19 subsets """
     logger = setup_logger()
