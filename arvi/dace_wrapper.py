@@ -413,8 +413,9 @@ def check_existing(output_directory, files, type):
         import re
         existing = [re.sub(r'T(\d+)_(\d+)_(\d+)', r'T\1:\2:\3', f) for f in existing]
     
-    # remove type of file (e.g. _CCF_A)
+    # remove type of file (e.g. _CCF_A) and 'r.' prefix
     existing = [f.partition('_')[0] for f in existing]
+    existing = [f.partition('r.')[2] for f in existing]
     existing = np.unique(existing)
 
     missing = []
@@ -434,13 +435,19 @@ def download(files, type, output_directory, output_filename=None, user=None,
     if isinstance(files, np.ndarray):
         files = files.tolist()
 
+    file_type = type.lower()
+    if file_type == 's2d':
+        file_type = ['S2D_A', 'S2D_BLAZE_A']
+
     kw = {
         "filters": {"file_rootname": {"equal": files}},
-        "file_type": type.lower(),
+        "file_type": file_type,
         "compressed": True,
+        "drs_version": "latest",
         "output_directory": output_directory,
         "output_filename": output_filename,
     }
+
     if quiet:
         with all_logging_disabled(), stdout_disabled():
             Spectroscopy.download(**kw)
