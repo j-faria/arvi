@@ -1341,21 +1341,11 @@ class RV(ISSUES, REPORTS):
     def download_directory(self, value):
         self._download_directory = value
 
-    def download_ccf(self, instrument=None, index=None, limit=None,
-                     directory=None, clobber=False, symlink=False, load=True, **kwargs):
-        """ Download CCFs from DACE
-
-        Args:
-            instrument (str): Specific instrument for which to download data
-            index (int): Specific index of point for which to download data (0-based)
-            limit (int): Maximum number of files to download.
-            directory (str): Directory where to store data.
-            clobber (bool): Whether to overwrite existing files.
-        """
-        directory = directory or self.download_directory
-
+    def _get_files(self, instrument=None, index=None, **kwargs):
         strict = kwargs.pop('strict', False)
-        instrument = self._check_instrument(instrument, strict=strict)
+        instrument = self._check_instrument(instrument, strict=strict, log=True)
+        if instrument is None:
+            return
         files = []
         for inst in instrument:
             files += list(getattr(self, inst).file_rootname)
@@ -1366,6 +1356,27 @@ class RV(ISSUES, REPORTS):
 
         # remove empty strings
         files = list(filter(None, files))
+
+        return files
+
+    def download_ccf(self, instrument=None, index=None, limit=None,
+                     directory=None, clobber=False, symlink=False, load=True, 
+                     prefer_skysub=False, **kwargs):
+        """ Download CCFs from DACE
+
+        Args:
+            instrument (str): Specific instrument for which to download data
+            index (int): Specific index of point for which to download data (0-based)
+            limit (int): Maximum number of files to download
+            directory (str): Directory where to store data
+            clobber (bool): Overwrite existing files
+            load (bool): Load CCFs into `self.CCF` using iCCF
+            prefer_skysub (bool): Prefer SKYSUB CCFs if they exist
+        """
+        directory = directory or self.download_directory
+        
+        if (files := self._get_files(instrument, index=index)) is None:
+            return
 
         if symlink:
             if 'top_level' not in kwargs:
@@ -1420,20 +1431,9 @@ class RV(ISSUES, REPORTS):
             apply_mask (bool): Apply mask to the observations before downloading.
         """
         directory = directory or self.download_directory
-
-        strict = kwargs.pop('strict', False)
-        instrument = self._check_instrument(instrument, strict=strict)
-        files = []
-        for inst in instrument:
-            _s = getattr(self, inst)
-            if apply_mask:
-                files += list(_s.raw_file[_s.mask])
-            else:
-                files += list(_s.raw_file)
-
-        if index is not None:
-            index = np.atleast_1d(index)
-            files = list(np.array(files)[index])
+        
+        if (files := self._get_files(instrument, index=index)) is None:
+            return
 
         # remove empty strings
         files = list(filter(None, files))
@@ -1459,25 +1459,15 @@ class RV(ISSUES, REPORTS):
         """
         directory = directory or self.download_directory
 
-        strict = kwargs.pop('strict', False)
-        instrument = self._check_instrument(instrument, strict=strict)
-        files = []
-        for inst in instrument:
-            files += list(getattr(self, inst).raw_file)
-
-        if index is not None:
-            index = np.atleast_1d(index)
-            files = list(np.array(files)[index])
-
-        # remove empty strings
-        files = list(filter(None, files))
+        if (files := self._get_files(instrument, index=index)) is None:
+            return
 
         if symlink:
             if 'top_level' not in kwargs:
                 logger.warning('may need to provide `top_level` in kwargs to find file')
             do_symlink_filetype('S2D', files[:limit], directory, **kwargs)
         else:
-            do_download_filetype('S2D', files[:limit], directory, 
+            do_download_filetype('S2D', files[:limit], directory, clobber=clobber,
                                  verbose=self.verbose, user=self.user, **kwargs)
 
 
