@@ -1379,28 +1379,26 @@ class RV(ISSUES, REPORTS):
             return
 
         if symlink:
-            if 'top_level' not in kwargs:
-                logger.warning('may need to provide `top_level` in kwargs to find file')
-            do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
+            raise NotImplementedError
+            # if 'top_level' not in kwargs:
+            #     logger.warning('may need to provide `top_level` in kwargs to find file')
+            # do_symlink_filetype('CCF', files[:limit], directory, **kwargs)
         else:
             downloaded = do_download_filetype('CCF', files[:limit], directory, 
-                                              clobber=clobber, verbose=self.verbose, 
-                                              user=self.user, **kwargs)
+                                                clobber=clobber, verbose=self.verbose, 
+                                                user=self.user, **kwargs)
 
         if load:
             try:
-                from os.path import basename, join, exists
                 from .utils import sanitize_path
                 import iCCF
-                downloaded = [
-                    sanitize_path(join(directory, basename(f).replace('.fits', '_CCF_A.fits')))
-                    for f in files[:limit]
-                ]
-                downloaded = [
-                    skysub
-                    if exists(skysub := f.replace('CCF_A.fits', 'CCF_SKYSUB_A.fits')) else f
-                    for f in downloaded
-                ]
+                downloaded = [sanitize_path(f) for f in downloaded]
+                # if prefer_skysub:
+                #     downloaded = [
+                #         skysub
+                #         if exists(skysub := f.replace('CCF_A.fits', 'CCF_SKYSUB_A.fits')) else f
+                #         for f in downloaded
+                #     ]
                 if self.verbose:
                     logger.info('loading the CCF(s) into `.CCF` attribute')
 

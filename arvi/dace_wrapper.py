@@ -426,6 +426,29 @@ def check_existing(output_directory, files, type):
 
     return np.array(missing)
 
+def browse(files, type, user=None):
+    """ Browse files that would be downloaded from DACE """
+    Spectroscopy = load_spectroscopy(user)
+    if isinstance(files, str):
+        files = [files]
+    if isinstance(files, np.ndarray):
+        files = files.tolist()
+
+    file_type = type.lower()
+    if file_type == 's2d':
+        file_type = ['S2D_A', 'S2D_BLAZE_A']
+
+    kw = {
+        "filters": {"file_rootname": {"equal": files}},
+        "file_type": file_type,
+        "drs_version": "latest",
+    }
+
+    response = Spectroscopy.browse_products(**kw)
+
+    return list(map(os.path.basename, response['file_rootname']))
+
+
 def download(files, type, output_directory, output_filename=None, user=None,
              quiet=True, pbar=None):
     """ Download files from DACE """
@@ -538,7 +561,9 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
     if n == 0:
         if verbose:
             logger.info('no files to download')
-        return list(map(os.path.basename, raw_files_original))
+        downloaded = browse(raw_files_original, type, user=user)
+        downloaded = [os.path.join(output_directory, f) for f in downloaded]
+        return downloaded
 
     # avoid an empty chunk
     if chunk_size > n:
@@ -558,9 +583,10 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
         iterator = [raw_files[i:i + chunk_size] for i in range(0, n, chunk_size)]
         if len(iterator) > 1:
             iterator = tqdm(iterator, total=len(iterator))
+        downloaded = []
         for files in iterator:
-            download(files, type, output_directory, quiet=False, user=user)
-            extract_fits(output_directory)
+            download(files, type, output_directory, quiet=True, user=user)
+            downloaded += extract_fits(output_directory)
 
     else:
         def chunker(it, size):
@@ -587,5 +613,9 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
 
     sys.stdout.flush()
     logger.info('extracted .fits files')
-    return list(map(os.path.basename, raw_files_original))
+
+    downloaded = np.array(downloaded).flatten().tolist()
+    downloaded = [os.path.join(output_directory, f) for f in downloaded]
+
+    return downloaded
 
