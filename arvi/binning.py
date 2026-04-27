@@ -231,7 +231,7 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
     ----------
     time : array
         The array of times where the radial velocity is measured. This function
-        does nightly binning, based on the integer part of this array.
+        does nightly binning, based on rounding this array to the nearest day.
     rv : array
         The radial-velocity values.
     err : array (optional)
@@ -274,8 +274,8 @@ def binRV(time, rv, err=None, stat='wmean', tstat='wmean', estat='addquad',
     and quadratically added errors.
     """
 
-    # "nightly" binning, based on the integer part of the time array
-    intt = time.astype(int)
+    # "nightly" binning, based on the rounded time array
+    intt = time.round(0) #astype(int)
     _, indices = np.unique(intt, return_index=True)
 
     if binning_indices:
