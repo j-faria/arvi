@@ -306,25 +306,33 @@ def _warn_harpsn(instrument):
 
 
 def get_observations(star, instrument=None, user=None,
+                     NIRPS_telluric_correction=True,
                      only_latest_pipeline=False, verbose=True):
     logger = setup_logger()
     Spectroscopy = load_spectroscopy(user, verbose)
+    from dace_query.spectroscopy import Source
 
     if instrument is None:
         filters = None
     else:
         if isinstance(instrument, str):
             instrument = [instrument]
-
         filters = {"instrument_name": {"contains": instrument}}
 
+    drs_version = 'latest' if only_latest_pipeline else None
+
     with stdout_disabled(), all_logging_disabled():
-        result = Spectroscopy.get_timeseries(
-            target=star,
-            filters=filters,
-            drs_version='latest' if only_latest_pipeline else None,
-        )
-    
+        result = Spectroscopy.get_timeseries(target=star, filters=filters, drs_version=drs_version)
+
+        # NIRPS should return telluric corrected data by default, but the only
+        # way to do this (AFAIK) is to query the database again
+        if 'NIRPS' in result and NIRPS_telluric_correction:
+            filters = {"instrument_name": {"contains": ['NIRPS']}}
+            n = Spectroscopy.get_timeseries(target=star, filters=filters, 
+                                            drs_version=drs_version, 
+                                            rv_sources=[Source.TELLURIC_CORRECTION])
+            result['NIRPS'] = n['NIRPS']
+
     if len(result) == 0:
         if instrument is None:
             msg = f'no observations for {star}'
