@@ -2596,11 +2596,11 @@ class RV(ISSUES, REPORTS):
                 "berv",
             ],
             "CORALIE": [
-                "fwhm", "fwhm_err",
-                "bispan", "bispan_err",
-                "contrast", "contrast_err",
-                "haindex", "haindex_err",
-                "berv",
+                "ccf_fwhm", "ccf_fwhm_err",
+                "ccf_bispan", "ccf_bispan_err",
+                "ccf_contrast", "ccf_contrast_err",
+                "spectro_halpha", "spectro_halpha_err",
+                "cal_berv",
             ],
         } 
 
