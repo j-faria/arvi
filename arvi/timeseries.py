@@ -1691,21 +1691,31 @@ class RV(ISSUES, REPORTS):
     def remove_prog_id(self, prog_id):
         """ Remove observations from a given program ID """
         from glob import has_magic
+
+        if hasattr(self, 'prog_id'):
+            prog_id_attr = 'prog_id'
+        elif hasattr(self, 'program_id'):
+            prog_id_attr = 'program_id'
+        else:   
+            if self.verbose:
+                logger.warning(f'no program ID attribute found in {self} - unable to remove observations for program "{prog_id}"')
+            return
+        
         if has_magic(prog_id):
             from fnmatch import filter
-            matching = np.unique(filter(self.prog_id, prog_id))
+            matching = np.unique(filter(getattr(self, prog_id_attr), prog_id))
             mask = np.full_like(self.time, False, dtype=bool)
             for m in matching:
-                mask |= np.isin(self.prog_id, m)
+                mask |= np.isin(getattr(self, prog_id_attr), m)
             ind = np.where(mask)[0]
             self.remove_point(ind)
         else:
-            if prog_id in self.prog_id:
-                ind = np.where(self.prog_id == prog_id)[0]
+            if prog_id in getattr(self, prog_id_attr):
+                ind = np.where(getattr(self, prog_id_attr) == prog_id)[0]
                 self.remove_point(ind)
             else:
                 if self.verbose:
-                    logger.warning(f'no observations for prog_id "{prog_id}"')
+                    logger.warning(f'no observations for {prog_id_attr} "{prog_id}"')
 
     def remove_after_bjd(self, bjd: float):
         """ Remove observations after a given BJD """
