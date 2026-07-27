@@ -111,7 +111,7 @@ def run_query(query, SIMBAD_URL='http://simbad.u-strasbg.fr'):
     url = f'{SIMBAD_URL}/simbad/sim-tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='text/plain', phase='run')
     try:
-        response = requests.post(url, data=data, timeout=2)
+        response = requests.post(url, data=data, timeout=30)
     except requests.ReadTimeout as err:
         raise IndexError(err) from None
     except requests.ConnectionError as err:
