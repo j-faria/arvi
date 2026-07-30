@@ -2589,11 +2589,11 @@ class RV(ISSUES, REPORTS):
 
         indicator_sets = {
             "default": [
-                "fwhm", "fwhm_err",
-                "bispan", "bispan_err",
-                "contrast", "contrast_err",
-                "rhk", "rhk_err",
-                "berv",
+                "ccf_fwhm", "ccf_fwhm_err",
+                "ccf_bispan", "ccf_bispan_err",
+                "ccf_contrast", "ccf_contrast_err",
+                "spectro_rhk", "spectro_rhk_err",
+                "cal_berv",
             ],
             "CORALIE": [
                 "ccf_fwhm", "ccf_fwhm_err",
