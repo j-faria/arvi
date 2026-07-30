@@ -1691,21 +1691,33 @@ class RV(ISSUES, REPORTS):
     def remove_prog_id(self, prog_id):
         """ Remove observations from a given program ID """
         from glob import has_magic
+
+        if hasattr(self, 'prog_id'):
+            attr = getattr(self, 'prog_id')
+            name = 'prog_id'
+        elif hasattr(self, 'program_code'):
+            attr = getattr(self, 'program_code')
+            name = 'program_code'
+        else:   
+            if self.verbose:
+                logger.warning('no program ID attribute found (`prog_id` or `program_code`)')
+            return
+
         if has_magic(prog_id):
             from fnmatch import filter
-            matching = np.unique(filter(self.prog_id, prog_id))
+            matching = np.unique(filter(attr, prog_id))
             mask = np.full_like(self.time, False, dtype=bool)
             for m in matching:
-                mask |= np.isin(self.prog_id, m)
+                mask |= np.isin(attr, m)
             ind = np.where(mask)[0]
             self.remove_point(ind)
         else:
-            if prog_id in self.prog_id:
-                ind = np.where(self.prog_id == prog_id)[0]
+            if prog_id in attr:
+                ind = np.where(attr == prog_id)[0]
                 self.remove_point(ind)
             else:
                 if self.verbose:
-                    logger.warning(f'no observations for prog_id "{prog_id}"')
+                    logger.warning(f'no observations with {name}="{prog_id}"')
 
     def remove_after_bjd(self, bjd: float):
         """ Remove observations after a given BJD """
@@ -2579,18 +2591,18 @@ class RV(ISSUES, REPORTS):
 
         indicator_sets = {
             "default": [
-                "fwhm", "fwhm_err",
-                "bispan", "bispan_err",
-                "contrast", "contrast_err",
-                "rhk", "rhk_err",
-                "berv",
+                "ccf_fwhm", "ccf_fwhm_err",
+                "ccf_bispan", "ccf_bispan_err",
+                "ccf_contrast", "ccf_contrast_err",
+                "spectro_rhk", "spectro_rhk_err",
+                "cal_berv",
             ],
             "CORALIE": [
-                "fwhm", "fwhm_err",
-                "bispan", "bispan_err",
-                "contrast", "contrast_err",
-                "haindex", "haindex_err",
-                "berv",
+                "ccf_fwhm", "ccf_fwhm_err",
+                "ccf_bispan", "ccf_bispan_err",
+                "ccf_contrast", "ccf_contrast_err",
+                "spectro_halpha", "spectro_halpha_err",
+                "cal_berv",
             ],
         } 
 
