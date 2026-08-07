@@ -797,11 +797,12 @@ class RV(ISSUES, REPORTS):
             instruments = np.array([instrument])
         else:
             if star is None:
-                star = np.unique([get_star_name(f) for f in files])[0]
-                if verbose:
-                    logger.info(f'assuming star is {star}')
-            else:
-                star = 'unknown'
+                try:
+                    star = np.unique([get_star_name(f) for f in files])[0]
+                    if verbose:
+                        logger.info(f'assuming star is {star}')
+                except Exception:
+                    star ='unknown'
 
             if instrument is None:
                 instruments = np.array([splitext(basename(f))[0].split('_')[1] for f in files])
