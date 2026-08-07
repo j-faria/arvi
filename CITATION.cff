@@ -8,8 +8,8 @@ message: >-
   metadata from this file.
 type: software
 authors:
-  - given-names: João P.
-    family-names: Faria
+  - family-names: Faria
+    given-names: J. P.
     email: joao.faria@unige.ch
     affiliation: >-
       Observatoire de Genève, Département d'Astronomie,
