@@ -8,8 +8,7 @@ message: >-
   metadata from this file.
 type: software
 authors:
-  - given-names: João
-    name-particle: P.
+  - given-names: João P.
     family-names: Faria
     email: joao.faria@unige.ch
     affiliation: >-
