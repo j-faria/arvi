@@ -2815,7 +2815,7 @@ class RV(ISSUES, REPORTS):
     #
     from .stellar import calc_prot_age
 
-    @property
+    # @property
     def HZ(self):
         if not hasattr(self, 'star_mass'):
             self.star_mass = float(input('stellar mass (Msun): '))
@@ -2828,7 +2828,7 @@ class RV(ISSUES, REPORTS):
         return getHZ_period(teff, self.star_mass, 1.0, self.lum)
 
 
-    @property
+    # @property
     def planets(self):
         """ Query the NASA Exoplanet Archive for any known planets """
         from .nasaexo_wrapper import Planets
