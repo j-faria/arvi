@@ -25,12 +25,14 @@ def get_star(star, instrument=None, verbose=False, **kwargs):
 class LazyRV:
     """ A lazy wrapper around `RV` """
     def __init__(self, stars: list, instrument: str = None,
-                 _parallel_limit=10, _parallel_workers=8):
-        self.stars = stars
-        if isinstance(self.stars, str):
-            self.stars = [self.stars]
+                 _parallel_limit=10, _parallel_workers=8, **_kwargs):
+        if isinstance(stars, str):
+            self.stars = [stars]
+        else:
+            self.stars = list(stars)
         self.instrument = instrument
         self._saved = None
+        self._kwargs = _kwargs
         self._parallel_limit = _parallel_limit
         self._parallel_workers = _parallel_workers
 
@@ -42,31 +44,41 @@ class LazyRV:
         return f"RV({self.N} stars)"
 
     def _get(self, **kwargs):
+        self._kwargs.update(kwargs)
         logger = setup_logger()
         if self.N > self._parallel_limit:
+            main_module = sys.modules['__main__']
+            if not hasattr(main_module, '__spec__'):
+                main_module.__spec__ = None
+
             # logger.info('Querying DACE...')
-            _get_star = partial(get_star, instrument=self.instrument, **kwargs)
+            _get_star = partial(get_star, instrument=self.instrument, **self._kwargs)
             with Pool(self._parallel_workers) as pool:
                 result = list(tqdm(pool.imap(_get_star, self.stars), 
                                    total=self.N, unit='star',
                                    desc='Querying DACE (can take a while)'))
-                print('')
+                # result = list(pool.imap(_get_star, self.stars))
+            print('')
         else:
             result = []
             logger.info('querying DACE...')
             pbar = tqdm(self.stars, total=self.N, unit='star')
             for star in pbar:
                 pbar.set_description(star)
-                result.append(get_star(star, self.instrument, **kwargs))
+                result.append(get_star(star, self.instrument, **self._kwargs))
 
         return result
 
     def reload(self, **kwargs):
         self._saved = self._get(**kwargs)
+        self.__getitem__.cache_clear()
         return self._saved
 
     def __iter__(self):
         return self._get()
+
+    def __contains__(self, star: str):
+        return star in self.stars
 
     def __call__(self, **kwargs):
         if not self._saved:
