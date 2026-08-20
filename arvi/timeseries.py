@@ -1686,6 +1686,12 @@ class RV(ISSUES, REPORTS):
         for inst in singles:
             self.remove_instrument(inst, strict=True)
 
+    def remove_less_than_n_observations(self, n):
+        """ Remove instruments for which there are *fewer* than `n` observations """
+        fewer = [i for i in self.instruments if getattr(self, i).mtime.size < n]
+        for inst in fewer:
+            self.remove_instrument(inst, strict=True)
+
     def remove_more_than_n_per_night(self, n=2):
         """ Remove whenever there are more than `n` observations per night """
         ind = np.array([], dtype=int)
