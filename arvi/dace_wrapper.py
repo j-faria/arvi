@@ -71,8 +71,9 @@ def get_dace_id(star, verbose=True, raise_error=False):
             return None
         raise ValueError from None
 
-def get_arrays(result, only_latest_pipeline=True,
-               ESPRESSO_mode='SINGLEHR11', NIRPS_mode='HE', verbose=True):
+def get_arrays(result, only_latest_pipeline=True, verbose=True,
+               ESPRESSO_mode='SINGLEHR11', HARPS_mode='HARPS', NIRPS_mode='HE',
+               only_main_mode=True):
 
     logger = setup_logger()
     arrays = []
@@ -91,36 +92,38 @@ def get_arrays(result, only_latest_pipeline=True,
         for pipe in pipelines:
             modes = [m for m in result[inst][pipe].keys()]
 
-            # ESPRESSO and NIRPS have a "preferred" mode
-            for m, i in (
-                (ESPRESSO_mode, 'ESPRESSO'),
-                (NIRPS_mode, 'NIRPS'),
-            ):
-                if i in inst and len(modes) > 1:
-                    if m in modes:
-                        if verbose:
-                            logger.info(f'selecting mode {m} for {inst} - {pipe}')
-                        i = modes.index(m)
-                        modes = [modes[i]]
-                    elif verbose:
-                        logger.warning(f'no observations for requested {i} mode ({m})')
+            if only_main_mode:
+                # ESPRESSO and NIRPS have a "preferred" mode
+                for m, i in (
+                    (ESPRESSO_mode, 'ESPRESSO'),
+                    (HARPS_mode, 'HARPS'),
+                    (NIRPS_mode, 'NIRPS'),
+                ):
+                    if i in inst and len(modes) > 1:
+                        if m in modes:
+                            if verbose:
+                                logger.info(f'selecting mode {m} for {inst} - {pipe}')
+                            i = modes.index(m)
+                            modes = [modes[i]]
+                        elif verbose:
+                            logger.warning(f'no observations for requested {i} mode ({m})')
 
 
-            # HARPS observations should not be separated by 'mode' if some are
-            # done together with NIRPS, but should be separated by 'EGGS' mode
-            if 'HARPS' in inst:
-                m0 = modes[0]
-                data = {
-                    k: np.concatenate([result[inst][pipe][m][k] for m in modes])
-                    for k in result[inst][pipe][m0].keys()
-                }
-                if 'HARPS+NIRPS' in modes:
-                    arrays.append( ((str(inst), str(pipe), str(m0)), data) )
-                    continue
+                # HARPS observations should not be separated by 'mode' if some are
+                # done together with NIRPS, but should be separated by 'EGGS' mode
+                if 'HARPS' in inst:
+                    m0 = modes[0]
+                    data = {
+                        k: np.concatenate([result[inst][pipe][m][k] for m in modes])
+                        for k in result[inst][pipe][m0].keys()
+                    }
+                    if 'HARPS+NIRPS' in modes:
+                        arrays.append( ((str(inst), str(pipe), str(m0)), data) )
+                        continue
 
-                if 'EGGS+NIRPS' in modes or 'EGGS' in modes:
-                    arrays.append( ((str(inst + '_EGGS'), str(pipe), str(m0)), data) )
-                    continue
+                    if 'EGGS+NIRPS' in modes or 'EGGS' in modes:
+                        arrays.append( ((str(inst + '_EGGS'), str(pipe), str(m0)), data) )
+                        continue
 
             for mode in modes:
                 if 'rjd' not in result[inst][pipe][mode]:
