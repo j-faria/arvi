@@ -205,7 +205,8 @@ class REPORTS:
         return fig
 
 
-def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False):
+def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False,
+                    force_first_period=None, **kwargs):
     import matplotlib.pyplot as plt
     import matplotlib.gridspec as gridspec
     from matplotlib.backends.backend_pdf import PdfPages
@@ -220,11 +221,20 @@ def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False):
     from .kepmodel_wrapper import model
     m = model(self)
 
+    if 'Pmax' in kwargs:
+        m.Pmax = kwargs.pop('Pmax')
+
     while fit_keplerians > 0:
-        if m.add_keplerian_from_periodogram():
+        if force_first_period is not None:
+            m.add_planet_from_period(force_first_period)
+            m.fit()
+            force_first_period = None
             fit_keplerians -= 1
         else:
-            break
+            if m.add_keplerian_from_periodogram():
+                fit_keplerians -= 1
+            else:
+                break
 
     m.fit()
 
