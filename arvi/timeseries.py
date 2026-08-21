@@ -2734,13 +2734,16 @@ class RV(ISSUES, REPORTS):
 
         return files
 
-    def checksum(self, write_to=None):
-        """ Calculate a hash based on the data """
+    def checksum(self, masked=False, write_to_file=None):
+        """ Calculate a hash based on the (masked?) data """
         from hashlib import md5
-        d = np.r_[self.time, self.vrad, self.svrad]
+        if masked:
+            d = np.r_[self.mtime, self.mvrad, self.msvrad]
+        else:
+            d = np.r_[self.time, self.vrad, self.svrad]
         H = md5(d.data.tobytes()).hexdigest()
-        if write_to is not None:
-            with open(write_to, 'w') as f:
+        if write_to_file is not None:
+            with open(write_to_file, 'w') as f:
                 f.write(H)
         return H
 

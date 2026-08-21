@@ -930,8 +930,8 @@ def gls_quantity(self, quantity, ax=None, instrument=None,
         return fig, ax
 
 
-gls_fwhm = partialmethod(gls_quantity, quantity='fwhm')
-gls_bispan = partialmethod(gls_quantity, quantity='bispan')
+gls_fwhm = partialmethod(gls_quantity, quantity='ccf_fwhm')
+gls_bispan = partialmethod(gls_quantity, quantity='ccf_bispan')
 gls_rhk = partialmethod(gls_quantity, quantity='rhk')
 
 
