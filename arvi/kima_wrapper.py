@@ -14,7 +14,8 @@ def try_to_guess_prior(model, prior):
 
 
 def run_kima(self, run=False, load=False, run_directory=None,
-             model='RVmodel', priors={}, **kwargs):
+             model='RVmodel', priors={}, instrument=None, indicators=None,
+             **kwargs):
     try:
         import kima
         from kima.pykima.utils import chdir
@@ -26,7 +27,11 @@ def run_kima(self, run=False, load=False, run_directory=None,
     
     logger = setup_logger()
 
-    instruments = [inst for inst in self.instruments if self.NN[inst] > 1]
+    if instrument is None:
+        instruments = [inst for inst in self.instruments if self.NN[inst] > 1]
+    else:
+        instruments = self._check_instrument(instrument)
+        instruments = [inst for inst in instruments if self.NN[inst] > 1]
 
     if len(instruments) == 0:
         raise ValueError('no instruments with more than 1 observation')
@@ -34,12 +39,24 @@ def run_kima(self, run=False, load=False, run_directory=None,
     time = [getattr(self, inst).mtime for inst in instruments]
     vrad = [getattr(self, inst).mvrad for inst in instruments]
     err = [getattr(self, inst).msvrad for inst in instruments]
-    actind = [
-        [getattr(self, inst).fwhm[getattr(self, inst).mask] for inst in instruments],
-        [getattr(self, inst).fwhm_err[getattr(self, inst).mask] for inst in instruments]
-    ]
+
+    actind = []
+    indicator_names = []
+    if indicators is not None:
+        for ind in indicators:
+            if hasattr(self, ind):
+                actind.append(
+                    [getattr(getattr(self, inst), ind)[getattr(self, inst).mask] for inst in instruments],
+                )
+                indicator_names.append(ind)
+            if hasattr(self, ind+'_err'):
+                actind.append(
+                    [getattr(getattr(self, inst), ind+'_err')[getattr(self, inst).mask] for inst in instruments],
+                )
+                indicator_names.append(ind)
+
     data = RVData(time, vrad, err, actind, instruments=instruments)
-    data.indicator_names = ['FWHM', 'FWHM_err']
+    data.indicator_names = indicator_names
 
     fix = kwargs.pop('fix', False)
     npmax = kwargs.pop('npmax', 1)
@@ -109,6 +126,17 @@ def run_kima(self, run=False, load=False, run_directory=None,
                 msg = 'if `known_object` is True, specify `n_known_object` or pass `known_object` as an integer'
                 raise ValueError(msg) from None
 
+    TR = kwargs.pop('transiting_planet', False)
+    if TR:
+        if isinstance(TR, int) and TR is not True:
+            model.set_transiting_planet(TR)
+        else:
+            try:
+                model.set_transiting_planet(kwargs.pop('n_transiting_planet'))
+            except KeyError:
+                msg = 'if `transiting_planet` is True, specify `n_transiting_planet` or pass `transiting_planet` as an integer'
+                raise ValueError(msg) from None
+
     for k, v in priors.items():
         try:
             if 'conditional' in k:
@@ -117,11 +145,16 @@ def run_kima(self, run=False, load=False, run_directory=None,
                 setattr(model, k, v)
 
         except AttributeError:
-            msg = f'`RVmodel` has no attribute `{k}`, '
+            msg = f'`{model.__class__.__name__}` has no attribute `{k}`, '
             if guess := try_to_guess_prior(model, k):
                 msg += f'did you mean `{guess}`?'
             logger.warning(msg)
             return
+
+    for k in list(kwargs):
+        if hasattr(model, k):
+            setattr(model, k, kwargs.pop(k))
+
 
     if run_directory is None:
         run_directory = os.getcwd()

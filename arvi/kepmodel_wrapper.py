@@ -233,11 +233,12 @@ class model:
         return fig, ax
 
     def add_keplerian_from_periodogram(self, fap_max=0.001, plot=False,
-                                       fit_first=True):
+                                       fit_first=True, equal_coralie_offsets=False):
         if fit_first and self.np == 0:
             self.fit()
 
-        self._equal_coralie_offsets()
+        if equal_coralie_offsets:
+            self._equal_coralie_offsets()
 
         with timer('periodogram'):
             nu, power = self.model.periodogram(self.nu0, self.dnu, self.nfreq)
