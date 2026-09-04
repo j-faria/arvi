@@ -235,6 +235,10 @@ def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False,
                 fit_keplerians -= 1
             else:
                 break
+        if 'zero_jitters' in kwargs:
+            m._set_jitters()
+            m.fit()
+        print(m)
 
     m.fit()
 
@@ -304,7 +308,10 @@ def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False,
     set_align_for_column(table, 1, align="left")
 
     for i, name in enumerate(m.keplerians):
-        ax = plt.subplot(gs[3, i])
+        if i > 2:
+            ax = plt.subplot(gs[4, i-3])
+        else:
+            ax = plt.subplot(gs[3, i])
         m.plot_phasefolding(planets=name, ax=ax)
 
         ax = plt.subplot(gs[4, i])
@@ -312,10 +319,16 @@ def kepmodel_report(self, fit_keplerians=3, save=None, nasaexo_title=False,
         with m.ew():
             items = list(m.keplerians[name].items())
         items = [[item[0], item[1].round(3)] for item in items]
-        table = ax.table(items, loc='center', edges='open')
-        table.auto_set_font_size(False)
-        table.set_fontsize(9)
-        set_align_for_column(table, 1, align="left")
 
+        if m.np <= 3:
+            ax = plt.subplot(gs[4, i])
+            ax.axis('off')
+            table = ax.table(items, loc='center', edges='open')
+            table.auto_set_font_size(False)
+            table.set_fontsize(9)
+            set_align_for_column(table, 1, align="left")
+        else:
+            ax.legend([], title='\n'.join([f'{p:5s}{v}' for p, v in items]),
+                      loc='upper right', fontsize=9)
 
     return fig, m
