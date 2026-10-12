@@ -616,6 +616,10 @@ class RV(ISSUES, REPORTS):
     def _tt(self, f=20) -> np.ndarray:
         return np.linspace(self.mtime.min(), self.mtime.max(), f*self.N)
 
+    @property
+    def dace_link(self):
+        return f'https://dace.unige.ch/radialVelocities/?pattern={self.star}'
+
     @classmethod
     def from_dace_data(cls, star, inst, pipe, mode, data, **kwargs):
         verbose = kwargs.pop('verbose', False)
@@ -724,9 +728,14 @@ class RV(ISSUES, REPORTS):
             file = os.path.basename(file)
             star, timestamp = file.replace('.pkl.gz', '').replace('.pkl', '').split('_')
 
-        dt = datetime.fromtimestamp(float(timestamp))
+        try:
+            dt = datetime.fromtimestamp(float(timestamp))
+        except ValueError:
+            dt = None
+
         if verbose:
-            logger.info(f'reading snapshot of {star} from {dt}')
+            dt_str = f'from {dt}' if dt else ''
+            logger.info(f'reading snapshot of {star} {dt_str}')
 
         with open(os.path.join(directory, file), 'rb') as f:
             if file.endswith('.gz'):
@@ -741,7 +750,7 @@ class RV(ISSUES, REPORTS):
 
     @classmethod
     def from_rdb(cls, files, star=None, instrument=None, instrument_suffix=None,
-                 units='ms', header_skip=2, **kwargs):
+                 units='ms', header_skip=2, delimiter=None, **kwargs):
         """ Create an RV object from an rdb file or a list of rdb files
 
         Args:
@@ -755,6 +764,8 @@ class RV(ISSUES, REPORTS):
                 Units of the radial velocities. Defaults to 'ms'.
             header_skip (int, optional):
                 Number of lines to skip in the header. Defaults to 2.
+            delimiter (str, optional):
+                Delimiter in the rdb file. Defaults to space or tab.
 
         Examples:
             >>> s = RV.from_rdb('star_HARPS.rdb')
@@ -786,7 +797,7 @@ class RV(ISSUES, REPORTS):
             return splitext(basename(file))[0].split('_')[0].replace('-', '_')
         
         def get_instrument(file):
-            return splitext(basename(file))[0].split('_')[1]
+            return '_'.join(splitext(basename(file))[0].split('_')[1:])
 
         if file_object:
             if star is None:
@@ -816,7 +827,7 @@ class RV(ISSUES, REPORTS):
                     star ='unknown'
 
             if instrument is None:
-                instruments = np.array([splitext(basename(f))[0].split('_')[1] for f in files])
+                instruments = np.array(list(map(get_instrument, files)))
                 if verbose:
                     logger.info(f'assuming instruments: {instruments}')
             else:
@@ -833,14 +844,16 @@ class RV(ISSUES, REPORTS):
         s = cls(star, _child=True, **kwargs)
 
         def find_column(data, names):
-            has_col = np.array([name.casefold() in data.dtype.fields for name in names])
+            fields = [field.casefold() for field in data.dtype.fields]
+            has_col = np.array([name.casefold() in fields for name in names])
             if any(has_col):
                 col = np.where(has_col)[0][0]
                 return np.atleast_1d(data[names[col]])
             return False
 
         for i, (f, instrument) in enumerate(zip(files, instruments)):
-            data = np.loadtxt(f, skiprows=header_skip, usecols=range(3), unpack=True)
+            data = np.loadtxt(f, skiprows=header_skip, usecols=range(3), 
+                              unpack=True, delimiter=delimiter)
             if data.ndim == 1:
                 data = data.reshape(-1, 1)
 
@@ -859,7 +872,9 @@ class RV(ISSUES, REPORTS):
                 with open(f) as ff:
                     header = ff.readline().strip()
 
-            if '\t' in header:
+            if delimiter is not None:
+                names = header.split(delimiter)
+            elif '\t' in header:
                 names = header.split('\t')
             else:
                 names = header.split()
@@ -871,10 +886,9 @@ class RV(ISSUES, REPORTS):
                 comments = '#'
                 kw = dict(skip_header=2, comments=comments,
                           names=names, dtype=None, encoding=None)
-                if '\t' in header:
-                    data = np.genfromtxt(f, **kw, delimiter='\t')
-                else:
-                    data = np.genfromtxt(f, **kw)
+                delim = delimiter or ('\t' if '\t' in header else None)
+                kw['delimiter'] = delim
+                data = np.genfromtxt(f, **kw)
 
                 # if data.ndim in (0, 1):
                 #     data = data.reshape(-1, 1)
@@ -901,38 +915,42 @@ class RV(ISSUES, REPORTS):
             _quantities.append('ccf_fwhm_err')
 
             # try to find R'HK and uncertainty
-            if (v := find_column(data, ['rhk'])) is not False:
-                _s.rhk = v
-                _s.rhk_err = np.full_like(time, np.nan)
-                if (sv := find_column(data, ['srhk', 'rhk_err', 'sig_rhk'])) is not False:
-                    _s.rhk_err = sv
+            if (v := find_column(data, ['rhk', 'spectro_rhk'])) is not False:
+                _s.spectro_rhk = v
+                _s.spectro_rhk_err = np.full_like(time, np.nan)
+                if (sv := find_column(data, ['srhk', 'rhk_err', 'sig_rhk', 'spectro_rhk_err'])) is not False:
+                    _s.spectro_rhk_err = sv
                     logger.debug('found columns for logRhk and uncertainty') if verbose else None
             else:
-                _s.rhk = np.full_like(time, np.nan)
-                _s.rhk_err = np.full_like(time, np.nan)
+                _s.spectro_rhk = np.full_like(time, np.nan)
+                _s.spectro_rhk_err = np.full_like(time, np.nan)
 
-            _quantities.append('rhk')
-            _quantities.append('rhk_err')
+            _quantities.append('spectro_rhk')
+            _quantities.append('spectro_rhk_err')
 
             # try to find BISPAN and uncertainty
-            if (v := find_column(data, ['bis', 'bispan'])) is not False:
-                _s.bispan = v * factor
-                _s.bispan_err = np.full_like(time, np.nan)
-                if (sv := find_column(data, ['sbispan', 'sig_bispan', 'bispan_err'])) is not False:
-                    _s.bispan_err = sv * factor
+            if (v := find_column(data, ['bis', 'bispan', 'ccf_bispan'])) is not False:
+                _s.ccf_bispan = v * factor
+                _s.ccf_bispan_err = np.full_like(time, np.nan)
+                if (sv := find_column(data, ['sbispan', 'sig_bispan', 'bispan_err', 'ccf_bispan_err'])) is not False:
+                    _s.ccf_bispan_err = sv * factor
+                    logger.debug('found columns for BISPAN and uncertainty') if verbose else None
+                else:
+                    _s.ccf_bispan_err = 2 * _s.svrad
+                    logger.debug('found column for BISPAN') if verbose else None
             else:
-                _s.bispan = np.full_like(time, np.nan)
-                _s.bispan_err = np.full_like(time, np.nan)
+                _s.ccf_bispan = np.full_like(time, np.nan)
+                _s.ccf_bispan_err = np.full_like(time, np.nan)
 
-            _quantities.append('bispan')
-            _quantities.append('bispan_err')
+            _quantities.append('ccf_bispan')
+            _quantities.append('ccf_bispan_err')
 
             # try to find BERV
-            if (v := find_column(data, ['berv', 'HIERARCH ESO QC BERV'])) is not False:
-                _s.berv = v
+            if (v := find_column(data, ['berv', 'cal_berv', 'HIERARCH ESO QC BERV'])) is not False:
+                _s.cal_berv = v
             else:
-                _s.berv = np.full_like(time, np.nan)
-            _quantities.append('berv')
+                _s.cal_berv = np.full_like(time, np.nan)
+            _quantities.append('cal_berv')
 
             # other quantities
             msg = ''
@@ -940,18 +958,21 @@ class RV(ISSUES, REPORTS):
             for q, possible in {
                 'caindex': ['caindex', 'ca', 'caII'],
                 'ccf_asym': ['ccf_asym'],
-                'contrast': ['contrast'],
+                'ccf_contrast': ['contrast', 'ccf_contrast'],
                 'haindex': ['haindex', 'ha', 'halpha'],
                 'heindex': ['heindex', 'he', 'heII'],
                 'naindex': ['naindex', 'na'],
                 'sindex': ['sindex', 's_mw'],
+                'dtemp3000': ['DTEMP3000'], 'sdtemp3000': ['sDTEMP3000'],
             }.items():
                 # try to find columns for each quantity
                 if (v := find_column(data, possible)) is not False:
                     msg += f'{q}, '
                     setattr(_s, q, v)
                     # try to find uncertainty column for each quantity
-                    possible_errors = ['s' + p for p in possible] + ['sig_' + p for p in possible] + [p + '_err' for p in possible]
+                    possible_errors = ['s' + p for p in possible] 
+                    possible_errors += ['sig_' + p for p in possible] 
+                    possible_errors += [p + '_err' for p in possible]
                     if (sv := find_column(data, possible_errors)) is not False:
                         setattr(_s, q + '_err', sv)
                     else:
@@ -1019,21 +1040,20 @@ class RV(ISSUES, REPORTS):
 
     @classmethod
     def from_ccf(cls, files, star=None, instrument=None, **kwargs):
-        """ Create an RV object from a CCF file or a list of CCF files
+        """ Create an RV object from a (list of) CCF file(s) or an iCCF object
 
         !!! Note
             This function relies on the `iCCF` package
 
         Args:
             files (str or list):
-                CCF file or list of CCF files
+                (List of) CCF file(s) or (list of) iCCF `Indicators` object(s)
             star (str):
                 Star name. If not provided, it will be inferred from the header
                 of the CCF file
             instrument (str):
                 Instrument name. If not provided, it will be inferred from the
                 header of the CCF file
-        
         """
         try:
             import iCCF
@@ -1046,22 +1066,29 @@ class RV(ISSUES, REPORTS):
         if isinstance(files, str):
             files = [files]
 
-        hdu_number = kwargs.pop('hdu_number', 1)
-        data_index = kwargs.pop('data_index', -1)
-        CCFs = iCCF.from_file(files, hdu_number=hdu_number, data_index=data_index)
+        if all([isinstance(f, str) for f in files]):
+            hdu_number = kwargs.pop('hdu_number', 1)
+            data_index = kwargs.pop('data_index', -1)
+            CCFs = iCCF.from_file(files, hdu_number=hdu_number, data_index=data_index)
+        elif all([isinstance(f, iCCF.Indicators) for f in files]):
+            CCFs = deepcopy(files)
+        else:
+            logger.error('files must be (a list of) strings or iCCF.Indicators objects')
+            return
 
         if not isinstance(CCFs, list):
             CCFs = [CCFs]
 
-        try:
-            objects = np.unique([i.OBJECT for i in CCFs])
-        except AttributeError:
-            objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
+        if star is None:
+            try:
+                objects = np.unique([i.OBJECT for i in CCFs])
+            except AttributeError:
+                objects = np.unique([i.HDU[0].header['OBJECT'].replace(' ', '') for i in CCFs])
 
-        if len(objects) != 1:
-            logger.warning(f'found {objects.size} different stars in the CCF files ({objects}), '
-                           'choosing the first one')
-        star = objects[0]
+            if len(objects) != 1:
+                logger.warning(f'found {objects.size} different stars in the CCF files ({objects}), '
+                            'choosing the first one')
+            star = objects[0]
 
         s = cls(star, _child=True)
         instruments = list(np.unique([i.instrument for i in CCFs]))
@@ -1133,6 +1160,9 @@ class RV(ISSUES, REPORTS):
         elif instruments == ['HARPS']:
             from .instrument_specific import divide_HARPS
             divide_HARPS(s)
+        elif instruments == ['CORALIE']:
+            from .instrument_specific import divide_CORALIE
+            divide_CORALIE(s)
 
         if kwargs.get('do_adjust_means', False):
             s.adjust_means()
@@ -1518,6 +1548,7 @@ class RV(ISSUES, REPORTS):
                 setattr(self, new_name_instrument, getattr(self, instrument))
                 delattr(self, instrument)
                 self.instruments[self.instruments.index(instrument)] = new_name_instrument
+                getattr(self, new_name_instrument).instruments = [new_name_instrument]
 
             self._build_arrays()
 
@@ -1804,7 +1835,6 @@ class RV(ISSUES, REPORTS):
         Gaia (in `self.gaia`) if available, otherwise from Simbad (in
         `self.simbad`), unless `force_simbad=True`.
 
-
         Args:
             epoch (float, optional):
                 The reference epoch (DACE uses 55500, 31/10/2010)
@@ -1902,8 +1932,11 @@ class RV(ISSUES, REPORTS):
 
                 # if RVs come from a publication, don't remove the secular
                 # acceleration
-                if np.all(s.pub_reference != ''):
-                    continue
+                try:
+                    if np.all(s.pub_reference != ''):
+                        continue
+                except AttributeError:
+                    pass
 
                 if 'HIRES' in inst or 'HAMILTON' in inst:
                     continue
