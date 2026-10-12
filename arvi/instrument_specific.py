@@ -347,7 +347,7 @@ def blue_cryostat_issues(self, mask=True, plot=True):
 
     affected_file_roots = np.char.replace(ESPRESSO_cryostat_issues(), 'r.', '')
     file_roots = [os.path.basename(f).replace('.fits', '') for f in self.file_rootname]
-    intersect = np.in1d(file_roots, affected_file_roots)
+    intersect = np.isin(file_roots, affected_file_roots)
 
     total_affected = intersect.sum()
 
