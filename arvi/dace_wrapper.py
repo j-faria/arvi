@@ -445,7 +445,11 @@ def browse(files, type, user=None):
     if isinstance(files, np.ndarray):
         files = files.tolist()
 
-    file_type = type.lower()
+    if type in ('CCF', 'S1D', 'S2D'):
+        file_type = type.lower()
+    else:
+        file_type = type
+
     if file_type == 's2d':
         file_type = ['S2D_A', 'S2D_BLAZE_A']
 
@@ -469,18 +473,33 @@ def download(files, type, output_directory, output_filename=None, user=None,
     if isinstance(files, np.ndarray):
         files = files.tolist()
 
-    file_type = type.lower()
+    if type in ('CCF', 'S1D', 'S2D'):
+        file_type = type.lower()
+    else:
+        file_type = type
+
     if file_type == 's2d':
         file_type = ['S2D_A', 'S2D_BLAZE_A']
+
 
     kw = {
         "filters": {"file_rootname": {"equal": files}},
         "file_type": file_type,
-        "compressed": True,
         "drs_version": "latest",
-        "output_directory": output_directory,
         "output_filename": output_filename,
     }
+
+    if len(files) == 1 and len(file_type) == 1:
+        products = Spectroscopy.browse_products(**kw)
+        output_filename = os.path.basename(products['file_rootname'][0])
+        if os.name == 'nt':  # on Windows, be careful with ':' in filename
+            output_filename = output_filename.replace(':', '_')
+        kw['output_filename'] = output_filename
+        kw['compressed'] = False
+    else:
+        kw['compressed'] = True
+
+    kw["output_directory"] = output_directory
 
     if quiet:
         with all_logging_disabled(), stdout_disabled():
@@ -496,6 +515,8 @@ def extract_fits(output_directory, filename=None):
     if filename is None:
         filename = 'spectroscopy_download.tar.gz'
     file = os.path.join(output_directory, filename)
+    if not os.path.exists(file):
+        return []
     with tarfile.open(file, "r") as tar:
         files = []
         for member in tar.getmembers():
@@ -619,7 +640,7 @@ def do_download_filetype(type, raw_files, output_directory, clobber=False, user=
 
         with ThreadPool(4) as pool:
             pool.starmap(download, it1)
-            pool.starmap(extract_fits, it2)
+            downloaded = pool.starmap(extract_fits, it2)
             print('')
 
     sys.stdout.flush()
