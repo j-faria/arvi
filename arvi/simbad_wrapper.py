@@ -1,8 +1,9 @@
+from collections import defaultdict
 import os
 from urllib.error import URLError
 import requests
 from dataclasses import dataclass
-from functools import partial
+from functools import lru_cache, partial
 
 import numpy as np
 
@@ -48,8 +49,9 @@ WHERE id = '{star}';
 """
 
 MEAS_QUERY = """
-SELECT teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode FROM mesFe_H 
+SELECT b.main_id, m.teff, m.log_g, m.log_g_prec, m.fe_h, m.fe_h_prec, m.bibcode FROM mesFe_H AS m
 JOIN ident USING(oidref)
+JOIN basic as b ON oidref = oid
 WHERE id = '{star}';
 """
 
@@ -107,11 +109,12 @@ class Measurements:
     bibcode: list
 
 
-def run_query(query, SIMBAD_URL='http://simbad.u-strasbg.fr'):
+@lru_cache
+def run_query(query, SIMBAD_URL='http://simbad.u-strasbg.fr', timeout=5):
     url = f'{SIMBAD_URL}/simbad/sim-tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='text/plain', phase='run')
     try:
-        response = requests.post(url, data=data, timeout=30)
+        response = requests.post(url, data=data, timeout=timeout)
     except requests.ReadTimeout as err:
         raise IndexError(err) from None
     except requests.ConnectionError as err:
@@ -174,10 +177,47 @@ class simbad:
         V (float): V magnitude
         ids (list): list of identifiers
     """
-    def __init__(self, star:str, _debug=False):
+
+    @classmethod
+    def from_values(
+        cls,
+        star: str,
+        ra: float = None,
+        dec: float = None,
+        main_id: str = None,
+        gaia_id: int = None,
+        plx: float = None,
+        rvz_radvel: float = None,
+        sp_type: str = None,
+        otype: str = None,
+        B: float = None,
+        V: float = None,
+        ids: list[str] = [],
+        **kwargs
+    ):
+        s = cls.__new__(cls)
+        s.star = star
+        s.ra = ra
+        s.dec = dec
+        s.main_id = main_id
+        s.gaia_id = gaia_id
+        s.plx = plx
+        s.rvz_radvel = rvz_radvel
+        s.sp_type = sp_type
+        s.otype = otype
+        s.B = B
+        s.V = V
+        s.ids = ids
+        for k, v in kwargs.items():
+            setattr(s, k, v)
+        return s
+
+    def __init__(self, star:str, _debug=False, _timeout=5):
         """
         Args:
             star (str): The name of the star to query simbad
+            _debug (bool): Whether to print debug information
+            _timeout (int): Timeout for the TAP query
         """
         from astropy.coordinates import SkyCoord
         import pysweetcat
@@ -201,7 +241,7 @@ class simbad:
         # self.oid = str(oid.split()[-1])
 
         try:
-            table1 = run_query(query=QUERY.format(star=self.star))
+            table1 = run_query(query=QUERY.format(star=self.star), timeout=_timeout)
             if _debug:
                 print('table1:', table1)
             cols, values = parse_table1(table1)
@@ -209,7 +249,7 @@ class simbad:
             raise ValueError(f'simbad query for {star} failed') from None
 
         try:
-            table2 = run_query(query=BV_QUERY.format(star=self.star))
+            table2 = run_query(query=BV_QUERY.format(star=self.star), timeout=_timeout)
             if _debug:
                 print('table2:\n', table2)
             cols, values = parse_table1(table2, cols, values)
@@ -217,7 +257,7 @@ class simbad:
             self.B = self.V = np.nan
 
         try:
-            table21 = run_query(query=OTYPE_QUERY.format(star=self.star))
+            table21 = run_query(query=OTYPE_QUERY.format(star=self.star), timeout=_timeout)
             if _debug:
                 print('table21:\n', table21)
             cols, values = parse_table1(table21, cols, values)
@@ -225,7 +265,7 @@ class simbad:
             self.otype = None
 
         try:
-            table3 = run_query(query=IDS_QUERY.format(star=self.star))
+            table3 = run_query(query=IDS_QUERY.format(star=self.star), timeout=_timeout)
             if _debug:
                 print('table3:', table3)
             line = table3.splitlines()[2]
@@ -233,7 +273,7 @@ class simbad:
         except IndexError:
             self.ids = []
 
-        table4 = run_query(query=FILTERS_QUERY.format(star=self.star))
+        table4 = run_query(query=FILTERS_QUERY.format(star=self.star), timeout=_timeout)
         if _debug:
             print('table4:\n', table4)
         for row in table4.splitlines()[2:]:
@@ -253,13 +293,13 @@ class simbad:
 
 
         # measurements table
-        table5 = run_query(query=MEAS_QUERY.format(star=self.star))
+        table5 = run_query(query=MEAS_QUERY.format(star=self.star), timeout=_timeout)
         if _debug:
             print('table5:\n', table5)
 
         _teff, _logg, _feh, _bibcode = [], [], [], []
         for row in table5.splitlines()[2:]:
-            teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
+            _, teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
             _bibcode.append(bibcode)
             _teff.append(parse_value(teff))
             _logg.append(parse_value(log_g, prec=log_g_prec))
@@ -338,6 +378,122 @@ class simbad:
         assert cols == ['oid', 'ra', 'dec', 'main_id', 'dist']
         star = values[0][cols.index('main_id')].replace('"', '')
         return cls(star, **kwargs)
+
+
+def pluralize(query):
+    return query.replace("id = '{star}'", "id in {star_tuple}")
+
+
+class list_simbad:
+    def __init__(self, stars, _timeout=15):
+        from astropy.coordinates import SkyCoord
+
+        if isinstance(stars, str):
+            stars = [stars]
+        if isinstance(stars, tuple):
+            stars = list(stars)
+        self.stars = stars
+        self.starst = tuple(stars)
+
+        Q = pluralize(QUERY)
+        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        cols, values = parse_tablen(table)
+        for col, vals in zip(cols, list(zip(*values))):
+            try:
+                vals = list(map(float, vals))
+            except ValueError:
+                pass
+            try:
+                vals = [v.replace('"', '') for v in vals]
+            except AttributeError:
+                pass
+            setattr(self, col, vals)
+
+
+        Q = pluralize(BV_QUERY)
+        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        cols, values = parse_tablen(table)
+        values = list(zip(*values))
+        for col, vals in zip(cols, values):
+            vals = ['nan' if v == '' else v for v in vals]
+            setattr(self, col, list(map(float, vals)))
+
+        Q = pluralize(OTYPE_QUERY)
+        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        cols, values = parse_tablen(table)
+        self.otype = [v[0].replace('"', '') for v in values]
+
+        Q = pluralize(IDS_QUERY)
+        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        cols, values = parse_tablen(table)
+        self.ids = [
+            [' '.join(vv.replace('"', '').split()) for vv in v] for v in values
+        ]
+        self.gaia_id = [
+            int(i.split("Gaia DR3")[1]) for ids in self.ids
+            for i in ids if "Gaia DR3" in i
+        ]
+
+        Q = pluralize(FILTERS_QUERY)
+        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        cols, values = parse_tablen(table)
+        filters = defaultdict(list)
+        for row in values:
+            filter_name, mag, mag_err, bibcode = row
+            filter_name = filter_name.replace('"', '').strip()
+            filters[filter_name].append(float(mag))
+        for key in filters:
+            setattr(self, '_' + key, filters[key])
+
+        # measurements table
+        Q = pluralize(MEAS_QUERY)
+        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        _teff, _logg, _feh, _bibcode = [], [], [], []
+        measures = {}
+        for row in table.splitlines()[2:]:
+            main_id, teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
+            if main_id not in measures:
+                measures[main_id] = {'teff': [], 'log_g': [], 'fe_h': [], 'bibcode': []}
+            measures[main_id]['teff'].append(parse_value(teff))
+            measures[main_id]['log_g'].append(parse_value(log_g, prec=log_g_prec))
+            measures[main_id]['fe_h'].append(parse_value(fe_h, prec=fe_h_prec))
+            measures[main_id]['bibcode'].append(bibcode)
+        
+        self.measurements = []
+        for main_id in measures:
+            self.measurements.append(
+                Measurements(measures[main_id]['teff'], 
+                             measures[main_id]['log_g'], 
+                             measures[main_id]['fe_h'], 
+                             measures[main_id]['bibcode'])
+        )
+
+        self.plx = self.plx_value
+        del self.plx_value
+
+        self.coords = [
+            SkyCoord(ra, dec, unit='deg') for ra, dec in zip(self.ra, self.dec)
+        ]
+
+    @property
+    def individual(self):
+        all_vals = zip(
+            self.stars, self.ra, self.dec, self.main_id, self.gaia_id, self.plx,
+            self.rvz_radvel, self.sp_type, self.otype, self.B, self.V, self.ids
+        )
+        S = [simbad.from_values(*args) for args in all_vals]
+        for i, s in enumerate(S):
+            s.plx_err = self.plx_err[i]
+            s.measurements = self.measurements[i]
+            s._V = self._V[i]
+            s._B = self._B[i]
+            s._G = self._G[i]
+            s._H = self._H[i]
+            s._J = self._J[i]
+            s._K = self._K[i]
+
+        return S
+
 
 def argsort_by_spectral_type(sptypes):
     STs = [f'{letter}{n}' for letter in ('F', 'G', 'K', 'M') for n in range(10)]
