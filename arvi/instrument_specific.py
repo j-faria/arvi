@@ -41,7 +41,7 @@ CORALIE_24_start = 60598  # 15 October 2024
 
 
 def divide_ESPRESSO(self):
-    """ Split ESPRESSO data into separate sub ESP18 and ESP19 subsets """
+    """ Split ESPRESSO data into separate ESP18 and ESP19 subsets """
     logger = setup_logger()
     if self._check_instrument('ESPRESSO', strict=False) is None:
         return
@@ -120,7 +120,7 @@ def divide_HARPS(self):
 
 def divide_CORALIE(self):
     """ Split CORALIE data into separate subsets (98, 07, 14, 24) """
-    raise NotImplementedError
+    # raise NotImplementedError
     logger = setup_logger()
     if self._check_instrument('CORALIE', strict=False) is None:
         return
@@ -131,24 +131,42 @@ def divide_CORALIE(self):
 
     from .timeseries import RV
 
-    new_instruments = []
+    new_instruments, masks = [], []
     _98 = self.time < CORALIE_07_start
     if _98.any():
         new_instruments += ['CORALIE98']
+        masks.append(_98)
 
     _07 = (CORALIE_07_start <= self.time) & (self.time < CORALIE_14_start)
     if _07.any():
         new_instruments += ['CORALIE07']
+        masks.append(_07)
 
     _14 = (CORALIE_14_start <= self.time) & (self.time < CORALIE_24_start)
     if _14.any():
         new_instruments += ['CORALIE14']
+        masks.append(_14)
 
     _24 = self.time >= CORALIE_24_start
     if _24.any():
         new_instruments += ['CORALIE24']
+        masks.append(_24)
 
-    print(new_instruments)
+    for inst, mask in zip(new_instruments, masks):
+        _s = RV.from_arrays(self.star, self.time[mask], self.vrad[mask], self.svrad[mask],
+                            instrument=inst)
+        for q in self._quantities:
+            setattr(_s, q, getattr(self, q)[mask])
+        setattr(self, inst, _s)
+        _s._quantities = self._quantities
+        _s.mask = self.mask[mask]
+
+    delattr(self, 'CORALIE')
+    self.instruments = new_instruments
+    self._build_arrays()
+
+    if self.verbose:
+        logger.info(f'divided CORALIE into {self.instruments}')
 
 
 def check(self, instrument):
@@ -283,9 +301,9 @@ def ADC_issues(self, mask=True, plot=True, check_headers=False):
             logger.error(f"ADC_issues: no data from ESPRESSO")
         return
 
-    affected_file_roots = ESPRESSO_ADC_issues()
-    file_roots = [os.path.basename(f).replace('.fits', '') for f in self.raw_file]
-    intersect = np.in1d(file_roots, affected_file_roots)
+    affected_file_roots = np.char.replace(ESPRESSO_ADC_issues(), 'r.', '')
+    file_roots = [os.path.basename(f).replace('.fits', '') for f in self.file_rootname]
+    intersect = np.isin(file_roots, affected_file_roots)
 
     if check_headers:
         from .headers import get_headers
@@ -327,8 +345,8 @@ def blue_cryostat_issues(self, mask=True, plot=True):
             logger.error(f"blue_cryostat_issues: no data from ESPRESSO")
         return
 
-    affected_file_roots = ESPRESSO_cryostat_issues()
-    file_roots = [os.path.basename(f).replace('.fits', '') for f in self.raw_file]
+    affected_file_roots = np.char.replace(ESPRESSO_cryostat_issues(), 'r.', '')
+    file_roots = [os.path.basename(f).replace('.fits', '') for f in self.file_rootname]
     intersect = np.in1d(file_roots, affected_file_roots)
 
     total_affected = intersect.sum()
