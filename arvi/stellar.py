@@ -86,9 +86,9 @@ def calc_prot_age(self, bv=None, array=False):
     logger = setup_logger()
 
     if array:
-        log_rhk = self.rhk[~np.isnan(self.rhk)]
+        log_rhk = self.spectro_rhk[~np.isnan(self.spectro_rhk)]
     else:
-        log_rhk = np.nanmean(self.rhk[self.mask])
+        log_rhk = np.nanmean(self.spectro_rhk[self.mask])
 
     if bv is None:
         bv = self.simbad.B - self.simbad.V
