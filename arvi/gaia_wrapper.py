@@ -1,3 +1,4 @@
+from functools import lru_cache
 import os
 from io import StringIO
 from csv import DictReader
@@ -44,11 +45,12 @@ translate = {
 }
 
 
+@lru_cache
 def run_query(query):
     url = 'https://gea.esac.esa.int/tap-server/tap/sync'
     data = dict(query=query, request='doQuery', lang='ADQL', format='csv')
     try:
-        response = requests.post(url, data=data, timeout=30)
+        response = requests.post(url, data=data, timeout=3)
     except requests.ReadTimeout as err:
         raise IndexError(err)
     except requests.ConnectionError as err:
