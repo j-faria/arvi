@@ -216,18 +216,18 @@ class RV(ISSUES, REPORTS):
         self._did_toi_query = True
         return self._toi
 
-    def __post_init_special_sun(self):
-        import pickle
-        from .extra_data import get_sun_data
-        path = get_sun_data(download=not self._child)
-        self.dace_result = pickle.load(open(path, 'rb'))
+    # def __post_init_special_sun(self):
+    #     import pickle
+    #     from .extra_data import get_sun_data
+    #     path = get_sun_data(download=not self._child)
+    #     self.dace_result = pickle.load(open(path, 'rb'))
 
 
     def __post_init__(self):
         self.__star__ = translate(self.star)
 
         if self.star.lower() == 'sun':
-            self.__post_init_special_sun()
+            # self.__post_init_special_sun()
             self.do_secular_acceleration = False
             self.units = 'km/s'
 
