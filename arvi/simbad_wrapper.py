@@ -184,6 +184,8 @@ class simbad:
         star: str,
         ra: float = None,
         dec: float = None,
+        pmra: float = None,
+        pmdec: float = None,
         main_id: str = None,
         gaia_id: int = None,
         plx: float = None,
@@ -199,6 +201,8 @@ class simbad:
         s.star = star
         s.ra = ra
         s.dec = dec
+        s.pmra = pmra
+        s.pmdec = pmdec
         s.main_id = main_id
         s.gaia_id = gaia_id
         s.plx = plx
@@ -478,7 +482,8 @@ class list_simbad:
     @property
     def individual(self):
         all_vals = zip(
-            self.stars, self.ra, self.dec, self.main_id, self.gaia_id, self.plx,
+            self.stars, self.ra, self.dec, self.pmra, self.pmdec,
+            self.main_id, self.gaia_id, self.plx,
             self.rvz_radvel, self.sp_type, self.otype, self.B, self.V, self.ids
         )
         S = [simbad.from_values(*args) for args in all_vals]
