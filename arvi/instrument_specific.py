@@ -1,9 +1,33 @@
+import re
 import os, sys
 import numpy as np
 
 from .setup_logger import setup_logger
 from .utils import ESPRESSO_ADC_issues, ESPRESSO_cryostat_issues
 
+# INSTRUMENT_COLORS = {
+#     'CORALIE98' : '#1f77b4',  # (medium blue)
+#     'CORALIE07' : '#4a90e2',  # (lighter blue)
+#     'CORALIE14' : '#aec7e8',  # (pale blue)
+#     'HARPS03' : '#2ca02c',    # (medium green)
+#     'HARPS15' : '#98df8a',    # (light green)
+#     'ESPRESSO18' : '#ff7f0e', # (orange)
+#     'ESPRESSO19' : '#ffbb78', # (light orange)
+# }
+
+INSTRUMENT_COLORS = {
+    'CORALIE98' : '#1f77b4',  # (medium blue)
+    'CORALIE07' : '#005b96',  # (lighter blue)
+    'CORALIE14' : '#4dabd6',  # (pale blue)
+    'HARPS03' : '#2ca02c',    # (medium green)
+    'HARPS15' : '#98df8a',    # (light green)
+    'ESPRESSO18' : '#ff7f0e', # (orange)
+    'ESPRESSO19' : '#ffbb78', # (light orange)
+    'HIRES_pre04'  : '#9467bd',  # medium purple
+    'HIRES_post04' : '#b39cd0',  # light purple
+    # 'HIRES_pre04'  : '#d62728',  # medium red
+    # 'HIRES_post04' : '#ff9896',  # light red
+}
 
 # HARPS started operations on October 1st, 2003
 # https://www.eso.org/sci/facilities/lasilla/instruments/harps/news.html
