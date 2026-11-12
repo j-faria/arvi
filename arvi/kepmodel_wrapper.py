@@ -106,7 +106,25 @@ class model:
         lines = lines.split('\n')
         lines = [line.split() for line in lines]
         lines = [[col.replace('_[deg]', ' [deg]') for col in line] for line in lines]
-        pretty_print_table(lines[:-2], **kwargs)
+    def automatic(self, fit_keplerians=3, force_first_period=None, **kwargs):
+        while fit_keplerians > 0:
+            if force_first_period is not None:
+                self.add_planet_from_period(force_first_period)
+                self.fit()
+                force_first_period = None
+                fit_keplerians -= 1
+            else:
+                if self.add_keplerian_from_periodogram(**kwargs):
+                    fit_keplerians -= 1
+                else:
+                    break
+            if 'zero_jitters' in kwargs:
+                self._set_jitters()
+                self.fit()
+            print(self)
+
+        self.fit()
+        return self
 
     @property
     def fit_param(self):
