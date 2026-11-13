@@ -397,8 +397,13 @@ class simbad:
         return cls(star, **kwargs)
 
 
-def pluralize(query):
-    return query.replace("id = '{star}'", "id in {star_tuple}")
+def pluralize(query, star_tuple=None):
+    if star_tuple is None:
+        return query.replace("id = '{star}'", "id in {star_tuple}")
+    else:
+        star_tuple = repr(star_tuple).replace(',)', ')')
+        return query.replace("id = '{star}'", f"id in {star_tuple}")
+
 
 
 def _get_sorted_values(values, stars):
@@ -417,6 +422,8 @@ def _get_sorted_values(values, stars):
 
 
 class list_simbad:
+    main_id = []
+
     def __init__(self, stars, _timeout=15):
         from astropy.coordinates import SkyCoord
 
@@ -427,8 +434,8 @@ class list_simbad:
         self.stars = stars
         self.starst = tuple(stars)
 
-        Q = pluralize(QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        Q = pluralize(QUERY, star_tuple=self.starst)
+        table = run_query(query=Q, timeout=_timeout)
         cols, values = parse_tablen(table)
         new_values = _get_sorted_values(values, self.stars)
         for col, vals in zip(cols, list(zip(*new_values))):
@@ -443,8 +450,8 @@ class list_simbad:
             setattr(self, col, vals)
 
 
-        Q = pluralize(BV_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        Q = pluralize(BV_QUERY, star_tuple=self.starst)
+        table = run_query(query=Q, timeout=_timeout)
         cols, values = parse_tablen(table)
         new_values = _get_sorted_values(values, self.stars)
         self.B, self.V = [], []
@@ -458,14 +465,14 @@ class list_simbad:
             except ValueError:
                 self.V.append(np.nan)
 
-        Q = pluralize(OTYPE_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        Q = pluralize(OTYPE_QUERY, star_tuple=self.starst)
+        table = run_query(query=Q, timeout=_timeout)
         cols, values = parse_tablen(table)
         new_values = _get_sorted_values(values, self.stars)
         self.otype = [v[1].replace('"', '') for v in new_values]
 
-        Q = pluralize(IDS_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        Q = pluralize(IDS_QUERY, star_tuple=self.starst)
+        table = run_query(query=Q, timeout=_timeout)
         cols, values = parse_tablen(table)
         new_values = _get_sorted_values(values, self.stars)
         self.ids = [
@@ -476,8 +483,8 @@ class list_simbad:
             for i in ids if "Gaia DR3" in i
         ]
 
-        Q = pluralize(FILTERS_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), ) # timeout=_timeout
+        Q = pluralize(FILTERS_QUERY, star_tuple=self.starst)
+        table = run_query(query=Q) # timeout=_timeout
         cols, values = parse_tablen(table)
         filters = {}
         for row in values:
@@ -491,16 +498,23 @@ class list_simbad:
             except ValueError:
                 filters[main_id][filter_name] = float(mag)
         
+        filts = ['B', 'V', 'G', 'H', 'I', 'J', 'K', 'R']
+        for filt in filts:
+            setattr(self, '_' + filt, [])
+
         for main_id in self.main_id:
             if main_id in filters:
                 for f, v in filters[main_id].items():
-                    if not hasattr(self, '_' + f):
-                        setattr(self, '_' + f, [])
                     getattr(self, '_' + f).append(v)
+                for f in set(filts) - set(filters[main_id].keys()):
+                    getattr(self, '_' + f).append(np.nan)
+            else:
+                for f in filts:
+                    getattr(self, '_' + f).append(np.nan)
 
         # measurements table
-        Q = pluralize(MEAS_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), ) # timeout=_timeout
+        Q = pluralize(MEAS_QUERY, star_tuple=self.starst)
+        table = run_query(query=Q) # timeout=_timeout
         _teff, _logg, _feh, _bibcode = [], [], [], []
         measures = {}
         for row in table.splitlines()[2:]:
