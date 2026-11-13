@@ -16,8 +16,8 @@ def test_from_rdb(change_test_dir):
     assert s.N == 1
     assert s.ccf_fwhm.shape == (1,)
     assert (s.ccf_fwhm == 0).all()
-    assert (s.bispan == 0).all()
-    assert isnan(s.rhk).all()
+    assert (s.ccf_bispan == 0).all()
+    assert isnan(s.spectro_rhk).all()
 
 
 def test_list_instruments():
