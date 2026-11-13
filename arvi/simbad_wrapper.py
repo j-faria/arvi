@@ -18,8 +18,11 @@ from .translations import translate
 DATA_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(DATA_PATH, 'data')
 
+SIMBAD_URL = "http://simbad.u-strasbg.fr"
+SIMBAD_MIRROR_URL = "https://simbad.cfa.harvard.edu"
+
 QUERY = """
-SELECT basic.OID,
+SELECT id, basic.OID,
        RA,
        DEC,
        main_id,
@@ -37,14 +40,15 @@ WHERE id = '{star}';
 # WHERE id = 'HD23079';
 
 BV_QUERY = """
-SELECT B, V FROM allfluxes
+SELECT id, B, V FROM allfluxes
 JOIN ident USING(oidref)
 WHERE id = '{star}';
 """
 
 FILTERS_QUERY = """
-SELECT filter, flux, flux_err, bibcode FROM flux 
+SELECT b.main_id, filter, flux, flux_err, bibcode FROM flux 
 JOIN ident USING(oidref)
+JOIN basic as b ON oidref = oid
 WHERE id = '{star}';
 """
 
@@ -56,7 +60,7 @@ WHERE id = '{star}';
 """
 
 IDS_QUERY = """
-SELECT ids FROM ids
+SELECT id, ids FROM ids
 JOIN ident USING(oidref)
 WHERE id = '{star}';
 """
@@ -68,7 +72,7 @@ WHERE id = '{star}';
 """
 
 OTYPE_QUERY = """
-SELECT otype FROM basic 
+SELECT id, otype FROM basic 
 JOIN ident ON oidref = oid 
 WHERE id = '{star}';
 """
@@ -110,15 +114,24 @@ class Measurements:
 
 
 @lru_cache
-def run_query(query, SIMBAD_URL='http://simbad.u-strasbg.fr', timeout=5):
-    url = f'{SIMBAD_URL}/simbad/sim-tap/sync'
-    data = dict(query=query, request='doQuery', lang='ADQL', format='text/plain', phase='run')
+def run_query(query, simbad_url=SIMBAD_URL, timeout=5):
+    url = f'{simbad_url}/simbad/sim-tap/sync'
+    data = {
+        "query": query,
+        "request": "doQuery",
+        "lang": "ADQL",
+        "format": "text/plain",
+        "phase": "run",
+    }
     try:
         response = requests.post(url, data=data, timeout=timeout)
-    except requests.ReadTimeout as err:
-        raise IndexError(err) from None
-    except requests.ConnectionError as err:
-        raise IndexError(err) from None
+    except (requests.ReadTimeout, requests.ConnectionError) as err:
+        # try the mirror
+        url = f'{SIMBAD_MIRROR_URL}/simbad/sim-tap/sync'
+        try:
+            response = requests.post(url, data=data, timeout=timeout)
+        except (requests.ReadTimeout, requests.ConnectionError) as err:
+            raise IndexError(err) from None
     return response.content.decode()
 
 def parse_table1(table, cols=None, values=None):
@@ -281,7 +294,7 @@ class simbad:
         if _debug:
             print('table4:\n', table4)
         for row in table4.splitlines()[2:]:
-            filter_name, mag, mag_err, bibcode = row.replace('"', '').split('|')
+            main_id, filter_name, mag, mag_err, bibcode = row.replace('"', '').split('|')
             filter_name = filter_name.strip()
             try:
                 setattr(self, '_' + filter_name, ufloat(float(mag), float(mag_err)))
@@ -388,6 +401,21 @@ def pluralize(query):
     return query.replace("id = '{star}'", "id in {star_tuple}")
 
 
+def _get_sorted_values(values, stars):
+    returned_ids = [v[0].replace('"','').replace(' ', '') for v in values]
+    new_values = []
+    for star in stars:
+        if star not in returned_ids:
+            if star.startswith('BD'):
+                star = star[:5] + star[5:].replace('0', '')
+            # if star == 'BD-130321': star = 'BD-13321' # known error
+        try:
+            new_values.append(values[returned_ids.index(star)])
+        except ValueError:
+            new_values.append([np.nan] * len(values[0]))
+    return new_values
+
+
 class list_simbad:
     def __init__(self, stars, _timeout=15):
         from astropy.coordinates import SkyCoord
@@ -402,7 +430,8 @@ class list_simbad:
         Q = pluralize(QUERY)
         table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
         cols, values = parse_tablen(table)
-        for col, vals in zip(cols, list(zip(*values))):
+        new_values = _get_sorted_values(values, self.stars)
+        for col, vals in zip(cols, list(zip(*new_values))):
             try:
                 vals = list(map(float, vals))
             except ValueError:
@@ -417,21 +446,30 @@ class list_simbad:
         Q = pluralize(BV_QUERY)
         table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
         cols, values = parse_tablen(table)
-        values = list(zip(*values))
-        for col, vals in zip(cols, values):
-            vals = ['nan' if v == '' else v for v in vals]
-            setattr(self, col, list(map(float, vals)))
+        new_values = _get_sorted_values(values, self.stars)
+        self.B, self.V = [], []
+        for vals in new_values:
+            try:
+                self.B.append(float(vals[1]))
+            except ValueError:
+                self.B.append(np.nan)
+            try:
+                self.V.append(float(vals[2]))
+            except ValueError:
+                self.V.append(np.nan)
 
         Q = pluralize(OTYPE_QUERY)
         table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
         cols, values = parse_tablen(table)
-        self.otype = [v[0].replace('"', '') for v in values]
+        new_values = _get_sorted_values(values, self.stars)
+        self.otype = [v[1].replace('"', '') for v in new_values]
 
         Q = pluralize(IDS_QUERY)
         table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
         cols, values = parse_tablen(table)
+        new_values = _get_sorted_values(values, self.stars)
         self.ids = [
-            [' '.join(vv.replace('"', '').split()) for vv in v] for v in values
+            v for v in new_values
         ]
         self.gaia_id = [
             int(i.split("Gaia DR3")[1]) for ids in self.ids
@@ -439,38 +477,53 @@ class list_simbad:
         ]
 
         Q = pluralize(FILTERS_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        table = run_query(query=Q.format(star_tuple=self.starst), ) # timeout=_timeout
         cols, values = parse_tablen(table)
-        filters = defaultdict(list)
+        filters = {}
         for row in values:
-            filter_name, mag, mag_err, bibcode = row
+            main_id, filter_name, mag, mag_err, bibcode = row
+            main_id = main_id.replace('"', '')
+            if main_id not in filters:
+                filters[main_id] = {}
             filter_name = filter_name.replace('"', '').strip()
-            filters[filter_name].append(float(mag))
-        for key in filters:
-            setattr(self, '_' + key, filters[key])
+            try:
+                filters[main_id][filter_name] = ufloat(float(mag), float(mag_err))
+            except ValueError:
+                filters[main_id][filter_name] = float(mag)
+        
+        for main_id in self.main_id:
+            if main_id in filters:
+                for f, v in filters[main_id].items():
+                    if not hasattr(self, '_' + f):
+                        setattr(self, '_' + f, [])
+                    getattr(self, '_' + f).append(v)
 
         # measurements table
         Q = pluralize(MEAS_QUERY)
-        table = run_query(query=Q.format(star_tuple=self.starst), timeout=_timeout)
+        table = run_query(query=Q.format(star_tuple=self.starst), ) # timeout=_timeout
         _teff, _logg, _feh, _bibcode = [], [], [], []
         measures = {}
         for row in table.splitlines()[2:]:
             main_id, teff, log_g, log_g_prec, fe_h, fe_h_prec, bibcode = row.replace('"', '').split('|')
+            main_id = main_id.replace('"', '').strip()
             if main_id not in measures:
                 measures[main_id] = {'teff': [], 'log_g': [], 'fe_h': [], 'bibcode': []}
-            measures[main_id]['teff'].append(parse_value(teff))
+            measures[main_id]['teff'].append(parse_value(teff)) 
             measures[main_id]['log_g'].append(parse_value(log_g, prec=log_g_prec))
             measures[main_id]['fe_h'].append(parse_value(fe_h, prec=fe_h_prec))
             measures[main_id]['bibcode'].append(bibcode)
         
         self.measurements = []
-        for main_id in measures:
-            self.measurements.append(
-                Measurements(measures[main_id]['teff'], 
-                             measures[main_id]['log_g'], 
-                             measures[main_id]['fe_h'], 
-                             measures[main_id]['bibcode'])
-        )
+        for main_id in self.main_id:
+            try:
+                self.measurements.append(
+                    Measurements(measures[main_id]['teff'], 
+                                measures[main_id]['log_g'], 
+                                measures[main_id]['fe_h'], 
+                                measures[main_id]['bibcode'])
+                )
+            except KeyError:
+                self.measurements.append(None)
 
         self.plx = self.plx_value
         del self.plx_value
