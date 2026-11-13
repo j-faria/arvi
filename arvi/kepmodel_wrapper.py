@@ -219,12 +219,26 @@ class model:
         self.model.fit()
         self.np += 1
 
+    def _periodogram(self, full_output=False):
+        with timer('periodogram'):
+            nu, power = self.model.periodogram(self.nu0, self.dnu, self.nfreq)
+            P = 2 * np.pi / nu
+        if full_output:
+            kmax = np.argmax(power)
+            faplvl = self.model.fap(power[kmax], nu.max())
+            return P, power, nu, kmax, faplvl
+        return P, power, nu
+
     def _plot_periodogram(self, P=None, power=None, kmax=None, faplvl=None,
                           full_output=False, **kwargs):
         if P is None and power is None:
-            with timer('periodogram'):
-                nu, power = self.model.periodogram(self.nu0, self.dnu, self.nfreq)
-                P = 2 * np.pi / nu
+            P, power, nu = self._periodogram()
+
+        if kmax is None:
+            kmax = np.argmax(power)
+
+        if faplvl is None:
+            faplvl = self.model.fap(power[kmax], nu.max())
 
         if 'ax' in kwargs:
             ax = kwargs.pop('ax')
@@ -235,14 +249,10 @@ class model:
         ax.set_ylim(0, 1.2 * power.max())
         ax.set(xlabel='Period [days]', ylabel='Normalized power')
 
-        if kmax is None:
-            kmax = np.argmax(power)
         ax.plot(P[kmax], power[kmax], 'or', ms=4)
         ax.text(P[kmax], power[kmax] * 1.1, f'{P[kmax]:.3f} d',
                 ha='right', va='center', color='r')
 
-        if faplvl is None:
-            faplvl = self.model.fap(power[kmax], nu.max())
         ax.text(0.99, 0.95, f'FAP = {faplvl:.2g}', transform=ax.transAxes,
                 ha='right', va='top')
 
