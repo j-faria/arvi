@@ -1,6 +1,7 @@
 from collections import defaultdict
 import os
 from urllib.error import URLError
+import warnings
 import requests
 from dataclasses import dataclass
 from functools import lru_cache, partial
@@ -20,6 +21,7 @@ DATA_PATH = os.path.join(DATA_PATH, 'data')
 
 SIMBAD_URL = "http://simbad.u-strasbg.fr"
 SIMBAD_MIRROR_URL = "https://simbad.cfa.harvard.edu"
+SIMBAD_MIRROR2_URL = "https://simbad.idia.ac.za"
 
 QUERY = """
 SELECT id, basic.OID,
@@ -125,13 +127,16 @@ def run_query(query, simbad_url=SIMBAD_URL, timeout=5):
     }
     try:
         response = requests.post(url, data=data, timeout=timeout)
-    except (requests.ReadTimeout, requests.ConnectionError) as err:
-        # try the mirror
-        url = f'{SIMBAD_MIRROR_URL}/simbad/sim-tap/sync'
+    except (requests.ReadTimeout, requests.ConnectionError) as _:
+        url = f'{SIMBAD_MIRROR_URL}/simbad/sim-tap/sync' # try the mirror
         try:
-            response = requests.post(url, data=data, timeout=timeout)
-        except (requests.ReadTimeout, requests.ConnectionError) as err:
-            raise IndexError(err) from None
+            response = requests.post(url, data=data, timeout=timeout // 2)
+        except (requests.ReadTimeout, requests.ConnectionError) as _:
+            url = f'{SIMBAD_MIRROR2_URL}/simbad/sim-tap/sync' # try the other mirror
+            try:
+                response = requests.post(url, data=data, timeout=timeout // 2)
+            except (requests.ReadTimeout, requests.ConnectionError) as err:
+                raise IndexError(err) from None
     return response.content.decode()
 
 def parse_table1(table, cols=None, values=None):
@@ -385,6 +390,11 @@ class simbad:
     @property
     def bmv(self):
         return self.B - self.V
+
+    @bmv.setter
+    def bmv(self, value):
+        warnings.warn('setting B to match provided B-V', RuntimeWarning)
+        self.B = self.V + value
 
     @classmethod
     def from_ra_dec(cls, ra, dec, **kwargs):
