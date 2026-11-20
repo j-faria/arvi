@@ -127,17 +127,26 @@ def run_query(query, simbad_url=SIMBAD_URL, timeout=5):
     }
     try:
         response = requests.post(url, data=data, timeout=timeout)
+        content = response.content.decode()
+        if content.startswith('<!doctype html>'):
+            raise requests.ConnectionError
     except (requests.ReadTimeout, requests.ConnectionError) as _:
         url = f'{SIMBAD_MIRROR_URL}/simbad/sim-tap/sync' # try the mirror
         try:
             response = requests.post(url, data=data, timeout=timeout // 2)
+            content = response.content.decode()
+            if content.startswith('<!doctype html>'):
+                raise requests.ConnectionError
         except (requests.ReadTimeout, requests.ConnectionError) as _:
             url = f'{SIMBAD_MIRROR2_URL}/simbad/sim-tap/sync' # try the other mirror
             try:
                 response = requests.post(url, data=data, timeout=timeout // 2)
+                content = response.content.decode()
+                if content.startswith('<!doctype html>'):
+                    raise requests.ConnectionError
             except (requests.ReadTimeout, requests.ConnectionError) as err:
                 raise IndexError(err) from None
-    return response.content.decode()
+    return content
 
 def parse_table1(table, cols=None, values=None):
     header = table.splitlines()[0].split('|')
