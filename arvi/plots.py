@@ -509,8 +509,8 @@ def plot_quantity(self, quantity, ax=None, show_masked=False, instrument=None,
         quantity.lower(): quantity,
         'ccf_fwhm': f'{delta}FWHM [{self.units}]',
         'ccf_bispan': f'{delta}BIS [{self.units}]',
-        'rhk': r"$\log$ R'$_{HK}$",
-        'berv': 'BERV [km/s]',
+        'spectro_rhk': r"$\log$ R'$_{HK}$",
+        'cal_berv': 'BERV [km/s]',
     }
 
     ax.set_ylabel(ylabel[quantity.lower()])
@@ -932,9 +932,7 @@ def gls_quantity(self, quantity, ax=None, instrument=None,
 
 gls_fwhm = partialmethod(gls_quantity, quantity='ccf_fwhm')
 gls_bispan = partialmethod(gls_quantity, quantity='ccf_bispan')
-gls_rhk = partialmethod(gls_quantity, quantity='rhk')
-
-
+gls_rhk = partialmethod(gls_quantity, quantity='spectro_rhk')
 
 def window_function(self, ax1=None, ax2=None, instrument=None, crosshair=False, **kwargs):
     """
