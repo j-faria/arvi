@@ -429,14 +429,27 @@ def _get_sorted_values(values, stars):
     returned_ids = [v[0].replace('"','').replace(' ', '') for v in values]
     new_values = []
     for star in stars:
-        if star not in returned_ids:
-            if star.startswith('BD'):
-                star = star[:5] + star[5:].replace('0', '')
-            # if star == 'BD-130321': star = 'BD-13321' # known error
-        try:
-            new_values.append(values[returned_ids.index(star)])
-        except ValueError:
-            new_values.append([np.nan] * len(values[0]))
+        _star = star.replace(' ', '')
+        # known error
+        _star = 'BD-13321' if _star == 'BD-130321' else _star
+
+        if _star in returned_ids:
+            new_values.append(values[returned_ids.index(_star)])
+        else:
+            print(_star)
+            new_values.append([])
+    # print(new_values)
+    # print(stars)
+    # raise ValueError
+    # for star in stars:
+    #     if star not in returned_ids:
+    #         if star.startswith('BD'):
+    #             star = star[:5] + star[5:].replace('0', '')
+    #         # if star == 'BD-130321': star = 'BD-13321' # known error
+    #     try:
+    #         new_values.append(values[returned_ids.index(star)])
+    #     except ValueError:
+    #         new_values.append([np.nan] * len(values[0]))
     return new_values
 
 
@@ -517,14 +530,17 @@ class list_simbad:
             except ValueError:
                 filters[main_id][filter_name] = float(mag)
         
-        filts = ['B', 'V', 'G', 'H', 'I', 'J', 'K', 'R']
+        filts = ['B', 'V', 'G', 'H', 'I', 'J', 'K', 'R', 'U', 'g', 'r', 'i', 'u', 'z']
         for filt in filts:
             setattr(self, '_' + filt, [])
 
         for main_id in self.main_id:
             if main_id in filters:
                 for f, v in filters[main_id].items():
-                    getattr(self, '_' + f).append(v)
+                    try:
+                        getattr(self, '_' + f).append(v.nominal_value)
+                    except AttributeError:
+                        getattr(self, '_' + f).append(v)
                 for f in set(filts) - set(filters[main_id].keys()):
                     getattr(self, '_' + f).append(np.nan)
             else:
