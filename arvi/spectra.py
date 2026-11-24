@@ -1,16 +1,32 @@
 import os
 from glob import glob
 import pickle
+from multiprocessing.pool import ThreadPool
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .setup_logger import logger
+from .setup_logger import setup_logger
 
 from tqdm import tqdm
 import astropy.units as u, astropy.constants as const
 from astropy.io import fits
 
-def doppler_shift(wave: np.ndarray, flux: np.ndarray, velocity: float):
+try:
+    from SNT import normalize_spectra
+    from SNT.utils.SNT_configs import construct_SNT_configs
+    SNT_available = True
+except ImportError:
+    SNT_available = False
+
+
+def get_KEYWORD(paths: list[str | Path], keyword: str) -> list[str]:
+    def get(file):
+        return fits.getval(file.as_posix(), keyword)
+    paths = [Path(p) for p in paths]
+    with ThreadPool(8) as pool:
+        keywords = pool.map(get, paths)
+    return keywords
     """ Doppler shift a spectrum by a given velocity
 
     Args:
@@ -112,12 +128,25 @@ def detrend(w, f):
         f_detrended[i] = ff - fit + np.median(ff[m])
     return w, f_detrended
 
-def build_master(self, limit=None, plot=True):
-    files = sorted(glob(f'{self.star}_downloads/*S1D_A.fits'))
+def build_master(self, limit=None, rv_shift=True, normalize=False, 
+                 instrument=None, highest_snr=None,
+                 plot=True, show_all_spectra=True):
+    
+    logger = setup_logger()
+
+    files = self.get_s1d_paths(instrument=instrument)
+    # files = sorted(glob(f'{self.star}_downloads/*S1D_A.fits'))
     if self.verbose:
         logger.info(f'found {len(files)} S1D files')
 
     files = files[:limit]
+
+    if highest_snr is not None:
+        snr = get_KEYWORD(files, 'HIERARCH ESO QC ORDER50 SNR')
+        snr = np.argsort(snr)[-highest_snr:]
+        files = np.array(files)[snr].tolist()
+        if self.verbose:
+            logger.info(f'using the {highest_snr} highest SNR spectra')
 
     if len(files) == 0:
         if self.verbose:
@@ -125,28 +154,90 @@ def build_master(self, limit=None, plot=True):
         return
 
     if plot:
-        fig, axs = plt.subplots(2, 1, figsize=(9, 6), sharex=True, constrained_layout=True)
+        nrows = 2 if show_all_spectra else 1
+        nrows += 1 if normalize else 0
+        fig, axs = plt.subplots(nrows, 1, sharex=True, constrained_layout=True,
+                                # figsize=(9, 6)
+                                )
+        axs = np.atleast_1d(axs)
         for ax in axs:
-            ax.set(xlabel=r'wavelength air [$\AA$]', ylabel='flux')
+            ax.set(xlabel=r'wavelength vaccum [$\AA$]', ylabel='flux')
         axs[0].set_title(self.star, loc='right', fontsize=10)
 
-    w0 = fits.getdata(files[0])['wavelength_air']
-    master_flux = np.zeros_like(w0)
-    for file in files:
-        rv = fits.getval(file, '*CCF RV')[0]
-        flux = fits.getdata(file)['flux']
-        _, new_flux = doppler_shift(w0, flux, rv)
-        master_flux += new_flux
-        if plot:
+    data = [fits.getdata(f) for f in files]
+    # index of spectra with the lowest wavelength range
+    i = np.argmin([np.ptp(d["wavelength"][d["quality"] == 0]) for d in data])
+    print(i, files[i])
+    w0 = data[i]["wavelength"]
+    qual = data[i]["quality"] == 0
+    # w0 = fits.getdata(files[0])['wavelength']
+    print(f'wavelength range: {w0[qual].min():.2f} - {w0[qual].max():.2f} Å')
+
+    master_flux = []
+    master_flux_err = []
+
+    for i, file in enumerate(files):
+        if rv_shift:
+            if isinstance(rv_shift, float):
+                rv = rv_shift
+            else:
+                rv = fits.getval(file, '*CCF RV')[0]
+
+            print(f'{file}: shifting by {rv} km/s')
+            flux = fits.getdata(file)['flux']
+            _, new_flux = doppler_shift(w0, flux, rv)
+        else:
+            new_flux = fits.getdata(file)['flux']
+
+        master_flux.append(new_flux)
+        master_flux_err.append(fits.getdata(file)['error'])
+
+        if plot and show_all_spectra:
             axs[0].plot(w0, new_flux, alpha=0.5)
 
-    master_flux /= len(files)
-    if plot:
-        axs[1].plot(w0, master_flux, 'k', label='master')
-        axs[1].legend()
-        axs[0].legend([], [], title=f'{len(files)} S1D spectra')
+    master_flux = np.array(master_flux)
+    master_flux = np.nansum(master_flux, axis=0)
 
-    return w0, master_flux
+    master_flux_err = np.array(master_flux_err)
+    master_flux_err = np.nansum(master_flux_err**2, axis=0)**0.5
+
+    continuum = np.ones_like(w0)
+
+    if normalize:
+        H = fits.getheader(files[0])
+        n = w0.size
+        # config = SNT_Configs(
+        #     remove_n_first=int((master_flux[:n//4] == 0).sum()),
+        #     remove_n_last=int((master_flux[-n//4:] == 0).sum())
+        # )
+        continuum = normalize_spectra(w0, master_flux, 
+                                      H, '.', 
+                                    #   config, 
+                                      store_to_disk=False)
+        continuum = continuum[0]
+
+    if plot:
+        ax_m = axs[1] if show_all_spectra else axs[0]
+        ax_m.plot(w0, master_flux, 'k', label='master')
+        ax_m.legend()
+        if normalize:
+            ax_m.plot(w0, continuum, 'r', label='continuum')
+            # axs[-1].plot(w0, (master_flux / continuum) * np.nanmedian(continuum), 'k', label='normalized master')
+            axs[-1].plot(w0, (master_flux / continuum), 'k', label='normalized master')
+        # axs[2].plot(w0, master_flux / np.nanmedian(master_flux),
+        #             'k', label='normalized master')
+        # axs[2].legend()
+        if show_all_spectra:
+            axs[0].legend([], [], title=f'{len(files)} S1D spectra')
+
+    if normalize:
+        master_flux = (master_flux / continuum) #* np.nanmedian(continuum)
+        master_flux_err = (master_flux_err / continuum) #* np.nanmedian(continuum)
+
+    if plot:
+        return w0, master_flux, master_flux_err, continuum, (fig, axs)
+    else:
+        return w0, master_flux, master_flux_err, continuum, None
 
 
 def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
