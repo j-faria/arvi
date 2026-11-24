@@ -27,6 +27,9 @@ def get_KEYWORD(paths: list[str | Path], keyword: str) -> list[str]:
     with ThreadPool(8) as pool:
         keywords = pool.map(get, paths)
     return keywords
+
+def doppler_shift(wave: np.ndarray, flux: np.ndarray, velocity: float,
+                  interpolate=True):
     """ Doppler shift a spectrum by a given velocity
 
     Args:
@@ -37,8 +40,10 @@ def get_KEYWORD(paths: list[str | Path], keyword: str) -> list[str]:
     c = const.c.to(u.km/u.second).value
     doppler_factor = np.sqrt((1 + velocity/c) / (1 - velocity/c))
     new_wavelength = wave * doppler_factor
-    new_flux = np.interp(new_wavelength, wave, flux)
-    return new_wavelength, new_flux
+    if interpolate:
+        new_flux = np.interp(new_wavelength, wave, flux)
+        return new_wavelength, new_flux
+    return new_wavelength
 
 def fit_gaussian_to_line(wave, flux, center_wavelength, around=0.15 * u.angstrom,
                          careful_continuum=False, plot=True, ax=None):
