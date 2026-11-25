@@ -47,6 +47,7 @@ def doppler_shift(wave: np.ndarray, flux: np.ndarray, velocity: float,
 
 def fit_gaussian_to_line(wave, flux, center_wavelength, around=0.15 * u.angstrom,
                          careful_continuum=False, plot=True, ax=None):
+    logger = setup_logger()
     from scipy.optimize import curve_fit
     if center_wavelength < wave.min() or center_wavelength > wave.max():
         raise ValueError('`center_wavelength` is outside the wavelength range')
@@ -245,7 +246,9 @@ def build_master(self, limit=None, rv_shift=True, normalize=False,
         return w0, master_flux, master_flux_err, continuum, None
 
 
+# old, from EWs
 def determine_stellar_parameters(self, linelist: str, plot=True, **kwargs):
+    logger = setup_logger()
     try:
         from juliacall import Main as jl
         jl.seval("using Korg")
