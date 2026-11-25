@@ -405,6 +405,35 @@ class simbad:
         warnings.warn('setting B to match provided B-V', RuntimeWarning)
         self.B = self.V + value
 
+    @property
+    def ra_hourangle_str(self):
+        from astropy.coordinates import Angle
+        from astropy.units import deg, hourangle
+        kw = {'sep': ':', 'pad': True}
+        return str(Angle(self.ra, unit=deg).to(hourangle).to_string(**kw))
+
+    @property
+    def dec_deg_str(self):
+        from astropy.coordinates import Angle
+        from astropy.units import deg
+        kw = {'sep': ':', 'pad': True}
+        return str(Angle(self.dec, unit=deg).to_string(**kw))
+
+    @property
+    def _masked_header_str(self):
+        if isinstance(self.main_id, float) and np.isnan(self.main_id):
+            return self.star
+        fields = (
+            self.main_id.replace('"', ''),
+            self.ra_hourangle_str,
+            self.dec_deg_str,
+            str(round(self.pmra / 1e3, 7)),
+            str(round(self.pmdec / 1e3, 7)),
+            str(self.rvz_radvel),
+            self.sp_type,
+        )
+        return ', '.join(fields)
+
     @classmethod
     def from_ra_dec(cls, ra, dec, **kwargs):
         table1 = run_query(query=RA_DEC_QUERY.format(ra=ra, dec=dec))
@@ -427,6 +456,7 @@ def pluralize(query, star_tuple=None):
 
 def _get_sorted_values(values, stars):
     returned_ids = [v[0].replace('"','').replace(' ', '') for v in values]
+    n = len(values[0])
     new_values = []
     for star in stars:
         _star = star.replace(' ', '')
@@ -436,8 +466,7 @@ def _get_sorted_values(values, stars):
         if _star in returned_ids:
             new_values.append(values[returned_ids.index(_star)])
         else:
-            print(_star)
-            new_values.append([])
+            new_values.append([None] * n)
     # print(new_values)
     # print(stars)
     # raise ValueError
@@ -473,14 +502,13 @@ class list_simbad:
         for col, vals in zip(cols, list(zip(*new_values))):
             try:
                 vals = list(map(float, vals))
-            except ValueError:
+            except (ValueError, TypeError):
                 pass
             try:
-                vals = [v.replace('"', '') for v in vals]
+                vals = [v.replace('"', '') if v else '' for v in vals]
             except AttributeError:
                 pass
             setattr(self, col, vals)
-
 
         Q = pluralize(BV_QUERY, star_tuple=self.starst)
         table = run_query(query=Q, timeout=_timeout)
@@ -488,32 +516,39 @@ class list_simbad:
         new_values = _get_sorted_values(values, self.stars)
         self.B, self.V = [], []
         for vals in new_values:
+            _, b, v = vals
             try:
-                self.B.append(float(vals[1]))
-            except ValueError:
+                self.B.append(float(b) if b else None)
+            except (ValueError, IndexError):
                 self.B.append(np.nan)
             try:
-                self.V.append(float(vals[2]))
-            except ValueError:
+                self.V.append(float(v) if v else None)
+            except (ValueError, IndexError):
                 self.V.append(np.nan)
 
         Q = pluralize(OTYPE_QUERY, star_tuple=self.starst)
         table = run_query(query=Q, timeout=_timeout)
         cols, values = parse_tablen(table)
         new_values = _get_sorted_values(values, self.stars)
-        self.otype = [v[1].replace('"', '') for v in new_values]
+        self.otype = [
+            v[1].replace('"', '') if isinstance(v[1], str) else '' 
+            for v in new_values
+        ]
 
         Q = pluralize(IDS_QUERY, star_tuple=self.starst)
         table = run_query(query=Q, timeout=_timeout)
         cols, values = parse_tablen(table)
         new_values = _get_sorted_values(values, self.stars)
-        self.ids = [
-            v for v in new_values
-        ]
+        self.ids = [v for v in new_values]
+        self.ids = [list(filter(lambda x: x is not None, i)) for i in self.ids]
+        self.ids = [[str(i).replace('"', '') for i in ids] for ids in self.ids]
+
         self.gaia_id = [
-            int(i.split("Gaia DR3")[1]) for ids in self.ids
-            for i in ids if "Gaia DR3" in i
+            list(filter(lambda x: "Gaia DR3" in x, i)) 
+            for i in self.ids
         ]
+        self.gaia_id = [gid[0] if len(gid) > 0 else '' for gid in self.gaia_id]
+        self.gaia_id = [int(gid.replace('Gaia DR3 ', '')) if gid else None for gid in self.gaia_id]
 
         Q = pluralize(FILTERS_QUERY, star_tuple=self.starst)
         table = run_query(query=Q) # timeout=_timeout
@@ -574,11 +609,12 @@ class list_simbad:
             except KeyError:
                 self.measurements.append(None)
 
-        self.plx = self.plx_value
+        self.plx = [float(p) if p else None for p in self.plx_value]
         del self.plx_value
 
         self.coords = [
-            SkyCoord(ra, dec, unit='deg') for ra, dec in zip(self.ra, self.dec)
+            SkyCoord(ra, dec, unit='deg') if ra and dec else None
+            for ra, dec in zip(self.ra, self.dec)
         ]
 
     @property
