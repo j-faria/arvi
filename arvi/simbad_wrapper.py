@@ -460,8 +460,10 @@ def _get_sorted_values(values, stars):
     new_values = []
     for star in stars:
         _star = star.replace(' ', '')
-        # known error
-        _star = 'BD-13321' if _star == 'BD-130321' else _star
+        # known errors
+        if _star.startswith('BD'):
+            _star = _star.replace(_star[5:-2], '')
+        # _star = 'BD-13321' if _star == 'BD-130321' else _star
 
         if _star in returned_ids:
             new_values.append(values[returned_ids.index(_star)])

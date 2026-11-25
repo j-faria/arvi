@@ -134,14 +134,16 @@ def detrend(w, f):
         f_detrended[i] = ff - fit + np.median(ff[m])
     return w, f_detrended
 
-def build_master(self, limit=None, rv_shift=True, normalize=False, 
+def build_master(self, files=None, limit=None, rv_shift=True, normalize=False, 
                  instrument=None, highest_snr=None,
                  plot=True, show_all_spectra=True):
     
     logger = setup_logger()
 
-    files = self.get_s1d_paths(instrument=instrument)
-    # files = sorted(glob(f'{self.star}_downloads/*S1D_A.fits'))
+    if files is None:
+        files = self.get_s1d_paths(instrument=instrument)
+        # files = sorted(glob(f'{self.star}_downloads/*S1D_A.fits'))
+
     if self.verbose:
         logger.info(f'found {len(files)} S1D files')
 
