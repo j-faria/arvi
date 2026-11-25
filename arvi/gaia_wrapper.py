@@ -55,7 +55,10 @@ def run_query(query):
         raise IndexError(err)
     except requests.ConnectionError as err:
         raise IndexError(err)
-    return response.content.decode()
+    content = response.content.decode()
+    if '<!doctype html>' in content.lower():
+        raise IndexError('bad response from archive')
+    return content
 
 def parse_csv(csv):
     reader = DictReader(StringIO(csv))
