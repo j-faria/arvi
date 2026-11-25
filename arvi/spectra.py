@@ -169,14 +169,18 @@ def build_master(self, files=None, limit=None, rv_shift=True, normalize=False,
                                 )
         axs = np.atleast_1d(axs)
         for ax in axs:
-            ax.set(xlabel=r'wavelength vaccum [$\AA$]', ylabel='flux')
+            if air:
+                ax.set(xlabel=r'wavelength air [$\AA$]', ylabel='flux')
+            else:
+                ax.set(xlabel=r'wavelength vaccum [$\AA$]', ylabel='flux')
         axs[0].set_title(self.star, loc='right', fontsize=10)
 
     data = [fits.getdata(f) for f in files]
     # index of spectra with the lowest wavelength range
-    i = np.argmin([np.ptp(d["wavelength"][d["quality"] == 0]) for d in data])
+    key = 'wavelength_air' if air else 'wavelength'
+    i = np.argmin([np.ptp(d[key][d["quality"] == 0]) for d in data])
     print(i, files[i])
-    w0 = data[i]["wavelength"]
+    w0 = data[i][key]
     qual = data[i]["quality"] == 0
     # w0 = fits.getdata(files[0])['wavelength']
     print(f'wavelength range: {w0[qual].min():.2f} - {w0[qual].max():.2f} Å')
