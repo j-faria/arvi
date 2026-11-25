@@ -135,7 +135,7 @@ def detrend(w, f):
     return w, f_detrended
 
 def build_master(self, files=None, limit=None, rv_shift=True, normalize=False, 
-                 instrument=None, highest_snr=None,
+                 instrument=None, highest_snr=None, air=False,
                  plot=True, show_all_spectra=True):
     
     logger = setup_logger()
